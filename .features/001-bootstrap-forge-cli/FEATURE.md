@@ -11,6 +11,12 @@ Construire un CLI Node.js global installable (nom de travail: `feature-cli`) qui
   * `DECISIONS.md` (décisions actées + raisons)
   * `NOTES.md` (contexte brut)
 * Une feature active est pointée via `.features/.active` (non commit ou commit, à définir).
+* Un fichier `.feat-forge.json` définit le "root" de travail et les repos git cibles.
+* Le repo principal (first ou `mainRepo`) porte `.features` et `.active`.
+* Les worktrees sont créés hors des repos, dans un dossier `features/` sibling des repos.
+* Pour multi-repos: `features/<slug>/<repoName>` pour chaque repo configuré.
+* `feature create/use` créent d'abord la branche, initialisent la spec dans cette branche (commit si besoin), puis créent le worktree.
+* Les templates spec peuvent être surchargés via `.features/.template/` (repo) ou `~/.feat-forge/template/`.
 * Les agents doivent toujours suivre ces 4 fichiers dans cet ordre : Instructions → Status → Decisions → Notes.
 * Les “adapter files” (AGENT_CONTEXT.md, CLAUDE.md, copilot instructions, prompt files) sont **générés** à partir du canonique et **ne sont pas commit** (sauf décision contraire).
 
