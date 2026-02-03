@@ -32,6 +32,11 @@ Construire un CLI Node.js global installable (nom de travail: `feature-cli`) qui
 
   * met à jour `.features/.active`
   * (optionnel) appelle `sync adapters`
+* `feature stop <slug>`
+
+  * si worktrees clean: supprime les worktrees, supprime le dossier `features/<slug>/`, retire `.active` si match
+  * si worktrees dirty: propose commit (message requis) / abort / discard (confirmation)
+* Les commandes prenant un `<slug>` doivent le valider/sanitizer et demander confirmation si modifié.
 
 ### Spec
 

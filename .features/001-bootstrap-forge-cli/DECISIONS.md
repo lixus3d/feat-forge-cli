@@ -7,3 +7,5 @@
 * Override templates: `.features/.template/` (repo) puis `~/.feat-forge/template/` (global), puis fallback intégré.
 * `forge init` génère un `.feat-forge.json` minimal dans le dossier courant.
 * Initialisation spec via worktree temporaire et commit dans la branche feature pour rendre les fichiers disponibles dans les worktrees.
+* `feature stop` propose commit/abort/discard si worktrees dirty, sinon supprime worktrees + dossier `features/<slug>`.
+* Slug user input: sanitize (filesystem/git-safe) et demander confirmation si modifié.

@@ -14,3 +14,4 @@
 * [x] add template override resolution (.features/.template -> ~/.feat-forge/template -> default)
 * [x] refactor command handlers to reusable classes (no inline commander action logic)
 * [x] add `forge init` to scaffold `.feat-forge.json`
+* [x] add `feature stop` command (clean/dirty handling)
