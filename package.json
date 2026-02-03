@@ -1,0 +1,26 @@
+{
+  "name": "feat-forge",
+  "version": "0.1.0",
+  "description": "Feature-first CLI workflow tool",
+  "license": "AGPL-3.0-only",
+  "bin": {
+    "forge": "dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
+    "dev": "node dist/cli.js --help"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "execa": "^9.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.6.3"
+  }
+}
