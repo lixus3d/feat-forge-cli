@@ -1,10 +1,13 @@
 import path from "path";
+import { rm } from "fs/promises";
 import { Command } from "commander";
-import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
+import { ensureDir, pathExists, readTextFile, writeTextFile } from "../lib/fs";
 import { FEATURE_FILES, resolveTemplate, templateFor } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
 import { getGitStatusPorcelain, gitBranchExists, runGit } from "../lib/git";
 import { loadForgeConfig } from "../lib/config";
+import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
+import { confirmSlugOrThrow } from "../lib/slug";
 
 /**
  * Ensure the spec files exist for a feature directory without overwriting existing files.
@@ -36,6 +39,17 @@ async function setActiveFeature(repoRoot: string, slug: string): Promise<void> {
 }
 
 class FeatureCommands {
+  /**
+   * Resolve the configured main repo name or throw if missing.
+   */
+  private getMainRepoName(repoNames: Map<string, string>, mainRepoRoot: string): string {
+    const mainRepoName = repoNames.get(mainRepoRoot);
+    if (!mainRepoName) {
+      throw new Error(`Missing repo name for ${mainRepoRoot}`);
+    }
+    return mainRepoName;
+  }
+
   /**
    * Ensure the feature branch exists for a repo, without checking it out.
    */
@@ -74,6 +88,8 @@ class FeatureCommands {
       }
     } finally {
       await runGit(repoRoot, ["worktree", "remove", "--force", tempWorktree]);
+      // Cleanup temp directory
+      await rm(tempWorktree, { recursive: true, force: true });
     }
   }
 
@@ -81,44 +97,40 @@ class FeatureCommands {
    * Create a new feature folder and initialize missing spec files.
    */
   async create(slug: string): Promise<void> {
+    const safeSlug = await confirmSlugOrThrow(slug);
     const { mainRepoRoot, repoRoots, repoNames, rootDir } = await loadForgeConfig();
-    const branchName = `feature/${slug}`;
+    const branchName = `feature/${safeSlug}`;
 
     for (const repoRoot of repoRoots) {
       await this.ensureBranchExists(repoRoot, branchName);
     }
 
-    const mainRepoName = repoNames.get(mainRepoRoot);
-    if (!mainRepoName) {
-      throw new Error(`Missing repo name for ${mainRepoRoot}`);
-    }
+    const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
 
     const tempRoot = path.join(rootDir, ".feat-forge", "tmp", "feature-init");
-    await this.initSpecInBranch(mainRepoRoot, mainRepoName, slug, branchName, tempRoot);
+    await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
 
-    await setActiveFeature(mainRepoRoot, slug);
+    await setActiveFeature(mainRepoRoot, safeSlug);
   }
 
   /**
    * Switch to a feature branch/worktree and update active feature pointer.
    */
   async use(slug: string): Promise<void> {
+    const safeSlug = await confirmSlugOrThrow(slug);
     const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir } = await loadForgeConfig();
-    const branchName = `feature/${slug}`;
+    const branchName = `feature/${safeSlug}`;
 
     for (const repoRoot of repoRoots) {
       await this.ensureBranchExists(repoRoot, branchName);
     }
 
-    const mainRepoName = repoNames.get(mainRepoRoot);
-    if (!mainRepoName) {
-      throw new Error(`Missing repo name for ${mainRepoRoot}`);
-    }
+    const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
 
     const tempRoot = path.join(rootDir, ".feat-forge", "tmp", "feature-init");
-    await this.initSpecInBranch(mainRepoRoot, mainRepoName, slug, branchName, tempRoot);
+    await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
 
-    const featureRoot = path.join(worktreesRoot, slug);
+    const featureRoot = path.join(worktreesRoot, safeSlug);
     await ensureDir(featureRoot);
 
     for (const repoRoot of repoRoots) {
@@ -138,7 +150,106 @@ class FeatureCommands {
       }
     }
 
-    await setActiveFeature(mainRepoRoot, slug);
+    await setActiveFeature(mainRepoRoot, safeSlug);
+  }
+
+  /**
+   * Stop a feature by removing its worktrees and clearing active pointer.
+   */
+  async stop(slug: string): Promise<void> {
+    const safeSlug = await confirmSlugOrThrow(slug);
+    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot } = await loadForgeConfig();
+    const featureRoot = path.join(worktreesRoot, safeSlug);
+
+    const worktrees = repoRoots.map((repoRoot) => {
+      const repoName = repoNames.get(repoRoot);
+      if (!repoName) {
+        throw new Error(`Missing repo name for ${repoRoot}`);
+      }
+      return { repoRoot, repoName, worktreePath: path.join(featureRoot, repoName) };
+    });
+
+    const dirtyWorktrees = [];
+    for (const worktree of worktrees) {
+      if (!(await pathExists(worktree.worktreePath))) {
+        continue;
+      }
+      const status = await getGitStatusPorcelain(worktree.worktreePath);
+      if (status) {
+        dirtyWorktrees.push(worktree);
+      }
+    }
+
+    if (dirtyWorktrees.length > 0) {
+      const action = await this.promptDirtyAction();
+
+      if (action === "B") {
+        return;
+      }
+
+      if (action === "A") {
+        const message = await promptText("Commit message to use");
+        if (!message) {
+          throw new Error("Commit message is required.");
+        }
+
+        for (const worktree of dirtyWorktrees) {
+          await runGit(worktree.worktreePath, ["add", "-A"]);
+          await runGit(worktree.worktreePath, ["commit", "-m", message]);
+          const status = await getGitStatusPorcelain(worktree.worktreePath);
+          if (status) {
+            throw new Error(`Worktree still dirty after commit: ${worktree.worktreePath}`);
+          }
+        }
+      }
+
+      if (action === "C") {
+        const confirmed = await promptConfirm("This will discard local changes. Proceed?");
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
+    for (const worktree of worktrees) {
+      if (!(await pathExists(worktree.worktreePath))) {
+        continue;
+      }
+      await runGit(worktree.repoRoot, ["worktree", "remove", "--force", worktree.worktreePath]);
+    }
+
+    if (await pathExists(featureRoot)) {
+      await rm(featureRoot, { recursive: true, force: true });
+    }
+
+    const activePath = activeFeatureFile(mainRepoRoot);
+    if (await pathExists(activePath)) {
+      const activeSlug = (await readTextFile(activePath)).trim();
+      if (activeSlug === safeSlug) {
+        await rm(activePath, { force: true });
+      }
+    }
+  }
+
+  /**
+   * Prompt the user for a dirty-worktree action until a valid answer is provided.
+   */
+  private async promptDirtyAction(): Promise<"A" | "B" | "C"> {
+    while (true) {
+      const answer = await promptChoice(
+        "Worktrees contain uncommitted changes. Choose an action:",
+        [
+          { key: "A", label: "Commit work in all dirty worktrees" },
+          { key: "B", label: "Stop here and do nothing" },
+          { key: "C", label: "Discard work and remove worktrees" },
+        ],
+      );
+
+      const normalized = answer.trim().toUpperCase();
+      if (normalized === "A" || normalized === "B" || normalized === "C") {
+        return normalized;
+      }
+    }
   }
 }
 
@@ -168,4 +279,14 @@ export function registerFeatureCommands(program: Command): void {
     .argument("<slug>", "Feature slug")
     .description("Switch to a feature branch/worktree and activate it")
     .action(useFeature);
+
+  function stopFeature(slug: string): Promise<void> {
+    return handlers.stop(slug);
+  }
+
+  feature
+    .command("stop")
+    .argument("<slug>", "Feature slug")
+    .description("Stop a feature and remove its worktrees")
+    .action(stopFeature);
 }

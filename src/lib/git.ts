@@ -27,8 +27,8 @@ export async function runGit(repoRoot: string, args: string[]): Promise<void> {
 /**
  * Return git status porcelain output for the given working directory.
  */
-export async function getGitStatusPorcelain(repoRoot: string): Promise<string> {
-  const result = await execa("git", ["status", "--porcelain"], { cwd: repoRoot });
+export async function getGitStatusPorcelain(cwd: string): Promise<string> {
+  const result = await execa("git", ["status", "--porcelain"], { cwd });
   return result.stdout.trim();
 }
 
