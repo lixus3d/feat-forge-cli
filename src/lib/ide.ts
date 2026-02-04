@@ -1,7 +1,7 @@
 import path from "path";
 import { writeFile } from "fs/promises";
 import { IDEName, IDE, Agent } from "./config";
-import { pathExists } from "./fs";
+import { ensureDir, pathExists } from "./fs";
 
 /**
  * VSCode workspace configuration
@@ -42,32 +42,39 @@ export async function createIDEWorkspaces(
  * Also works for Cursor and Windsurf which use the same format
  */
 async function createVSCodeWorkspace(
-  featureSlug: string,
-  workspacePath: string,
-  ide: IDE,
-  mainRepoName: string,
-  repoNames: Map<string, string>,
-  agents: Agent[],
+    featureSlug: string,
+    workspacePath: string,
+    ide: IDE,
+    mainRepoName: string,
+    repoNames: Map<string, string>,
+    agents: Agent[],
 ): Promise<void> {
-  const workspaceFileName = `${featureSlug}.code-workspace`;
-  const workspaceFilePath = path.join(workspacePath, workspaceFileName);
+    const workspaceFileName = `${featureSlug}.code-workspace`;
+    const workspaceFilePath = path.join(workspacePath, workspaceFileName);
 
-  // Check if workspace already exists
-  if (await pathExists(workspaceFilePath)) {
-    console.log(`Workspace file already exists: ${workspaceFileName}`);
-    return;
-  }
+    // Check if workspace already exists
+    if (await pathExists(workspaceFilePath)) {
+        console.log(`Workspace file already exists: ${workspaceFileName}`);
+        return;
+    }
 
-  // Build workspace settings
-  const settings = { ...getDefaultIDESettings(mainRepoName, ide.name), ...ide.settings };
+    // Build workspace settings
+    const settings = { ...getDefaultIDESettings(mainRepoName, ide.name), ...ide.settings };
 
-  const workspace: VSCodeWorkspace = {
-    folders: Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` })),
-    settings,
-  };
+    const workspace: VSCodeWorkspace = {
+        folders: Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` })),
+        settings,
+    };
 
-  await writeFile(workspaceFilePath, JSON.stringify(workspace, null, 2), "utf8");
-  console.log(`Created ${ide.name} workspace: ${workspaceFileName}`);
+    await writeFile(workspaceFilePath, JSON.stringify(workspace, null, 2), "utf8");
+    console.log(`Created ${ide.name} workspace: ${workspaceFileName}`);
+
+    // we also needs to create .vscode/settings.json in workspacePath to configure agent instruction files location
+    const vscodeDir = path.join(workspacePath, ".vscode");
+    const settingsPath = path.join(vscodeDir, "settings.json");
+    await ensureDir(vscodeDir);
+
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2), "utf8");
 }
 
 /**
