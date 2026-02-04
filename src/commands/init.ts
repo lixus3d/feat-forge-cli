@@ -1,6 +1,7 @@
 import path from "path";
 import { Command } from "commander";
-import { pathExists, writeTextFile } from "../lib/fs";
+import { pathExists, writeTextFile, ensureDir } from "../lib/fs";
+import { ensureAgentTemplates } from "../lib/templates";
 
 class InitCommands {
   /**
@@ -22,6 +23,12 @@ class InitCommands {
       2,
     );
     await writeTextFile(targetPath, `${contents}\n`);
+    
+    // Initialize agent templates in .features/.template/agent/
+    const repoRoot = process.cwd();
+    await ensureAgentTemplates(repoRoot);
+    
+    console.log("Initialized .feat-forge.json and agent templates");
   }
 }
 

@@ -2,7 +2,7 @@ import path from "path";
 import { rm, symlink } from "fs/promises";
 import { Command } from "commander";
 import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
-import { FEATURE_FILES, resolveTemplate, templateFor } from "../lib/templates";
+import { FEATURE_FILES, resolveTemplate, templateFor, ensureAgentTemplates } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
 import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit } from "../lib/git";
 import { loadForgeConfig } from "../lib/config";
@@ -11,9 +11,12 @@ import { confirmSlugOrThrow } from "../lib/slug";
 
 /**
  * Ensure the spec files exist for a feature directory without overwriting existing files.
+ * Also creates the agent subdirectory (empty, ready for symlinks).
  */
 async function ensureFeatureFiles(repoRoot: string, targetDir: string): Promise<void> {
   await ensureDir(targetDir);
+
+  // Create main feature files
   for (const fileName of FEATURE_FILES) {
     const filePath = path.join(targetDir, fileName);
     if (await pathExists(filePath)) {
@@ -22,6 +25,11 @@ async function ensureFeatureFiles(repoRoot: string, targetDir: string): Promise<
     const resolved = await resolveTemplate(repoRoot, fileName);
     await writeTextFile(filePath, resolved ?? templateFor(fileName));
   }
+
+  // Create agent subdirectory (but don't populate with templates)
+  // Templates will be accessed via symlinks to .features/.template/agent/
+  const agentDir = path.join(targetDir, "agent");
+  await ensureDir(agentDir);
 }
 
 /**
@@ -61,6 +69,9 @@ class FeatureCommands {
     const safeSlug = await confirmSlugOrThrow(slug);
     const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir } = await loadForgeConfig();
     const branchName = `feature/${safeSlug}`;
+
+    // Ensure agent templates exist in .features/.template/agent/
+    await ensureAgentTemplates(mainRepoRoot);
 
     for (const repoRoot of repoRoots) {
       await this.ensureBranchExists(repoRoot, branchName);
