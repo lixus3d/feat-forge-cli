@@ -9,7 +9,7 @@ import { Agent, IDE, ForgeContext } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
 import { createIDEWorkspaces } from "../lib/ide";
-import { ForgeMode, ModeCommands } from "./mode";
+import { ModeCommands } from "./mode";
 import { AbstractCommands } from "./abstract";
 
 /**

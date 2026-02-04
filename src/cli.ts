@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { registerAgentCommands } from "./commands/agent";
 import { registerFeatureCommands } from "./commands/feature";
 import { registerInitCommands } from "./commands/init";
 import { registerModeCommands } from "./commands/mode";
@@ -31,6 +32,7 @@ async function main() {
 
   registerFeatureCommands(program, config);
   registerModeCommands(program, config);
+  registerAgentCommands(program, config);
 
   await program.parseAsync(process.argv);
 }
