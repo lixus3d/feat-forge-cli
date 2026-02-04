@@ -4,6 +4,7 @@ import { registerAgentCommands } from "./commands/agent";
 import { registerFeatureCommands } from "./commands/feature";
 import { registerInitCommands } from "./commands/init";
 import { registerModeCommands } from "./commands/mode";
+import { registerMergeCommands } from "./commands/merge";
 import { loadForgeConfig, ForgeContext } from "./lib/config";
 
 /**
@@ -33,6 +34,7 @@ async function main() {
   registerFeatureCommands(program, config);
   registerModeCommands(program, config);
   registerAgentCommands(program, config);
+  registerMergeCommands(program, config);
 
   await program.parseAsync(process.argv);
 }

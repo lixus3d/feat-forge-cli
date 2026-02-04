@@ -1,5 +1,0 @@
-# CUSTOM DECISIONS
-
-*
-*
-*
