@@ -12,9 +12,8 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
 2. **Do not implement code blindly.**
    - If requirements are unclear or missing, propose updates to the spec files first (as a patch).
 
-3. **Prefer patch-based workflows.**
-   - Propose changes as diffs.
-   - Keep commits small and atomic.
+3. **Prefer small increment workflow**
+   - Keep commits/changes small and atomic.
    - Avoid large, sweeping refactors unless explicitly requested.
 
 4. **Always keep the spec in sync.**
