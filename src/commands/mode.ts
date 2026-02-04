@@ -17,12 +17,13 @@ class ModeCommands {
    * Set the current mode and refresh agent adapters for the active feature.
    */
   async setMode(mode: ForgeMode): Promise<void> {
-    const { agentAdapters } = await loadForgeConfig();
+    const { agents } = await loadForgeConfig();
     const gitRoot = await findGitRoot();
     const { featurePath } = await resolveActiveFeature(gitRoot);
 
     await this.writeModeFile(featurePath, mode);
-    await this.refreshAdapters(featurePath, agentAdapters, mode);
+    const adapterFiles = agents.map(a => a.agentFile);
+    await this.refreshAdapters(featurePath, adapterFiles, mode);
   }
 
   private async writeModeFile(featurePath: string, mode: ForgeMode): Promise<void> {

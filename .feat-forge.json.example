@@ -1,0 +1,25 @@
+{
+  "repoPaths": ["./feat-forge-cli"],
+  "mainRepo": "feat-forge-cli",
+  "worktreesPath": "features",
+  "agents": [
+    "Claude",
+    "Copilot",
+    {
+      "name": "Custom",
+      "agentFile": "CUSTOM_AGENT_FILE.md"
+    },
+    "custom-agent.md"
+  ],
+  "ides": [
+    "VSCode",
+    {
+      "name": "VSCode",
+      "settings": {
+        "chat.instructionsFilesLocations": {
+          "custom-path/": true
+        }
+      }
+    }
+  ]
+}

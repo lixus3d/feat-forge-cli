@@ -5,9 +5,10 @@ import { ensureDir, pathExists, writeTextFile, ensureGitIgnore } from "../lib/fs
 import { FEATURE_FILES, resolveTemplate, templateFor, ensureAgentTemplates } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
 import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit, getCurrentBranch, checkoutBranch, getWorktrees, removeOrphanedWorktree } from "../lib/git";
-import { loadForgeConfig } from "../lib/config";
+import { Agent, IDE, loadForgeConfig } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
+import { createIDEWorkspaces } from "../lib/ide";
 
 /**
  * Ensure the spec files exist for a feature directory without overwriting existing files.
@@ -82,9 +83,11 @@ class FeatureCommands {
     repoNames: Map<string, string>;
     worktreesRoot: string;
     rootDir: string;
+    agents: Agent[];
+    ides: IDE[];
   }> {
     const safeSlug = await confirmSlugOrThrow(slug);
-    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir } = await loadForgeConfig();
+    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides } = await loadForgeConfig();
     const branchName = `feature/${safeSlug}`;
 
     // Ensure agent templates exist in .features/.template/agent/
@@ -99,7 +102,7 @@ class FeatureCommands {
     const tempRoot = path.join(rootDir, ".feat-forge", "tmp", "feature-init");
     await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
 
-    return { safeSlug, branchName, mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir };
+    return { safeSlug, branchName, mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides };
   }
 
   /**
@@ -164,7 +167,7 @@ class FeatureCommands {
    * Switch to a feature branch/worktree and update active feature pointer.
    */
   async start(slug: string): Promise<void> {
-    const { safeSlug, mainRepoRoot, repoRoots, repoNames, worktreesRoot, branchName } =
+    const { safeSlug, mainRepoRoot, repoRoots, repoNames, worktreesRoot, branchName, agents, ides } =
       await this.prepareFeature(slug);
     const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
 
@@ -186,6 +189,12 @@ class FeatureCommands {
         .filter(r => repoNames.get(r) !== mainRepoName)
         .map(r => path.join(featureRoot, repoNames.get(r)!));
       await setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
+
+      // Create IDE workspaces if needed
+      if (ides.length > 0) {
+        await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, repoNames, ides, agents);
+      }
+
       console.log(`Feature "${safeSlug}" already started.`);
       return;
     }
@@ -215,6 +224,11 @@ class FeatureCommands {
       .filter(r => repoNames.get(r) !== mainRepoName)
       .map(r => path.join(featureRoot, repoNames.get(r)!));
     await setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
+
+    // Create IDE workspaces
+    if (ides.length > 0) {
+      await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, repoNames, ides, agents);
+    }
   }
 
   /**
