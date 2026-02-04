@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { registerFeatureCommands } from "./commands/feature";
 import { registerInitCommands } from "./commands/init";
+import { registerModeCommands } from "./commands/mode";
 
 /**
  * Entry point for the forge CLI.
@@ -13,6 +14,7 @@ async function main() {
 
   registerFeatureCommands(program);
   registerInitCommands(program);
+  registerModeCommands(program);
 
   await program.parseAsync(process.argv);
 }

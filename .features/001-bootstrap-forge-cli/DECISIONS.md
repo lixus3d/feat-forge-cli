@@ -12,10 +12,14 @@
 * Nomenclature spec confirmée: `FEATURE.md`, `TODO.md`, `DECISIONS.md`, `NOTES.md` (pas de `INSTRUCTIONS.md`/`STATUS.md`).
 * Une feature active est pointée via `.features/.active` (non commit ou commit, à définir).
 * Un fichier `.feat-forge.json` définit le "root" de travail et les repos git cibles.
-* Le repo principal (first ou `mainRepo`) porte `.features` et `.active`.
+* Le repo principal (first ou `mainRepo`) porte `.features`; le lien `.active` est local à chaque worktree de ce repo.
 * Les worktrees sont créés hors des repos, dans un dossier `features/` sibling des repos.
 * Pour multi-repos: `features/<slug>/<repoName>` pour chaque repo configuré.
-* `feature create/use` créent d'abord la branche, initialisent la spec dans cette branche (commit si besoin), puis créent le worktree.
+* `feature start` remplace `feature use` pour mieux refléter un workflow multi-features simultané.
+* `feature create/start` créent d'abord la branche, initialisent la spec dans cette branche (commit si besoin), puis créent le worktree.
+* `mode spec|code` s’applique à la feature active du worktree courant (résolution via `.features/.active` local).
 * Les templates spec peuvent être surchargés via `.features/.template/` (repo) ou `~/.feat-forge/template/`.
 * Les agents doivent toujours suivre ces 4 fichiers dans cet ordre : Feature → Todo → Decisions → Notes.
 * Les “adapter files” (AGENT_CONTEXT.md, CLAUDE.md, copilot instructions, prompt files) sont **générés** à partir du canonique et **ne sont pas commit** (sauf décision contraire).
+* Ajout d’un champ `agentAdapters` dans `.feat-forge.json` (optionnel), avec défaut `["AGENTS.md"]`.
+* Le fichier canonique utilisé pour l’implémentation est `CONTEXT.code.md` (et non `CONTEXT.impl.md`).

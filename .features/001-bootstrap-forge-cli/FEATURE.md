@@ -173,10 +173,10 @@ Définit :
   * crée le dossier `agent/`
   * initialise le mode `spec` pour cette feature
 
-* `forge feature use <slug>`
+* `forge feature start <slug>`
 
   * créé le worktree qui va bien
-  * met à jour le symlink `.features/.active`
+  * met à jour le symlink `.features/.active` dans le worktree créé (repo principal)
 
 * `forge feature archive <slug>`
 
@@ -208,7 +208,7 @@ Définit :
 
 * `forge agent refresh`
 
-  * régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature .active
+  * régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature `.active` du worktree courant
 
 ---
 

@@ -1,5 +1,5 @@
 import path from "path";
-import { lstat, readlink, rm, symlink } from "fs/promises";
+import { rm, symlink } from "fs/promises";
 import { Command } from "commander";
 import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
 import { FEATURE_FILES, resolveTemplate, templateFor } from "../lib/templates";
@@ -9,9 +9,6 @@ import { loadForgeConfig } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
 
-/**
- * Ensure the spec files exist for a feature directory without overwriting existing files.
- */
 /**
  * Ensure the spec files exist for a feature directory without overwriting existing files.
  */
@@ -27,9 +24,6 @@ async function ensureFeatureFiles(repoRoot: string, targetDir: string): Promise<
   }
 }
 
-/**
- * Update the active feature pointer.
- */
 /**
  * Update the active feature pointer in the main repo.
  */
@@ -53,7 +47,7 @@ class FeatureCommands {
   }
 
   /**
-   * Prepare feature branch + spec initialization shared by create/use.
+   * Prepare feature branch + spec initialization shared by create/start.
    */
   private async prepareFeature(slug: string): Promise<{
     safeSlug: string;
@@ -140,9 +134,10 @@ class FeatureCommands {
   /**
    * Switch to a feature branch/worktree and update active feature pointer.
    */
-  async use(slug: string): Promise<void> {
+  async start(slug: string): Promise<void> {
     const { safeSlug, mainRepoRoot, repoRoots, repoNames, worktreesRoot, branchName } =
       await this.prepareFeature(slug);
+    const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
 
     const featureRoot = path.join(worktreesRoot, safeSlug);
     await ensureDir(featureRoot);
@@ -157,8 +152,9 @@ class FeatureCommands {
 
     const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
     if (existingWorktrees.every(Boolean)) {
-      await setActiveFeature(mainRepoRoot, safeSlug);
-      console.log(`Feature "${safeSlug}" already in use.`);
+      const mainWorktree = path.join(featureRoot, mainRepoName);
+      await setActiveFeature(mainWorktree, safeSlug);
+      console.log(`Feature "${safeSlug}" already started.`);
       return;
     }
 
@@ -179,7 +175,8 @@ class FeatureCommands {
       }
     }
 
-    await setActiveFeature(mainRepoRoot, safeSlug);
+    const mainWorktree = path.join(featureRoot, mainRepoName);
+    await setActiveFeature(mainWorktree, safeSlug);
   }
 
   /**
@@ -187,7 +184,7 @@ class FeatureCommands {
    */
   async stop(slug: string): Promise<void> {
     const safeSlug = await confirmSlugOrThrow(slug);
-    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot } = await loadForgeConfig();
+    const { repoRoots, repoNames, worktreesRoot } = await loadForgeConfig();
     const featureRoot = path.join(worktreesRoot, safeSlug);
 
     const worktrees = repoRoots.map((repoRoot) => {
@@ -251,18 +248,6 @@ class FeatureCommands {
       await rm(featureRoot, { recursive: true, force: true });
     }
 
-    const activePath = activeFeatureFile(mainRepoRoot);
-    if (await pathExists(activePath)) {
-      const stat = await lstat(activePath);
-      if (stat.isSymbolicLink()) {
-        const target = await readlink(activePath);
-        const resolvedTarget = path.resolve(path.dirname(activePath), target);
-        const resolvedFeature = featureDir(mainRepoRoot, safeSlug);
-        if (resolvedTarget === resolvedFeature) {
-          await rm(activePath, { force: true });
-        }
-      }
-    }
   }
 
   /**
@@ -298,8 +283,8 @@ export function registerFeatureCommands(program: Command): void {
     return handlers.create(slug);
   }
 
-  function useFeature(slug: string): Promise<void> {
-    return handlers.use(slug);
+  function startFeature(slug: string): Promise<void> {
+    return handlers.start(slug);
   }
 
   function stopFeature(slug: string): Promise<void> {
@@ -309,14 +294,14 @@ export function registerFeatureCommands(program: Command): void {
   feature
     .command("create")
     .argument("<slug>", "Feature slug")
-    .description("Create a new feature folder and activate it")
+    .description("Create a new feature folder and initialize its spec")
     .action(createFeature);
 
   feature
-    .command("use")
+    .command("start")
     .argument("<slug>", "Feature slug")
-    .description("Switch to a feature branch/worktree and activate it")
-    .action(useFeature);
+    .description("Create/switch to feature worktrees and set local active feature in that worktree")
+    .action(startFeature);
 
   feature
     .command("stop")

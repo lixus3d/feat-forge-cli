@@ -6,6 +6,7 @@ export type ForgeConfig = {
   repoPaths: string[];
   mainRepo?: string;
   worktreesPath?: string;
+  agentAdapters?: string[];
 };
 
 export type ForgeContext = {
@@ -14,6 +15,7 @@ export type ForgeContext = {
   mainRepoRoot: string;
   repoNames: Map<string, string>;
   worktreesRoot: string;
+  agentAdapters: string[];
 };
 
 /**
@@ -50,6 +52,7 @@ export async function loadForgeConfig(startDir: string = process.cwd()): Promise
   const repoRoots = parsed.repoPaths.map((repoPath) => path.resolve(rootDir, repoPath));
   const worktreesRoot = path.resolve(rootDir, parsed.worktreesPath ?? "features");
   const repoNames = new Map<string, string>();
+  const agentAdapters = resolveAgentAdapters(parsed.agentAdapters);
 
   for (const repoRoot of repoRoots) {
     const gitDir = path.join(repoRoot, ".git");
@@ -61,7 +64,7 @@ export async function loadForgeConfig(startDir: string = process.cwd()): Promise
 
   const mainRepoRoot = resolveMainRepoRoot(repoRoots, repoNames, parsed.mainRepo);
 
-  return { rootDir, repoRoots, mainRepoRoot, repoNames, worktreesRoot };
+  return { rootDir, repoRoots, mainRepoRoot, repoNames, worktreesRoot, agentAdapters };
 }
 
 /**
@@ -88,4 +91,18 @@ function resolveMainRepoRoot(
   }
 
   throw new Error(`mainRepo does not match any repoPaths: ${mainRepo}`);
+}
+
+function resolveAgentAdapters(agentAdapters?: string[]): string[] {
+  if (!agentAdapters) {
+    return ["AGENTS.md"];
+  }
+  if (!Array.isArray(agentAdapters)) {
+    throw new Error('Invalid .feat-forge.json: "agentAdapters" must be an array of strings.');
+  }
+  const normalized = agentAdapters.map((entry) => entry.trim()).filter(Boolean);
+  if (normalized.length === 0) {
+    throw new Error('Invalid .feat-forge.json: "agentAdapters" cannot be empty.');
+  }
+  return normalized;
 }

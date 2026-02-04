@@ -1,9 +1,9 @@
 # TODO
 
 * [x] scaffolding repo Node/TS + build + bin
-* [x] impl `feature create/use`
+* [x] impl `feature create/start`
 * [ ] impl `feature archive`
-* [ ] impl `mode spec/code`
+* [x] impl `mode spec/code`
 * [ ] impl `agent refresh` (sync adapters)
 * [ ] impl `test` best-effort
 * [x] decide spec file naming (FEATURE/TODO vs INSTRUCTIONS/STATUS)

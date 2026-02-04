@@ -164,7 +164,12 @@ In **code mode**, agents:
 
 * treat the four documents as a strict contract
 * implement code accordingly
-* may update TODO.md and DECISIONS.md when justified
+* may update when justified :
+
+  * FEATURE.md
+  * TODO.md
+  * DECISIONS.md
+  * NOTES.md
 
 All changes are still expected to be reviewable and intentional.
 
@@ -183,7 +188,7 @@ Inside:
 You will find two **canonical** context files:
 
 * `CONTEXT.spec.md`
-* `CONTEXT.impl.md`
+* `CONTEXT.code.md`
 
 Depending on the active mode, FeatForge generates adapter files (symlinks or copies), such as:
 
@@ -212,8 +217,8 @@ Adapters:
 # create a new feature
 forge feature create auth-refactor
 
-# activate it
-forge feature use auth-refactor
+# start it
+forge feature start auth-refactor
 
 # think first
 forge mode spec
