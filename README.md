@@ -1,77 +1,41 @@
 # FeatForge
 
-**FeatForge** is a feature-first development workflow and CLI designed to build software **deliberately**, **iteratively**, and **verifiably** — even when multiple agents (human or AI) work in parallel.
+**FeatForge** is a *feature-first* development workflow and a CLI (`forge`) designed to help you build software **deliberately**, **traceably**, and **at scale**, with or without AI agents.
 
-The goal is not faster typing.
-The goal is **better features**.
-
-FeatForge treats a feature as a first-class artifact with:
-
-* a clear specification
-* an explicit status
-* documented decisions
-* traceable iterations
-
-The CLI provided by this project is called **`forge`**.
+This is **not** a tool to type code faster.
+It is a tool to **understand what you are building before you build it**, and to keep that context alive over time — even with dozens or hundreds of features.
 
 ---
 
-## Philosophy
+## TL;DR — the mental model
 
-FeatForge is built on a few strong principles:
+* A **feature** is a first-class artifact with its own specification.
+* You always work inside one **active feature** (`.features/.active`).
+* A feature has two **modes**:
 
-### 1. Spec before code
+  * `spec` → think, clarify, write
+  * `code` → implement, guided by the spec
+* AI agents are **scoped to a feature**, never global.
+* Finished features are moved to `.features/.archives/`.
 
-Before implementing anything, the feature must be understood.
-Specifications are written, reviewed, iterated, and versioned **before** code changes.
-
-### 2. Iteration over improvisation
-
-Features often require multiple passes:
-
-* refining requirements
-* adjusting scope
-* correcting assumptions
-* stabilizing implementation
-
-FeatForge embraces this reality instead of hiding it behind “vibe coding”.
-
-### 3. Patch, review, commit
-
-All changes — documentation or code — are proposed as **diffs**:
-
-* reviewable
-* auditable
-* reversible
-
-No silent edits.
-
-### 4. Multi-agent friendly
-
-FeatForge is designed to work with:
-
-* Copilot (VSCode)
-* Codex
-* Claude Code
-* local models (Ollama)
-* humans
-
-Agents are interchangeable.
-The **process** remains stable.
-
-### 5. Features are long-lived
-
-A feature may take hours, days, or weeks.
-Its context must survive:
-
-* interruptions
-* tool changes
-* agent changes
-* developer changes
+If you understand those five points, you understand FeatForge.
 
 ---
 
-## Core Concepts
+## What problem does FeatForge solve?
+
+When projects grow, features pile up, context gets lost, and AI agents start hallucinating because they lack a stable source of truth.
+
+FeatForge solves this by:
+
+* making **specification explicit and versioned**
+* separating **thinking** from **coding** via modes
+* giving both humans and agents a **single, stable entry point** to feature context
+* keeping finished features without cluttering active work
+
+---
+
+## Core concepts
 
 ### Feature
 
@@ -79,136 +43,224 @@ A feature is represented by a directory:
 
 ```
 .features/<feature-slug>/
-  INSTRUCTIONS.md
-  STATUS.md
+  FEATURE.md
+  TODO.md
   DECISIONS.md
   NOTES.md
+  agent/
 ```
 
-These files are the **source of truth**.
+These four documents are the **source of truth** for the feature.
 
-### The four documents
+Agents must read them **in this order**:
 
-| File              | Purpose                                              |
-| ----------------- | ---------------------------------------------------- |
-| `FEATURE.md`      | What to build, why, constraints, acceptance criteria |
-| `TODO.md`         | Current state, checklist, TODO / DOING / DONE        |
-| `DECISIONS.md`    | Architectural or functional decisions and rationale  |
-| `NOTES.md`        | Raw context, links, ideas, risks                     |
-
-Agents must read and respect them **in this order**.
+1. FEATURE
+2. TODO
+3. DECISIONS
+4. NOTES
 
 ---
 
-## The `forge` CLI
+### Active feature
 
-`forge` is a global CLI that orchestrates the FeatForge workflow.
+The feature you are currently working on is exposed via:
 
-It does **not** replace editors or AI tools.
-It coordinates them.
+```
+.features/.active -> .features/<feature-slug>/
+```
 
-### Feature lifecycle commands
+Properties:
+
+* `.active` is a **symlink**
+* it is **gitignored** (local, per-worktree state)
+* each Git worktree can have its own active feature
+* editors and agents can always rely on a stable path
+
+If you open VS Code or an agent inside `.features/.active`, everything you need is there.
+
+Agents are always launched from:
+
+```
+.features/.active/agent/
+```
+
+---
+
+### Feature archive
+
+Completed or paused features can be moved to:
+
+```
+.features/.archives/<feature-slug>/
+```
+
+Properties:
+
+* `.archives/` is **versioned**
+* all specs, decisions, and notes are preserved
+* keeps `.features/` readable even at large scale
+
+Command:
 
 ```bash
-forge feature create <slug>
-forge feature use <slug>
+forge feature archive <slug>
 ```
 
-Creates or activates a feature and prepares its workspace.
+The command:
+
+* refuses if the feature is active
+* refuses if related worktrees are dirty
+* guarantees no specification data is lost
 
 ---
 
-### Spec phase (thinking & planning)
+## Modes
+
+A feature always has one active mode:
+
+* `spec` — specification and clarification
+* `code` — implementation
+
+The current mode is stored in:
+
+```
+.features/<slug>/.forge-mode
+```
+
+Switching modes **never modifies project code**.
+It only changes how agents are instructed.
+
+---
+
+### Spec mode
 
 ```bash
-forge spec init
-forge spec ask "<goal>" --provider copilot|ollama|claude|openai
-forge spec review
-forge spec apply
-forge spec commit
+forge mode spec
 ```
 
-This phase focuses on **understanding and structuring** the feature.
-It may run multiple times before any code is written.
+In **spec mode**, agents:
+
+* may read the codebase for context
+* propose changes **only** to:
+
+  * FEATURE.md
+  * TODO.md
+  * DECISIONS.md
+  * NOTES.md
+* may add questions, assumptions, options, and risks
+* must not modify application code
+
+You can enter and exit spec mode as many times as needed.
 
 ---
 
-### Implementation phase
+### Code mode
 
 ```bash
-forge impl ask "<task>" --provider copilot|claude|codex
-forge impl review
-forge impl apply
+forge mode code
 ```
 
-Implementation is always driven by the spec and produces reviewable patches.
+In **code mode**, agents:
+
+* treat the four documents as a strict contract
+* implement code accordingly
+* may update TODO.md and DECISIONS.md when justified
+
+All changes are still expected to be reviewable and intentional.
 
 ---
 
-### Verification
+## Agent context and adapters
+
+Agents are always scoped to a feature.
+
+Inside:
+
+```
+.features/.active/agent/
+```
+
+You will find two **canonical** context files:
+
+* `CONTEXT.spec.md`
+* `CONTEXT.impl.md`
+
+Depending on the active mode, FeatForge generates adapter files (symlinks or copies), such as:
+
+* `AGENTS.md`
+* `CLAUDE.md`
+* `GEMINI.md`
+* `COPILOT.md`
+
+The list of adapters is configurable in:
+
+```
+.feat-forge.json
+```
+
+Adapters:
+
+* are feature-scoped
+* never modify global agent configuration
+* can be regenerated at any time
+
+---
+
+## CLI quickstart
 
 ```bash
-forge test
+# create a new feature
+forge feature create auth-refactor
+
+# activate it
+forge feature use auth-refactor
+
+# think first
+forge mode spec
+# edit FEATURE.md / TODO.md / DECISIONS.md
+
+# implement
+forge mode code
+# write code guided by the spec
+
+# archive when done
+forge feature archive auth-refactor
 ```
 
-Runs the best available test command for the project (configurable).
+---
+
+## What FeatForge is NOT
+
+* ❌ Not a magic AI coding bot
+* ❌ Not a replacement for Git or your editor
+* ❌ Not "vibe coding"
+
+FeatForge is a **process tool**.
+It makes decisions explicit and work reviewable — for humans and machines.
 
 ---
 
-### Agent synchronization
+## Project status
 
-```bash
-forge sync adapters
-forge sync status
-```
+FeatForge is under active development.
 
-* Generates adapter files (`AGENT_CONTEXT.md`, Copilot instructions, prompt files…)
-* Ensures all agents see the **same feature context**
-* Keeps the active feature pointer consistent
-
-Adapter files are generated artifacts and are not part of the canonical spec.
-
----
-
-## What FeatForge is *not*
-
-* ❌ Not “AI autocomplete in the terminal”
-* ❌ Not a magic coding bot
-* ❌ Not a replacement for Git, VSCode, or human judgment
-
-FeatForge is a **process tool**, not a shortcut.
-
----
-
-## Current Status
-
-This project is under active development.
-
-Initial focus:
+Current focus:
 
 * single-repo support
-* spec workflow
-* patch-based review
-* VSCode integration for diffs
+* feature lifecycle
+* spec/code modes
+* agent scoping
 
 Planned later:
 
-* multi-repo (front/back) features
+* multi-repo features
 * background agents
-* richer status visualization
+* richer visualization
 * optional web UI
 
 ---
 
 ## Naming
 
-* **Project name**: FeatForge
-* **CLI command**: `forge`
-
-Example:
-
-```bash
-forge feature create auth-refactor
-forge spec ask "define acceptance criteria"
-forge impl ask "implement backend changes"
-```
+* **Project**: FeatForge
+* **CLI**: `forge`
