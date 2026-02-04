@@ -43,3 +43,19 @@ export async function gitBranchExists(repoRoot: string, branchName: string): Pro
     return false;
   }
 }
+
+/**
+ * Return true if a path exists in the given branch.
+ */
+export async function gitPathExistsInBranch(
+  repoRoot: string,
+  branchName: string,
+  targetPath: string,
+): Promise<boolean> {
+  try {
+    await execa("git", ["cat-file", "-e", `${branchName}:${targetPath}`], { cwd: repoRoot });
+    return true;
+  } catch {
+    return false;
+  }
+}

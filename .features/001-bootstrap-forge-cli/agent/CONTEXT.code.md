@@ -1,6 +1,5 @@
-# AGENT_CONTEXT — FeatForge (Code mode)
+# AGENT_CONTEXT - CODE MODE
 
-You are working in the **FeatForge** repository. The CLI command is **`forge`**.
 This project is **process-first**: changes must be deliberate, reviewable, and verifiable.
 
 ## Golden Rules (must follow)

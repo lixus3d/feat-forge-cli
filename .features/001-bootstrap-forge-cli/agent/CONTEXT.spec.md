@@ -1,6 +1,5 @@
-# AGENT_CONTEXT — FeatForge (Spec Mode)
+# AGENT_CONTEXT - SPEC MODE
 
-You are working in the **FeatForge** repository. The CLI command is **`forge`**.
 This project is **process-first**: clarity before code, decisions before implementation.
 
 You are currently in **SPEC MODE**.

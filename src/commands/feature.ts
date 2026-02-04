@@ -1,10 +1,10 @@
 import path from "path";
-import { rm } from "fs/promises";
+import { lstat, readlink, rm, symlink } from "fs/promises";
 import { Command } from "commander";
-import { ensureDir, pathExists, readTextFile, writeTextFile } from "../lib/fs";
+import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
 import { FEATURE_FILES, resolveTemplate, templateFor } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
-import { getGitStatusPorcelain, gitBranchExists, runGit } from "../lib/git";
+import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit } from "../lib/git";
 import { loadForgeConfig } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
@@ -35,7 +35,9 @@ async function ensureFeatureFiles(repoRoot: string, targetDir: string): Promise<
  */
 async function setActiveFeature(repoRoot: string, slug: string): Promise<void> {
   await ensureDir(featuresRoot(repoRoot));
-  await writeTextFile(activeFeatureFile(repoRoot), `${slug}\n`);
+  const activePath = activeFeatureFile(repoRoot);
+  await rm(activePath, { force: true });
+  await symlink(slug, activePath);
 }
 
 class FeatureCommands {
@@ -48,6 +50,33 @@ class FeatureCommands {
       throw new Error(`Missing repo name for ${mainRepoRoot}`);
     }
     return mainRepoName;
+  }
+
+  /**
+   * Prepare feature branch + spec initialization shared by create/use.
+   */
+  private async prepareFeature(slug: string): Promise<{
+    safeSlug: string;
+    branchName: string;
+    mainRepoRoot: string;
+    repoRoots: string[];
+    repoNames: Map<string, string>;
+    worktreesRoot: string;
+    rootDir: string;
+  }> {
+    const safeSlug = await confirmSlugOrThrow(slug);
+    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir } = await loadForgeConfig();
+    const branchName = `feature/${safeSlug}`;
+
+    for (const repoRoot of repoRoots) {
+      await this.ensureBranchExists(repoRoot, branchName);
+    }
+
+    const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
+    const tempRoot = path.join(rootDir, ".feat-forge", "tmp", "feature-init");
+    await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
+
+    return { safeSlug, branchName, mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir };
   }
 
   /**
@@ -70,6 +99,14 @@ class FeatureCommands {
     branchName: string,
     tempRoot: string,
   ): Promise<void> {
+    const featurePaths = FEATURE_FILES.map((fileName) => path.posix.join(".features", slug, fileName));
+    const existing = await Promise.all(
+      featurePaths.map((featurePath) => gitPathExistsInBranch(repoRoot, branchName, featurePath)),
+    );
+    if (existing.every(Boolean)) {
+      return;
+    }
+
     const tempWorktree = path.join(tempRoot, slug, repoName);
     await ensureDir(path.dirname(tempWorktree));
     if (await pathExists(tempWorktree)) {
@@ -97,41 +134,33 @@ class FeatureCommands {
    * Create a new feature folder and initialize missing spec files.
    */
   async create(slug: string): Promise<void> {
-    const safeSlug = await confirmSlugOrThrow(slug);
-    const { mainRepoRoot, repoRoots, repoNames, rootDir } = await loadForgeConfig();
-    const branchName = `feature/${safeSlug}`;
-
-    for (const repoRoot of repoRoots) {
-      await this.ensureBranchExists(repoRoot, branchName);
-    }
-
-    const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
-
-    const tempRoot = path.join(rootDir, ".feat-forge", "tmp", "feature-init");
-    await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
-
-    await setActiveFeature(mainRepoRoot, safeSlug);
+    await this.prepareFeature(slug);
   }
 
   /**
    * Switch to a feature branch/worktree and update active feature pointer.
    */
   async use(slug: string): Promise<void> {
-    const safeSlug = await confirmSlugOrThrow(slug);
-    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir } = await loadForgeConfig();
-    const branchName = `feature/${safeSlug}`;
-
-    for (const repoRoot of repoRoots) {
-      await this.ensureBranchExists(repoRoot, branchName);
-    }
-
-    const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
-
-    const tempRoot = path.join(rootDir, ".feat-forge", "tmp", "feature-init");
-    await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
+    const { safeSlug, mainRepoRoot, repoRoots, repoNames, worktreesRoot, branchName } =
+      await this.prepareFeature(slug);
 
     const featureRoot = path.join(worktreesRoot, safeSlug);
     await ensureDir(featureRoot);
+
+    const worktreeTargets = repoRoots.map((repoRoot) => {
+      const repoName = repoNames.get(repoRoot);
+      if (!repoName) {
+        throw new Error(`Missing repo name for ${repoRoot}`);
+      }
+      return path.join(featureRoot, repoName);
+    });
+
+    const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
+    if (existingWorktrees.every(Boolean)) {
+      await setActiveFeature(mainRepoRoot, safeSlug);
+      console.log(`Feature "${safeSlug}" already in use.`);
+      return;
+    }
 
     for (const repoRoot of repoRoots) {
       const repoName = repoNames.get(repoRoot);
@@ -224,9 +253,14 @@ class FeatureCommands {
 
     const activePath = activeFeatureFile(mainRepoRoot);
     if (await pathExists(activePath)) {
-      const activeSlug = (await readTextFile(activePath)).trim();
-      if (activeSlug === safeSlug) {
-        await rm(activePath, { force: true });
+      const stat = await lstat(activePath);
+      if (stat.isSymbolicLink()) {
+        const target = await readlink(activePath);
+        const resolvedTarget = path.resolve(path.dirname(activePath), target);
+        const resolvedFeature = featureDir(mainRepoRoot, safeSlug);
+        if (resolvedTarget === resolvedFeature) {
+          await rm(activePath, { force: true });
+        }
       }
     }
   }
@@ -268,6 +302,10 @@ export function registerFeatureCommands(program: Command): void {
     return handlers.use(slug);
   }
 
+  function stopFeature(slug: string): Promise<void> {
+    return handlers.stop(slug);
+  }
+
   feature
     .command("create")
     .argument("<slug>", "Feature slug")
@@ -279,10 +317,6 @@ export function registerFeatureCommands(program: Command): void {
     .argument("<slug>", "Feature slug")
     .description("Switch to a feature branch/worktree and activate it")
     .action(useFeature);
-
-  function stopFeature(slug: string): Promise<void> {
-    return handlers.stop(slug);
-  }
 
   feature
     .command("stop")

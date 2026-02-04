@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { registerFeatureCommands } from "./commands/feature";
-import { registerSpecCommands } from "./commands/spec";
 import { registerInitCommands } from "./commands/init";
 
 /**
@@ -13,7 +12,6 @@ async function main() {
   program.name("forge").description("Feature-first workflow CLI").version("0.1.0");
 
   registerFeatureCommands(program);
-  registerSpecCommands(program);
   registerInitCommands(program);
 
   await program.parseAsync(process.argv);
