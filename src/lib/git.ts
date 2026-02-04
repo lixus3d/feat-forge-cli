@@ -78,3 +78,47 @@ export async function getCurrentBranch(repoRoot: string): Promise<string | null>
 export async function checkoutBranch(repoRoot: string, branchName: string): Promise<void> {
   await execa("git", ["checkout", branchName], { cwd: repoRoot, stdio: "inherit" });
 }
+
+/**
+ * Get all worktrees for a repo with their paths and branches.
+ */
+export async function getWorktrees(repoRoot: string): Promise<Array<{ path: string; branch: string }>> {
+  try {
+    const result = await execa("git", ["worktree", "list", "--porcelain"], { cwd: repoRoot });
+    const lines = result.stdout.split("\n");
+    const worktrees: Array<{ path: string; branch: string }> = [];
+    
+    let currentPath = "";
+    let currentBranch = "";
+    
+    for (const line of lines) {
+      if (line.startsWith("worktree ")) {
+        currentPath = line.substring("worktree ".length);
+      } else if (line.startsWith("branch ")) {
+        currentBranch = line.substring("branch ".length).replace(/^refs\/heads\//, "");
+      } else if (line === "" && currentPath) {
+        if (currentBranch) {
+          worktrees.push({ path: currentPath, branch: currentBranch });
+        }
+        currentPath = "";
+        currentBranch = "";
+      }
+    }
+    
+    // Handle last entry if file doesn't end with blank line
+    if (currentPath && currentBranch) {
+      worktrees.push({ path: currentPath, branch: currentBranch });
+    }
+    
+    return worktrees;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Remove an orphaned worktree (worktree path that no longer exists).
+ */
+export async function removeOrphanedWorktree(repoRoot: string, worktreePath: string): Promise<void> {
+  await execa("git", ["worktree", "remove", "--force", worktreePath], { cwd: repoRoot });
+}

@@ -1,10 +1,10 @@
 import path from "path";
 import { rm, symlink, readdir } from "fs/promises";
 import { Command } from "commander";
-import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
+import { ensureDir, pathExists, writeTextFile, ensureGitIgnore } from "../lib/fs";
 import { FEATURE_FILES, resolveTemplate, templateFor, ensureAgentTemplates } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
-import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit, getCurrentBranch, checkoutBranch } from "../lib/git";
+import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit, getCurrentBranch, checkoutBranch, getWorktrees, removeOrphanedWorktree } from "../lib/git";
 import { loadForgeConfig } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
@@ -72,6 +72,7 @@ class FeatureCommands {
 
     // Ensure agent templates exist in .features/.template/agent/
     await ensureAgentTemplates(mainRepoRoot);
+    await ensureGitIgnore(repoRoots);
 
     for (const repoRoot of repoRoots) {
       await this.ensureBranchExists(repoRoot, branchName);
@@ -176,7 +177,10 @@ class FeatureCommands {
       }
       const worktreePath = path.join(featureRoot, repoName);
       if (await pathExists(worktreePath)) {
-        throw new Error(`Worktree already exists at ${worktreePath}`);
+        throw new Error(
+          `Worktree already exists at ${worktreePath}.\n` +
+          `If you have manually deleted worktree folders, run 'forge feature stop ${safeSlug}' to clean up.`
+        );
       }
 
       if (await gitBranchExists(repoRoot, branchName)) {
@@ -329,6 +333,27 @@ class FeatureCommands {
     const safeSlug = await confirmSlugOrThrow(slug);
     const { repoRoots, repoNames, worktreesRoot } = await loadForgeConfig();
     const featureRoot = path.join(worktreesRoot, safeSlug);
+    const branchName = `feature/${safeSlug}`;
+
+    // First, clean up any orphaned worktrees (worktrees pointing to non-existent paths)
+    console.log("Checking for orphaned worktrees...");
+    for (const repoRoot of repoRoots) {
+      const repoName = repoNames.get(repoRoot);
+      if (!repoName) continue;
+
+      const worktrees = await getWorktrees(repoRoot);
+      for (const worktree of worktrees) {
+        // Check if this worktree is for our feature branch
+        if (worktree.branch === branchName && !(await pathExists(worktree.path))) {
+          console.log(`  Removing orphaned worktree for ${repoName}: ${worktree.path}`);
+          try {
+            await removeOrphanedWorktree(repoRoot, worktree.path);
+          } catch (error) {
+            console.log(`  Warning: Could not remove orphaned worktree: ${error}`);
+          }
+        }
+      }
+    }
 
     const worktrees = repoRoots.map((repoRoot) => {
       const repoName = repoNames.get(repoRoot);
