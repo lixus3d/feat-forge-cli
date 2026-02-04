@@ -2,7 +2,7 @@
 
 * [x] scaffolding repo Node/TS + build + bin
 * [x] impl `feature create/start`
-* [ ] impl `feature archive`
+* [x] impl `feature archive`
 * [x] impl `mode spec/code`
 * [ ] impl `agent refresh` (sync adapters)
 * [ ] impl `test` best-effort

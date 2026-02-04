@@ -22,4 +22,5 @@
 * Les agents doivent toujours suivre ces 4 fichiers dans cet ordre : Feature → Todo → Decisions → Notes.
 * Les “adapter files” (AGENT_CONTEXT.md, CLAUDE.md, copilot instructions, prompt files) sont **générés** à partir du canonique et **ne sont pas commit** (sauf décision contraire).
 * Ajout d’un champ `agentAdapters` dans `.feat-forge.json` (optionnel), avec défaut `["AGENTS.md"]`.
-* Le fichier canonique utilisé pour l’implémentation est `CONTEXT.code.md` (et non `CONTEXT.impl.md`).
+* Le fichier canonique utilisé pour l’implémentation est `CONTEXT.code.md` (et non `CONTEXT.impl.md`).* `feature archive` refuse de procéder si des worktrees existent avec des changements non commités, suggère `feature stop` ou commit/discard first.
+* Archive effectué via temp worktree + git mv pour préserver l'historique git, commit automatique avec message standardisé.
