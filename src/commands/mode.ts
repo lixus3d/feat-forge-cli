@@ -1,25 +1,34 @@
 import path from "path";
 import { rm, symlink } from "fs/promises";
 import { Command } from "commander";
-import { loadForgeConfig } from "../lib/config";
+import { ForgeContext } from "../lib/config";
 import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
 import { resolveActiveFeature } from "../lib/feature";
 import { findGitRoot } from "../lib/git";
 import { TemplateFile } from "../lib/templates";
+import { AbstractCommands } from "./abstract";
 
 export enum ForgeMode {
   SPEC = "spec",
   CODE = "code",
 }
 
-class ModeCommands {
+export class ModeCommands extends AbstractCommands {
   /**
    * Set the current mode and refresh agent adapters for the active feature.
    */
   async setMode(mode: ForgeMode): Promise<void> {
-    const { agents } = await loadForgeConfig();
     const gitRoot = await findGitRoot();
     const { featurePath } = await resolveActiveFeature(gitRoot);
+    await this.setModeForPath(featurePath, mode);
+  }
+
+  /**
+   * Set mode for a specific feature path (useful when creating features)
+   */
+  async setModeForPath(featurePath: string, mode: ForgeMode): Promise<void> {
+    const config = await this.ensureConfig();
+    const { agents } = config;
 
     await this.writeModeFile(featurePath, mode);
     const adapterFiles = agents.map(a => a.agentFile);
@@ -36,11 +45,11 @@ class ModeCommands {
     await ensureDir(agentDir);
 
     const contextFile = mode === ForgeMode.SPEC ? TemplateFile.CONTEXT_SPEC : TemplateFile.CONTEXT_CODE;
-    
+
     // Check if user has a custom override in agent/, otherwise use template
     const localContextPath = path.join(agentDir, contextFile);
     let targetPath: string;
-    
+
     if (await pathExists(localContextPath)) {
       // User has a local override, use it directly
       targetPath = contextFile;
@@ -48,11 +57,11 @@ class ModeCommands {
       // Use the template from .features/.template/agent/
       const repoRoot = path.resolve(featurePath, "..", "..");
       const templateContextPath = path.join(repoRoot, ".features", ".template", "agent", contextFile);
-      
+
       if (!(await pathExists(templateContextPath))) {
         throw new Error(`Missing ${contextFile} in ${templateContextPath}`);
       }
-      
+
       // Create relative path from agent dir to template
       targetPath = path.relative(agentDir, templateContextPath);
     }
@@ -72,8 +81,8 @@ class ModeCommands {
 /**
  * Register the mode commands on the main CLI program.
  */
-export function registerModeCommands(program: Command): void {
-  const handlers = new ModeCommands();
+export function registerModeCommands(program: Command, config?: ForgeContext): void {
+  const handlers = new ModeCommands(config);
 
   function setSpec(): Promise<void> {
     return handlers.setMode(ForgeMode.SPEC);

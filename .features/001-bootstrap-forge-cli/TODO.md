@@ -12,3 +12,5 @@
 * [x] refactor command handlers to reusable classes (no inline commander action logic)
 * [x] add `forge init` to scaffold `.feat-forge.json`
 * [x] add `feature stop` command (clean/dirty handling)
+* [x] avoid the loadForgeConfig in each command function, instantiate the commands class with the config
+* [x] when we do a `feature create/start`, it should start in spec mode if no .forge-mode is defined yet is the branch

@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { registerFeatureCommands } from "./commands/feature";
 import { registerInitCommands } from "./commands/init";
 import { registerModeCommands } from "./commands/mode";
+import { loadForgeConfig, ForgeContext } from "./lib/config";
 
 /**
  * Entry point for the forge CLI.
@@ -12,9 +13,24 @@ async function main() {
 
   program.name("forge").description("Feature-first workflow CLI").version("0.1.0");
 
-  registerFeatureCommands(program);
+  // Init command doesn't need config
   registerInitCommands(program);
-  registerModeCommands(program);
+
+  // Load config for other commands (skip if init command)
+  const isInitCommand = process.argv[2] === "init";
+  let config: ForgeContext | undefined;
+
+  if (!isInitCommand) {
+    try {
+      config = await loadForgeConfig();
+    } catch (error) {
+      // Allow commands to run even if config is not found
+      // Commands will fail gracefully if they need config
+    }
+  }
+
+  registerFeatureCommands(program, config);
+  registerModeCommands(program, config);
 
   await program.parseAsync(process.argv);
 }

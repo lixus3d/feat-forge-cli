@@ -2,13 +2,15 @@ import path from "path";
 import { rm, symlink, readdir } from "fs/promises";
 import { Command } from "commander";
 import { ensureDir, pathExists, writeTextFile, ensureGitIgnore } from "../lib/fs";
-import { FEATURE_FILES, resolveTemplate, templateFor, ensureAgentTemplates } from "../lib/templates";
+import { FEATURE_FILES, resolveTemplate, templateFor, ensureAgentTemplates, TemplateFile } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
 import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit, getCurrentBranch, checkoutBranch, getWorktrees, removeOrphanedWorktree } from "../lib/git";
-import { Agent, IDE, loadForgeConfig } from "../lib/config";
+import { Agent, IDE, ForgeContext } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
 import { createIDEWorkspaces } from "../lib/ide";
+import { ForgeMode, ModeCommands } from "./mode";
+import { AbstractCommands } from "./abstract";
 
 /**
  * Ensure the spec files exist for a feature directory without overwriting existing files.
@@ -60,7 +62,7 @@ async function setActiveFeature(
   }
 }
 
-class FeatureCommands {
+class FeatureCommands extends AbstractCommands {
   /**
    * Resolve the configured main repo name or throw if missing.
    */
@@ -87,7 +89,8 @@ class FeatureCommands {
     ides: IDE[];
   }> {
     const safeSlug = await confirmSlugOrThrow(slug);
-    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides } = await loadForgeConfig();
+    const config = await this.ensureConfig();
+    const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides } = config;
     const branchName = `feature/${safeSlug}`;
 
     // Ensure agent templates exist in .features/.template/agent/
@@ -103,6 +106,22 @@ class FeatureCommands {
     await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, tempRoot);
 
     return { safeSlug, branchName, mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides };
+  }
+
+  /**
+   * Set initial mode to spec if no mode is defined yet in the feature
+   */
+  private async setInitialMode(featurePath: string): Promise<void> {
+    const modePath = path.join(featurePath, ".forge-mode");
+
+    // Check if mode file already exists
+    if (await pathExists(modePath)) {
+      return;
+    }
+
+    // Use ModeCommands to set spec mode (reuses existing logic)
+    const modeCommands = new ModeCommands(this.config);
+    await modeCommands.setModeForPath(featurePath, ForgeMode.SPEC);
   }
 
   /**
@@ -225,6 +244,10 @@ class FeatureCommands {
       .map(r => path.join(featureRoot, repoNames.get(r)!));
     await setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
 
+    // Set initial mode to spec if not defined
+    const featurePath = featureDir(mainWorktree, safeSlug);
+    await this.setInitialMode(featurePath);
+
     // Create IDE workspaces
     if (ides.length > 0) {
       await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, repoNames, ides, agents);
@@ -235,7 +258,8 @@ class FeatureCommands {
    * List all feature worktrees with their git branches.
    */
   async list(): Promise<void> {
-    const { worktreesRoot, repoRoots, repoNames } = await loadForgeConfig();
+    const config = await this.ensureConfig();
+    const { worktreesRoot, repoRoots, repoNames } = config;
 
     if (!(await pathExists(worktreesRoot))) {
       console.log("No features directory found.");
@@ -304,7 +328,8 @@ class FeatureCommands {
    */
   async resync(slug: string): Promise<void> {
     const safeSlug = await confirmSlugOrThrow(slug);
-    const { worktreesRoot, repoRoots, repoNames } = await loadForgeConfig();
+    const config = await this.ensureConfig();
+    const { worktreesRoot, repoRoots, repoNames } = config;
     const featureRoot = path.join(worktreesRoot, safeSlug);
 
     if (!(await pathExists(featureRoot))) {
@@ -368,7 +393,8 @@ class FeatureCommands {
    */
   async stop(slug: string): Promise<void> {
     const safeSlug = await confirmSlugOrThrow(slug);
-    const { repoRoots, repoNames, worktreesRoot } = await loadForgeConfig();
+    const config = await this.ensureConfig();
+    const { repoRoots, repoNames, worktreesRoot } = config;
     const featureRoot = path.join(worktreesRoot, safeSlug);
     const branchName = `feature/${safeSlug}`;
 
@@ -480,9 +506,9 @@ class FeatureCommands {
 /**
  * Register feature subcommands on the main CLI program.
  */
-export function registerFeatureCommands(program: Command): void {
+export function registerFeatureCommands(program: Command, config?: ForgeContext): void {
   const feature = program.command("feature").description("Manage feature lifecycle");
-  const handlers = new FeatureCommands();
+  const handlers = new FeatureCommands(config);
 
   function createFeature(slug: string): Promise<void> {
     return handlers.create(slug);
