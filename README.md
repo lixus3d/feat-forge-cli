@@ -214,11 +214,17 @@ Adapters:
 ## CLI quickstart
 
 ```bash
+# initialize forge in your project
+forge init
+
 # create a new feature
 forge feature create auth-refactor
 
-# start it
+# start it (creates worktrees)
 forge feature start auth-refactor
+
+# list all feature worktrees
+forge feature list
 
 # think first
 forge mode spec
@@ -228,8 +234,14 @@ forge mode spec
 forge mode code
 # write code guided by the spec
 
-# archive when done
-forge feature archive auth-refactor
+# resync branches if needed
+forge feature resync auth-refactor
+
+# stop working on feature (remove worktrees)
+forge feature stop auth-refactor
+
+# archive when done (not yet implemented)
+# forge feature archive auth-refactor
 ```
 
 ---

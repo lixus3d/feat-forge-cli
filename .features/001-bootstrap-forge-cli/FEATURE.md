@@ -180,11 +180,31 @@ Définit :
 
 * `forge feature archive <slug>`
 
+  * a pour objectif de déplacer les fichiers de la feature de `.features/<slug>/` vers `.features/.archives/<slug>/` et de commit ce changement dans la branche de la feature
+  * peut être executé sur un worktree actif ou non, permettant d'archivé n'importe quelle feature
   * déplace `.features/<slug>/` vers `.features/.archives/<slug>/`
-  * refuse si la feature est active (si `.active-feature` pointe dessus)
-  * refuse si des worktrees associés sont *dirty* (sauf option explicite ultérieure)
+  * refuse si des worktrees associés/en cours sont *dirty* (sauf option explicite ultérieure)
   * garantit qu’aucune modifications non commit soit perdue
+  * suggère ensuite de merge la branche
 
+* `forge feature list`
+
+  * affiche la liste de tous les worktrees de features actifs
+  * montre la branche git de chaque repo dans le worktree
+  * affiche en rouge les features avec des branches incohérentes entre repos
+
+* `forge feature resync <slug>`
+
+  * resynchronise tous les repos d'une feature vers la branche attendue (`feature/<slug>`)
+  * vérifie l'absence de changements non commités avant de changer de branche
+  * affiche les erreurs pour les repos qui ne peuvent pas être resynchronisés
+
+* `forge feature stop <slug>`
+
+  * arrête le développement de la feature en question
+  * regarde si tous les repos et leurs worktrees sont clean dans git, si ce n'est pas le cas demande quoi faire
+  * supprime les worktrees et supprime le dossier de feature
+  * ne supprime pas la branche en question, on arrête juste de travailler activement dessus
 
 ---
 
