@@ -35,9 +35,32 @@ export class ModeCommands extends AbstractCommands {
     await this.refreshAdapters(featurePath, adapterFiles, mode);
   }
 
+  /**
+   * Check if a mode file exists for a feature
+   */
+  async modeExists(featurePath: string): Promise<boolean> {
+    return pathExists(this.getModePath(featurePath));
+  }
+
+  /**
+   * Set initial mode if not already defined (used during feature creation)
+   */
+  async setInitialModeIfNeeded(featurePath: string, defaultMode: ForgeMode = ForgeMode.SPEC): Promise<void> {
+    if (await this.modeExists(featurePath)) {
+      return;
+    }
+    await this.setModeForPath(featurePath, defaultMode);
+  }
+
+  /**
+   * Get the path to the mode file for a feature
+   */
+  private getModePath(featurePath: string): string {
+    return path.join(featurePath, ".forge-mode");
+  }
+
   private async writeModeFile(featurePath: string, mode: ForgeMode): Promise<void> {
-    const modePath = path.join(featurePath, ".forge-mode");
-    await writeTextFile(modePath, `${mode}\n`);
+    await writeTextFile(this.getModePath(featurePath), `${mode}\n`);
   }
 
   private async refreshAdapters(featurePath: string, adapters: string[], mode: ForgeMode): Promise<void> {

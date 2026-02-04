@@ -112,16 +112,9 @@ class FeatureCommands extends AbstractCommands {
    * Set initial mode to spec if no mode is defined yet in the feature
    */
   private async setInitialMode(featurePath: string): Promise<void> {
-    const modePath = path.join(featurePath, ".forge-mode");
-
-    // Check if mode file already exists
-    if (await pathExists(modePath)) {
-      return;
-    }
-
-    // Use ModeCommands to set spec mode (reuses existing logic)
+    // Use ModeCommands to set spec mode if not already defined
     const modeCommands = new ModeCommands(this.config);
-    await modeCommands.setModeForPath(featurePath, ForgeMode.SPEC);
+    await modeCommands.setInitialModeIfNeeded(featurePath);
   }
 
   /**
