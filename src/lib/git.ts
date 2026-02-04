@@ -59,3 +59,22 @@ export async function gitPathExistsInBranch(
     return false;
   }
 }
+
+/**
+ * Get the current branch name for a repo.
+ */
+export async function getCurrentBranch(repoRoot: string): Promise<string | null> {
+  try {
+    const result = await execa("git", ["branch", "--show-current"], { cwd: repoRoot });
+    return result.stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checkout a branch in a repo.
+ */
+export async function checkoutBranch(repoRoot: string, branchName: string): Promise<void> {
+  await execa("git", ["checkout", branchName], { cwd: repoRoot, stdio: "inherit" });
+}

@@ -1,10 +1,10 @@
 import path from "path";
-import { rm, symlink } from "fs/promises";
+import { rm, symlink, readdir } from "fs/promises";
 import { Command } from "commander";
 import { ensureDir, pathExists, writeTextFile } from "../lib/fs";
 import { FEATURE_FILES, resolveTemplate, templateFor, ensureAgentTemplates } from "../lib/templates";
 import { activeFeatureFile, featureDir, featuresRoot } from "../lib/paths";
-import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit } from "../lib/git";
+import { getGitStatusPorcelain, gitBranchExists, gitPathExistsInBranch, runGit, getCurrentBranch, checkoutBranch } from "../lib/git";
 import { loadForgeConfig } from "../lib/config";
 import { promptChoice, promptConfirm, promptText } from "../lib/prompt";
 import { confirmSlugOrThrow } from "../lib/slug";
@@ -191,6 +191,138 @@ class FeatureCommands {
   }
 
   /**
+   * List all feature worktrees with their git branches.
+   */
+  async list(): Promise<void> {
+    const { worktreesRoot, repoRoots, repoNames } = await loadForgeConfig();
+
+    if (!(await pathExists(worktreesRoot))) {
+      console.log("No features directory found.");
+      return;
+    }
+
+    const entries = await readdir(worktreesRoot, { withFileTypes: true });
+    const featureDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+    if (featureDirs.length === 0) {
+      console.log("No feature worktrees found.");
+      return;
+    }
+
+    console.log("Feature worktrees:");
+    for (const slug of featureDirs.sort()) {
+      const featureRoot = path.join(worktreesRoot, slug);
+      const branches: Map<string, string> = new Map();
+
+      // Get branch for each repo in this feature worktree
+      for (const repoRoot of repoRoots) {
+        const repoName = repoNames.get(repoRoot);
+        if (!repoName) continue;
+
+        const worktreePath = path.join(featureRoot, repoName);
+        if (await pathExists(worktreePath)) {
+          const branch = await getCurrentBranch(worktreePath);
+          if (branch) {
+            branches.set(repoName, branch);
+          }
+        }
+      }
+
+      // Format output based on branch consistency
+      const uniqueBranches = new Set(branches.values());
+      let branchInfo = "";
+      let isInconsistent = false;
+
+      if (uniqueBranches.size === 0) {
+        branchInfo = " (no branch info)";
+      } else if (uniqueBranches.size === 1) {
+        // All repos on same branch
+        branchInfo = ` (branch: ${Array.from(uniqueBranches)[0]})`;
+      } else {
+        // Different branches across repos - show all
+        isInconsistent = true;
+        const branchList = Array.from(branches.entries())
+          .map(([repo, branch]) => `${repo}: ${branch}`)
+          .join(", ");
+        branchInfo = ` (${branchList})`;
+      }
+
+      // Use red color for inconsistent branches
+      const RED = "\x1b[31m";
+      const RESET = "\x1b[0m";
+      const output = isInconsistent
+        ? `  - ${slug}${RED}${branchInfo}${RESET}`
+        : `  - ${slug}${branchInfo}`;
+
+      console.log(output);
+    }
+  }
+
+  /**
+   * Resync all repos in a feature worktree to the correct branch.
+   */
+  async resync(slug: string): Promise<void> {
+    const safeSlug = await confirmSlugOrThrow(slug);
+    const { worktreesRoot, repoRoots, repoNames } = await loadForgeConfig();
+    const featureRoot = path.join(worktreesRoot, safeSlug);
+
+    if (!(await pathExists(featureRoot))) {
+      throw new Error(`Feature worktree not found: ${safeSlug}`);
+    }
+
+    const expectedBranch = `feature/${safeSlug}`;
+    console.log(`Resyncing feature "${safeSlug}" to branch "${expectedBranch}"...`);
+
+    let hasErrors = false;
+
+    for (const repoRoot of repoRoots) {
+      const repoName = repoNames.get(repoRoot);
+      if (!repoName) continue;
+
+      const worktreePath = path.join(featureRoot, repoName);
+      if (!(await pathExists(worktreePath))) {
+        console.log(`  ⚠ ${repoName}: worktree not found, skipping`);
+        continue;
+      }
+
+      const currentBranch = await getCurrentBranch(worktreePath);
+      if (currentBranch === expectedBranch) {
+        console.log(`  ✓ ${repoName}: already on ${expectedBranch}`);
+        continue;
+      }
+
+      // Check for uncommitted changes
+      const status = await getGitStatusPorcelain(worktreePath);
+      if (status) {
+        console.log(`  ✗ ${repoName}: has uncommitted changes, cannot switch branch`);
+        hasErrors = true;
+        continue;
+      }
+
+      // Check if expected branch exists
+      if (!(await gitBranchExists(worktreePath, expectedBranch))) {
+        console.log(`  ✗ ${repoName}: branch ${expectedBranch} does not exist`);
+        hasErrors = true;
+        continue;
+      }
+
+      try {
+        await checkoutBranch(worktreePath, expectedBranch);
+        console.log(`  ✓ ${repoName}: switched from ${currentBranch} to ${expectedBranch}`);
+      } catch (error) {
+        console.log(`  ✗ ${repoName}: failed to checkout ${expectedBranch}`);
+        hasErrors = true;
+      }
+    }
+
+    if (hasErrors) {
+      console.log("\n⚠ Resync completed with errors.");
+    } else {
+      console.log("\n✓ All repos resynced successfully.");
+    }
+  }
+
+  /**
    * Stop a feature by removing its worktrees and clearing active pointer.
    */
   async stop(slug: string): Promise<void> {
@@ -302,6 +434,14 @@ export function registerFeatureCommands(program: Command): void {
     return handlers.stop(slug);
   }
 
+  function listFeatures(): Promise<void> {
+    return handlers.list();
+  }
+
+  function resyncFeature(slug: string): Promise<void> {
+    return handlers.resync(slug);
+  }
+
   feature
     .command("create")
     .argument("<slug>", "Feature slug")
@@ -319,4 +459,15 @@ export function registerFeatureCommands(program: Command): void {
     .argument("<slug>", "Feature slug")
     .description("Stop a feature and remove its worktrees")
     .action(stopFeature);
+
+  feature
+    .command("list")
+    .description("List all feature worktrees")
+    .action(listFeatures);
+
+  feature
+    .command("resync")
+    .argument("<slug>", "Feature slug")
+    .description("Resync all repos in a feature to the correct branch")
+    .action(resyncFeature);
 }
