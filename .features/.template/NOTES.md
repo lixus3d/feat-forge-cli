@@ -1,4 +1,0 @@
-# CUSTOM Questions ouvertes
-
-*
-*

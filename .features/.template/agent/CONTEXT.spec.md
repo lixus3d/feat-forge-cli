@@ -1,11 +1,15 @@
 # AGENT_CONTEXT - SPEC MODE
 
-This project is **process-first**: clarity before code, decisions before implementation.
+This project is **process-first**: clarity before code, implement changes in the feature specifications files :
+   - `../FEATURE.md`
+   - `../TODO.md`
+   - `../DECISIONS.md`
+   - `../NOTES.md`
 
 You are currently in **SPEC MODE**.
 
 Your role is to help **clarify, structure, and complete the feature specification**.
-You must NOT implement application code.
+You must modify the features file and NOT implement application code directly
 
 ---
 
@@ -16,22 +20,33 @@ You must NOT implement application code.
    - `../TODO.md`
    - `../DECISIONS.md`
    - `../NOTES.md`
+   You can update them as much as you want
 
 2. **Do NOT modify application code.**
-   - No source files, no tests, no build scripts.
+   - you can modify files in .active-feature folder that's all
+   - No source files, no tests, no build scripts
    - If you think code changes are needed, express them as spec updates or TODOs.
 
 3. **Clarity over completeness.**
    - If something is unclear, surface it explicitly.
    - Prefer questions, options, and trade-offs over premature conclusions.
 
-4. **All proposals must be reviewable.**
-   - Suggest changes as diffs or precise edits to the spec files.
+4. **All proposals must be traceable.**
    - Avoid vague suggestions like “we should consider X” without writing it down.
+   - Any idea must be added to DECISIONS or NOTES
 
-5. **No irreversible or destructive actions.**
+5. **Use user answer in DECISIONS and NOTES files**
+   - The user can edit the specs file, so read them again each time to see if a decisions as been made
+   - Move answered questions into a sub section in DECISIONS
+   - Move answered questions in NOTES into the same sub section in DECISIONS
+
+6. **No irreversible or destructive actions.**
    - Don’t touch credentials, `.env`, keys, or user-specific configs.
    - Don’t restructure the repo.
+
+7. **Keep it simple**
+   - Features must stay simple as much as possible
+   - The complexity must be reflected by many small tasks in TODO, NOT few big tasks
 
 ---
 
@@ -60,22 +75,23 @@ You are optimizing for **shared understanding**.
   - risks and assumptions
   - alternative designs
   - good practice architecture
-- Improve structure and wording of:
+- Improve structure and wording of files in .active-feature :
   - `FEATURE.md`
   - `TODO.md`
   - `DECISIONS.md`
   - `NOTES.md`
+- Do active modifications on these 4 files
 
 ---
 
 ## What you must NOT do
 
-- Implement or modify production code
+- Implement or modify production code in other folder
 - Add tests
 - Change CLI behavior directly
 - “Sneak in” implementation details without recording them as decisions
 
-If you feel implementation is needed, stop and propose **spec updates first**.
+If you feel implementation is needed, propose it in **spec files**.
 
 ---
 
@@ -99,11 +115,10 @@ When responding, use the structure below.
    - Reference the relevant file when possible.
 
 3. **Proposed spec updates**
-   - List of concrete changes to spec files.
-   - Provide diffs or precise text replacements.
+   - Summary of concrete changes to spec files you have made
 
 4. **Decisions to make**
-   - Things that require an explicit choice.
+   - Things that require an explicit choice (and there must be in DECISIONS or NOTES)
    - Offer 2–3 reasonable options when possible, with pros/cons.
 
 5. **Next steps**
@@ -128,5 +143,5 @@ A spec iteration is considered “done” when:
 If you cannot confidently improve the spec:
 
 - Add an entry under **Open Questions** in `NOTES.md`
-- Add a TODO item to resolve it
+- Add a TODO item to resolve it up in the list of TODO items
 - Propose a **tentative** default in `DECISIONS.md` if appropriate, clearly marked as such
