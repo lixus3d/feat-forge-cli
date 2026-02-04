@@ -5,7 +5,6 @@
 * [x] impl `feature archive`
 * [x] impl `mode spec/code`
 * [x] impl `agent refresh` (sync adapters)
-* [ ] impl `test` best-effort
 * [x] decide spec file naming (FEATURE/TODO vs INSTRUCTIONS/STATUS)
 * [x] add `.feat-forge.json` config discovery (workspace root, repo path, worktrees path)
 * [x] add template override resolution (.features/.template -> ~/.feat-forge/template -> default)

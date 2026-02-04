@@ -232,14 +232,6 @@ Définit :
 
 ---
 
-### Tests (optionnel MVP)
-
-* `forge test`
-
-  * exécute la commande de test détectée (package.json / config)
-
----
-
 ## Critères d’acceptation MVP
 
 * Une feature peut être créée avec ses fichiers et son dossier agent
