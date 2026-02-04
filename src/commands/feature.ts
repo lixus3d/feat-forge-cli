@@ -33,13 +33,30 @@ async function ensureFeatureFiles(repoRoot: string, targetDir: string): Promise<
 }
 
 /**
- * Update the active feature pointer in the main repo.
+ * Update the active feature pointers:
+ * - Main repo: .active-feature → .features/<slug>/
+ * - Secondary repos: .active-feature → ../main-repo/.active-feature
  */
-async function setActiveFeature(repoRoot: string, slug: string): Promise<void> {
-  await ensureDir(featuresRoot(repoRoot));
-  const activePath = activeFeatureFile(repoRoot);
-  await rm(activePath, { force: true });
-  await symlink(path.join(".features", slug), activePath);
+async function setActiveFeature(
+  mainRepoWorktree: string,
+  secondaryRepoWorktrees: string[],
+  mainRepoName: string,
+  slug: string,
+): Promise<void> {
+  // Set .active-feature in main repo pointing to .features/<slug>/
+  await ensureDir(featuresRoot(mainRepoWorktree));
+  const mainActivePath = activeFeatureFile(mainRepoWorktree);
+  await rm(mainActivePath, { force: true });
+  await symlink(path.join(".features", slug), mainActivePath);
+
+  // Set .active-feature in secondary repos pointing to main repo's .active-feature
+  for (const secondaryWorktree of secondaryRepoWorktrees) {
+    const secondaryActivePath = activeFeatureFile(secondaryWorktree);
+    await rm(secondaryActivePath, { force: true });
+    // Create relative path from secondary to main's .active-feature
+    const relativePathToMain = path.join("..", mainRepoName, ".active-feature");
+    await symlink(relativePathToMain, secondaryActivePath);
+  }
 }
 
 class FeatureCommands {
@@ -165,7 +182,10 @@ class FeatureCommands {
     const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
     if (existingWorktrees.every(Boolean)) {
       const mainWorktree = path.join(featureRoot, mainRepoName);
-      await setActiveFeature(mainWorktree, safeSlug);
+      const secondaryWorktrees = repoRoots
+        .filter(r => repoNames.get(r) !== mainRepoName)
+        .map(r => path.join(featureRoot, repoNames.get(r)!));
+      await setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
       console.log(`Feature "${safeSlug}" already started.`);
       return;
     }
@@ -191,7 +211,10 @@ class FeatureCommands {
     }
 
     const mainWorktree = path.join(featureRoot, mainRepoName);
-    await setActiveFeature(mainWorktree, safeSlug);
+    const secondaryWorktrees = repoRoots
+      .filter(r => repoNames.get(r) !== mainRepoName)
+      .map(r => path.join(featureRoot, repoNames.get(r)!));
+    await setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
   }
 
   /**
