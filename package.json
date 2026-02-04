@@ -11,7 +11,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp -r src/templates dist/",
     "start": "node dist/cli.js",
     "dev": "node dist/cli.js --help"
   },
