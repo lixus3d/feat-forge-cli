@@ -75,7 +75,7 @@ Les agents sont **toujours lancés depuis** :
 Ce dossier contient :
 
 * `CONTEXT.spec.md` — instructions agents en mode *spec*
-* `CONTEXT.impl.md` — instructions agents en mode *impl*
+* `CONTEXT.code.md` — instructions agents en mode *code*
 
 Ces fichiers sont **canoniques**.
 
@@ -199,7 +199,7 @@ Définit :
 * `forge mode code`
 
   * écrit `.forge-mode = code`
-  * active `CONTEXT.impl.md`
+  * active `CONTEXT.code.md`
   * régénère les adapters agents
 
 ---
@@ -208,7 +208,7 @@ Définit :
 
 * `forge agent refresh`
 
-  * régénère les fichiers adapters selon le mode courant dans la feature .active
+  * régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature .active
 
 ---
 
