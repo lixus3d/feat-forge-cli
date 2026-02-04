@@ -28,7 +28,7 @@ export async function findConfigPath(startDir: string = process.cwd()): Promise<
     }
     const parent = path.dirname(current);
     if (parent === current) {
-      throw new Error("Missing .feat-forge.json. Run the CLI from a configured root folder.");
+      throw new Error("Missing .feat-forge.json. Run the CLI from a configured root folder or start with 'forge init'.");
     }
     current = parent;
   }
