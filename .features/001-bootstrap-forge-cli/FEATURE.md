@@ -29,11 +29,11 @@ Ces fichiers sont la **source de vérité** de la feature.
 
 La feature actuellement travaillée est exposée via :
 
-* `.features/.active` → **symlink** pointant vers `.features/<slug>/`
+* `.active-feature` → **symlink** pointant vers `.features/<slug>/`
 
 Caractéristiques :
 
-* `.active` est **gitignored** (état local par worktree)
+* `.active-feature` est **gitignored** (état local par worktree)
 * chaque worktree peut avoir sa propre feature active
 * permet d’ouvrir directement VS Code ou un agent sur la feature courante
 * point d’entrée unique et stable, même avec des dizaines de features
@@ -42,7 +42,7 @@ Convention d’accès :
 
 * les agents utilisent systématiquement :
 
-  * `.features/.active/agent/`
+  * `.active-feature/agent/`
 
 Cela garantit une navigation simple et prévisible, sans dépendre d’un état stocké dans un fichier.
 
@@ -69,7 +69,7 @@ Changer de mode n’implique **aucune modification du code projet**, uniquement 
 Les agents sont **toujours lancés depuis** :
 
 ```
-.features/<slug|.active>/agent/
+.features/<slug>/agent/ ou `.active-feature/agent/`
 ```
 
 Ce dossier contient :
@@ -176,12 +176,12 @@ Définit :
 * `forge feature start <slug>`
 
   * créé le worktree qui va bien
-  * met à jour le symlink `.features/.active` dans le worktree créé (repo principal)
+  * met à jour le symlink `.active-feature` dans le worktree créé (repo principal)
 
 * `forge feature archive <slug>`
 
   * déplace `.features/<slug>/` vers `.features/.archives/<slug>/`
-  * refuse si la feature est active (si `.features/.active` pointe dessus)
+  * refuse si la feature est active (si `.active-feature` pointe dessus)
   * refuse si des worktrees associés sont *dirty* (sauf option explicite ultérieure)
   * garantit qu’aucune modifications non commit soit perdue
 
@@ -208,7 +208,7 @@ Définit :
 
 * `forge agent refresh`
 
-  * régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature `.active` du worktree courant
+  * régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature active du worktree courant (`.active-feature`)
 
 ---
 

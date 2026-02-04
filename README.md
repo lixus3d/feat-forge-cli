@@ -10,7 +10,7 @@ It is a tool to **understand what you are building before you build it**, and to
 ## TL;DR — the mental model
 
 * A **feature** is a first-class artifact with its own specification.
-* You always work inside one **active feature** (`.features/.active`).
+* You always work inside one **active feature** (`.active-feature`).
 * A feature has two **modes**:
 
   * `spec` → think, clarify, write
@@ -66,22 +66,22 @@ Agents must read them **in this order**:
 The feature you are currently working on is exposed via:
 
 ```
-.features/.active -> .features/<feature-slug>/
+.active-feature -> .features/<feature-slug>/
 ```
 
 Properties:
 
-* `.active` is a **symlink**
+* `.active-feature` is a **symlink**
 * it is **gitignored** (local, per-worktree state)
 * each Git worktree can have its own active feature
 * editors and agents can always rely on a stable path
 
-If you open VS Code or an agent inside `.features/.active`, everything you need is there.
+If you open VS Code or an agent inside `.active-feature`, everything you need is there.
 
 Agents are always launched from:
 
 ```
-.features/.active/agent/
+.active-feature/agent/
 ```
 
 ---
@@ -182,7 +182,7 @@ Agents are always scoped to a feature.
 Inside:
 
 ```
-.features/.active/agent/
+.active-feature/agent/
 ```
 
 You will find two **canonical** context files:

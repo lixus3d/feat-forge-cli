@@ -3,7 +3,7 @@
 This project is **process-first**: changes must be deliberate, reviewable, and verifiable.
 
 ## Golden Rules (must follow)
-1. **Read the feature spec files first (in this order), they are in the .features/.active folder:**
+1. **Read the feature spec files first (in this order), they are in the .active-feature folder:**
    - `../FEATURE.md`
    - `../TODO.md`
    - `../DECISIONS.md`

@@ -31,7 +31,7 @@ async function setActiveFeature(repoRoot: string, slug: string): Promise<void> {
   await ensureDir(featuresRoot(repoRoot));
   const activePath = activeFeatureFile(repoRoot);
   await rm(activePath, { force: true });
-  await symlink(slug, activePath);
+  await symlink(path.join(".features", slug), activePath);
 }
 
 class FeatureCommands {

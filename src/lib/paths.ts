@@ -15,5 +15,5 @@ export function featureDir(repoRoot: string, slug: string): string {
  * Path to the active feature pointer file.
  */
 export function activeFeatureFile(repoRoot: string): string {
-  return path.join(featuresRoot(repoRoot), ".active");
+  return path.join(repoRoot, ".active-feature");
 }

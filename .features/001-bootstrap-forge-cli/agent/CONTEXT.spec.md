@@ -11,7 +11,7 @@ You must NOT implement application code.
 
 ## Golden Rules (must follow)
 
-1. **Your scope is limited to the feature spec files, located in `.features/.active`:**
+1. **Your scope is limited to the feature spec files, located in `.active-feature`:**
    - `../FEATURE.md`
    - `../TODO.md`
    - `../DECISIONS.md`
