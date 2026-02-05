@@ -1,67 +1,67 @@
-import { Command } from "commander";
-import { ForgeContext } from "../lib/config";
-import { pathExists } from "../lib/fs";
-import { resolveActiveFeature } from "../lib/feature";
-import { findGitRoot } from "../lib/git";
-import { refreshAgentAdapters } from "../lib/agents";
-import { ForgeMode, getModePath, writeModeFile } from "../lib/mode";
-import { AbstractCommands } from "./abstract";
+import { Command } from 'commander';
+import { ForgeContext } from '../lib/config';
+import { pathExists } from '../lib/fs';
+import { resolveActiveFeature } from '../lib/feature';
+import { findGitRoot } from '../lib/git';
+import { refreshAgentAdapters } from '../lib/agents';
+import { ForgeMode, getModePath, writeModeFile } from '../lib/mode';
+import { AbstractCommands } from './abstract';
 
 export class ModeCommands extends AbstractCommands {
-  /**
-   * Set the current mode and refresh agent adapters for the active feature.
-   */
-  async setMode(mode: ForgeMode): Promise<void> {
-    const gitRoot = await findGitRoot();
-    const { featurePath } = await resolveActiveFeature(gitRoot);
-    await this.setModeForPath(featurePath, mode);
-  }
-
-  /**
-   * Set mode for a specific feature path (useful when creating features)
-   */
-  async setModeForPath(featurePath: string, mode: ForgeMode): Promise<void> {
-    const config = await this.ensureConfig();
-    const { agents } = config;
-
-    await writeModeFile(featurePath, mode);
-    const adapterFiles = agents.map(a => a.agentFile);
-    await refreshAgentAdapters(featurePath, adapterFiles, mode);
-  }
-
-  /**
-   * Check if a mode file exists for a feature
-   */
-  async modeExists(featurePath: string): Promise<boolean> {
-    return pathExists(getModePath(featurePath));
-  }
-
-  /**
-   * Set initial mode if not already defined (used during feature creation)
-   */
-  async setInitialModeIfNeeded(featurePath: string, defaultMode: ForgeMode = ForgeMode.SPEC): Promise<void> {
-    if (await this.modeExists(featurePath)) {
-      return;
+    /**
+     * Set the current mode and refresh agent adapters for the active feature.
+     */
+    async setMode(mode: ForgeMode): Promise<void> {
+        const gitRoot = await findGitRoot();
+        const { featurePath } = await resolveActiveFeature(gitRoot);
+        await this.setModeForPath(featurePath, mode);
     }
-    await this.setModeForPath(featurePath, defaultMode);
-  }
+
+    /**
+     * Set mode for a specific feature path (useful when creating features)
+     */
+    async setModeForPath(featurePath: string, mode: ForgeMode): Promise<void> {
+        const config = await this.ensureConfig();
+        const { agents } = config;
+
+        await writeModeFile(featurePath, mode);
+        const adapterFiles = agents.map((a) => a.agentFile);
+        await refreshAgentAdapters(featurePath, adapterFiles, mode);
+    }
+
+    /**
+     * Check if a mode file exists for a feature
+     */
+    async modeExists(featurePath: string): Promise<boolean> {
+        return pathExists(getModePath(featurePath));
+    }
+
+    /**
+     * Set initial mode if not already defined (used during feature creation)
+     */
+    async setInitialModeIfNeeded(featurePath: string, defaultMode: ForgeMode = ForgeMode.SPEC): Promise<void> {
+        if (await this.modeExists(featurePath)) {
+            return;
+        }
+        await this.setModeForPath(featurePath, defaultMode);
+    }
 }
 
 /**
  * Register the mode commands on the main CLI program.
  */
 export function registerModeCommands(program: Command, config?: ForgeContext): void {
-  const handlers = new ModeCommands(config);
+    const handlers = new ModeCommands(config);
 
-  function setSpec(): Promise<void> {
-    return handlers.setMode(ForgeMode.SPEC);
-  }
+    function setSpec(): Promise<void> {
+        return handlers.setMode(ForgeMode.SPEC);
+    }
 
-  function setCode(): Promise<void> {
-    return handlers.setMode(ForgeMode.CODE);
-  }
+    function setCode(): Promise<void> {
+        return handlers.setMode(ForgeMode.CODE);
+    }
 
-  const mode = program.command("mode").description("Switch the active feature mode");
-  mode.command("spec").description("Switch to spec mode").action(setSpec);
-  mode.command("code").description("Switch to code mode").action(setCode);
+    const mode = program.command('mode').description('Switch the active feature mode');
+    mode.command('spec').description('Switch to spec mode').action(setSpec);
+    mode.command('code').description('Switch to code mode').action(setCode);
 }

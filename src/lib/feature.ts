@@ -1,34 +1,34 @@
-import path from "path";
-import { lstat, readlink } from "fs/promises";
-import { pathExists } from "./fs";
-import { activeFeatureFile } from "./paths";
+import path from 'path';
+import { lstat, readlink } from 'fs/promises';
+import { pathExists } from './fs';
+import { activeFeatureFile } from './paths';
 
 export type ActiveFeature = {
-  slug: string;
-  featurePath: string;
+    slug: string;
+    featurePath: string;
 };
 
 /**
  * Resolve the active feature directory from a repo root
  */
 export async function resolveActiveFeature(repoRoot: string): Promise<ActiveFeature> {
-  const activePath = activeFeatureFile(repoRoot);
-  if (!(await pathExists(activePath))) {
-    throw new Error("No active feature found in this worktree. Run 'forge feature start <slug>' first.");
-  }
+    const activePath = activeFeatureFile(repoRoot);
+    if (!(await pathExists(activePath))) {
+        throw new Error("No active feature found in this worktree. Run 'forge feature start <slug>' first.");
+    }
 
-  const stat = await lstat(activePath);
-  if (!stat.isSymbolicLink()) {
-    throw new Error(`Active feature pointer is not a symlink: ${activePath}`);
-  }
+    const stat = await lstat(activePath);
+    if (!stat.isSymbolicLink()) {
+        throw new Error(`Active feature pointer is not a symlink: ${activePath}`);
+    }
 
-  const target = await readlink(activePath);
-  const featurePath = path.resolve(path.dirname(activePath), target);
-  if (!(await pathExists(featurePath))) {
-    throw new Error(`Active feature directory does not exist: ${featurePath}`);
-  }
+    const target = await readlink(activePath);
+    const featurePath = path.resolve(path.dirname(activePath), target);
+    if (!(await pathExists(featurePath))) {
+        throw new Error(`Active feature directory does not exist: ${featurePath}`);
+    }
 
-  return { slug: path.basename(featurePath), featurePath };
+    return { slug: path.basename(featurePath), featurePath };
 }
 
 /**
@@ -40,7 +40,7 @@ export async function resolveActiveFeature(repoRoot: string): Promise<ActiveFeat
  * @returns The feature root directory path
  */
 export function getFeatureRoot(worktreesRoot: string, slug: string): string {
-  return path.join(worktreesRoot, slug);
+    return path.join(worktreesRoot, slug);
 }
 
 /**
@@ -53,7 +53,7 @@ export function getFeatureRoot(worktreesRoot: string, slug: string): string {
  * @returns The worktree path for the specific repo
  */
 export function getFeatureWorktreePath(worktreesRoot: string, slug: string, repoName: string): string {
-  return path.join(worktreesRoot, slug, repoName);
+    return path.join(worktreesRoot, slug, repoName);
 }
 
 /**
@@ -66,7 +66,7 @@ export function getFeatureWorktreePath(worktreesRoot: string, slug: string, repo
  * @returns The temporary worktree path
  */
 export function getTempFeatureWorktreePath(rootDir: string, slug: string, repoName: string): string {
-  return path.join(rootDir, ".feat-forge", "tmp", "feature-init", slug, repoName);
+    return path.join(rootDir, '.feat-forge', 'tmp', 'feature-init', slug, repoName);
 }
 
 /**
@@ -77,7 +77,7 @@ export function getTempFeatureWorktreePath(rootDir: string, slug: string, repoNa
  * @returns The temporary root path
  */
 export function getTempFeatureRoot(rootDir: string): string {
-  return path.join(rootDir, ".feat-forge", "tmp", "feature-init");
+    return path.join(rootDir, '.feat-forge', 'tmp', 'feature-init');
 }
 
 /**
@@ -90,7 +90,7 @@ export function getTempFeatureRoot(rootDir: string): string {
  * @returns The temporary archive worktree path
  */
 export function getTempArchiveWorktreePath(rootDir: string, slug: string, repoName: string): string {
-  return path.join(rootDir, ".feat-forge", "tmp", "feature-archive", slug, repoName);
+    return path.join(rootDir, '.feat-forge', 'tmp', 'feature-archive', slug, repoName);
 }
 
 /**
@@ -101,5 +101,5 @@ export function getTempArchiveWorktreePath(rootDir: string, slug: string, repoNa
  * @returns The temporary archive root path
  */
 export function getTempArchiveRoot(rootDir: string): string {
-  return path.join(rootDir, ".feat-forge", "tmp", "feature-archive");
+    return path.join(rootDir, '.feat-forge', 'tmp', 'feature-archive');
 }
