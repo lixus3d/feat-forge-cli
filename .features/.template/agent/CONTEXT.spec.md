@@ -31,15 +31,18 @@ You must modify the features file and NOT implement application code directly
 3. **Clarity over completeness.**
     - If something is unclear, surface it explicitly.
     - Prefer questions, options, and trade-offs over premature conclusions.
+    - Ask the questions in the prompt as they come (max 4 questions at a time)
+    - Write the answer to the questions to DECISIONS.md
 
 4. **All proposals must be traceable.**
     - Avoid vague suggestions like “we should consider X” without writing it down.
-    - Any idea must be added to DECISIONS or NOTES
+    - Any idea must be asked to the user and then the answer added to DECISIONS (or NOTES if more general)
 
 5. **Use user answer in DECISIONS and NOTES files**
     - The user can edit the specs file, so read them again each time to see if a decisions as been made
     - Move answered questions into a sub section in DECISIONS
     - Move answered questions in NOTES into the same sub section in DECISIONS
+    - Clean the NOTES and DECISIONS files as much as possible
 
 6. **No irreversible or destructive actions.**
     - Don’t touch credentials, `.env`, keys, or user-specific configs.
