@@ -35,7 +35,7 @@ export function templateFor(name: TemplateFile): string {
         const templateFilePath = getTemplatePath(name);
         return readFileSync(templateFilePath, 'utf8');
     } catch (error) {
-        // Fallback templates if files are not found
+        // Fallback templates if files are not found for som reason... (shouldn't happen in normal usage since templates are bundled, but just in case)
         switch (name) {
             case TemplateFile.FEATURE:
                 return `# Feature: [Feature Title]`;
@@ -55,12 +55,17 @@ export function templateFor(name: TemplateFile): string {
  * Resolve a template file from repo or user overrides.
  * Order: repo .features/.template -> ~/.feat-forge/template -> built-in.
  */
-export async function resolveTemplate(repoRoot: string, name: TemplateFile): Promise<string | null> {
+export async function resolveCustomTemplate(rootDir: string, repoRoot: string, name: TemplateFile): Promise<string | null> {
     const subdir = [TemplateFile.CONTEXT_SPEC, TemplateFile.CONTEXT_CODE].includes(name) ? 'agent' : '';
-    const repoTemplate = path.join(repoRoot, '.features', '.template', subdir, name);
 
+    const repoTemplate = path.join(repoRoot, '.features', '.template', subdir, name);
     if (await pathExists(repoTemplate)) {
         return readFile(repoTemplate, 'utf8');
+    }
+
+    const projectTemplate = path.join(rootDir, '.feat-forge', 'templates', subdir, name);
+    if (await pathExists(projectTemplate)) {
+        return readFile(projectTemplate, 'utf8');
     }
 
     const userTemplate = path.join(os.homedir(), '.feat-forge', 'templates', subdir, name);

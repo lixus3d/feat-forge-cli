@@ -1,7 +1,5 @@
 import path from 'path';
-import { Command } from 'commander';
-import { pathExists, writeTextFile, ensureDir, ensureGitIgnore } from '../lib/fs';
-import { ensureAgentTemplates } from '../lib/templates';
+import { pathExists, writeTextFile } from '../lib/fs';
 
 export class InitCommands {
     // ============================================================================
@@ -28,11 +26,6 @@ export class InitCommands {
         );
         await writeTextFile(targetPath, `${contents}\n`);
 
-        // Initialize agent templates in .features/.template/agent/
-        const repoRoot = process.cwd();
-        await ensureAgentTemplates(repoRoot);
-        await ensureGitIgnore(repoRoot);
-
-        console.log('Initialized .feat-forge.json and agent templates');
+        console.log('Initialized .feat-forge.json');
     }
 }

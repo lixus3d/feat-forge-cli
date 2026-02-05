@@ -24,7 +24,7 @@ import { createIDEWorkspaces } from '../lib/ide';
 import { activeFeatureFile, featureDir, featuresRoot } from '../lib/paths';
 import { promptChoice, promptConfirm, promptText } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
-import { ensureAgentTemplates, FEATURE_FILES, resolveTemplate, templateFor } from '../lib/templates';
+import { ensureAgentTemplates, FEATURE_FILES, resolveCustomTemplate, templateFor } from '../lib/templates';
 import { AbstractCommands } from './abstract';
 import { ModeCommands } from './mode';
 
@@ -801,7 +801,7 @@ export class FeatureCommands extends AbstractCommands {
             if (await pathExists(filePath)) {
                 continue;
             }
-            const resolved = await resolveTemplate(repoRoot, fileName);
+            const resolved = await resolveCustomTemplate(this.config.rootDir, repoRoot, fileName);
             await writeTextFile(filePath, resolved ?? templateFor(fileName));
         }
 
