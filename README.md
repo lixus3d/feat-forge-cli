@@ -45,19 +45,10 @@ A feature is represented by a directory:
 .features/<feature-slug>/
   FEATURE.md
   TODO.md
-  DECISIONS.md
-  NOTES.md
   agent/
 ```
 
-These four documents are the **source of truth** for the feature.
-
-Agents must read them **in this order**:
-
-1. FEATURE
-2. TODO
-3. DECISIONS
-4. NOTES
+These documents are the **source of truth** for the feature.
 
 ---
 
@@ -144,8 +135,6 @@ In **spec mode**, agents:
 - propose changes **only** to:
     - FEATURE.md
     - TODO.md
-    - DECISIONS.md
-    - NOTES.md
 
 - may add questions, assumptions, options, and risks
 - must not modify application code
@@ -167,8 +156,6 @@ In **code mode**, agents:
 - may update when justified :
     - FEATURE.md
     - TODO.md
-    - DECISIONS.md
-    - NOTES.md
 
 All changes are still expected to be reviewable and intentional.
 
@@ -227,11 +214,11 @@ forge feature list
 
 # think first
 forge mode spec
-# edit FEATURE.md / TODO.md / DECISIONS.md
+# change agent context to plan, with focus on editing FEATURE.md / TODO.md files
 
 # implement
 forge mode code
-# write code guided by the spec
+# change agent context to code, with focus on reading plan from FEATURE.md / TODO.md files
 
 # resync branches if needed
 forge feature resync auth-refactor
@@ -239,8 +226,8 @@ forge feature resync auth-refactor
 # stop working on feature (remove worktrees)
 forge feature stop auth-refactor
 
-# archive when done (not yet implemented)
-# forge feature archive auth-refactor
+# archive when done (moving this feature folder to keep global .features folder clean)
+forge feature archive auth-refactor
 ```
 
 ---

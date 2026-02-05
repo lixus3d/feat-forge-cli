@@ -289,10 +289,10 @@ export class FeatureCommands extends AbstractCommands {
     /**
      * Set initial mode to spec if no mode is defined yet in the feature
      */
-    private async setInitialMode(featurePath: string): Promise<void> {
+    private async setInitialMode(featureRoot:string, featurePath: string): Promise<void> {
         // Use ModeCommands to set spec mode if not already defined
         const modeCommands = new ModeCommands(this.config);
-        await modeCommands.setInitialModeIfNeeded(featurePath);
+        await modeCommands.setInitialModeIfNeeded(featureRoot, featurePath);
     }
 
     /**
@@ -428,7 +428,7 @@ export class FeatureCommands extends AbstractCommands {
 
         // Set initial mode to spec if not defined
         const featurePath = featureDir(mainWorktree, safeSlug);
-        await this.setInitialMode(featurePath);
+        await this.setInitialMode(featureRoot, featurePath);
 
         // Create IDE workspaces if configured
         if (this.config.ides.length > 0) {

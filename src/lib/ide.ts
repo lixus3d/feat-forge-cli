@@ -29,7 +29,7 @@ export async function createIDEWorkspaces(
 
         switch (ide.name) {
             case IDEName.VSCODE:
-                await createVSCodeWorkspace(featureSlug, worktreePath, ide, mainRepoName, repoNames, agents);
+                await createVSCodeWorkspaceFile(featureSlug, worktreePath, ide, mainRepoName, repoNames, agents);
                 break;
             default:
                 console.warn(`Unknown IDE: ${ide.name}, skipping workspace creation`);
@@ -41,7 +41,7 @@ export async function createIDEWorkspaces(
  * Create a VSCode-style workspace file (.code-workspace)
  * Also works for Cursor and Windsurf which use the same format
  */
-async function createVSCodeWorkspace(
+async function createVSCodeWorkspaceFile(
     featureSlug: string,
     workspacePath: string,
     ide: IDE,
@@ -59,22 +59,15 @@ async function createVSCodeWorkspace(
     }
 
     // Build workspace settings
-    const settings = { ...getDefaultIDESettings(mainRepoName, ide.name), ...ide.settings };
+    const settings = { ...ide.settings };
 
     const workspace: VSCodeWorkspace = {
-        folders: [...Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` })), { path: '.vscode' }],
+        folders: [...Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` }))],
         settings,
     };
 
     await writeFile(workspaceFilePath, JSON.stringify(workspace, null, 2), 'utf8');
     console.log(`Created ${ide.name} workspace: ${workspaceFileName}`);
-
-    // we also needs to create .vscode/settings.json in workspacePath to configure agent instruction files location
-    const vscodeDir = path.join(workspacePath, '.vscode');
-    const settingsPath = path.join(vscodeDir, 'settings.json');
-    await ensureDir(vscodeDir);
-
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
 }
 
 /**
@@ -99,20 +92,4 @@ export async function updateIDEWorkspace(
 
     await writeFile(workspacePath, JSON.stringify(workspace, null, 2), 'utf8');
     console.log(`Updated ${ideName} workspace: ${path.basename(workspacePath)}`);
-}
-
-/**
- * Get default IDE settings for known IDEs
- */
-function getDefaultIDESettings(mainRepoName: string, ideName: IDEName): Record<string, unknown> {
-    switch (ideName) {
-        case IDEName.VSCODE:
-            return {
-                'chat.instructionsFilesLocations': {
-                    [`./${mainRepoName}/.active-feature/agent/`]: true,
-                },
-            };
-        default:
-            return {};
-    }
 }
