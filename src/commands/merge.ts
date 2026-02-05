@@ -39,11 +39,7 @@ export class MergeCommands extends AbstractCommands {
         await this.verifyCleanWorkingTrees(featureWorktrees);
 
         // Step 3: Prompt user to select target branch
-        const targetBranch = await this.promptForBranch(
-            this.config.mainRepoRoot,
-            'Select target branch for merge:',
-            false,
-        );
+        const targetBranch = await this.promptForBranch(this.config.mainRepoRoot, 'Select target branch for merge:', false);
         console.log(`\n📍 Target branch: ${targetBranch}\n`);
 
         // Step 4: Perform merge for each repository
@@ -57,8 +53,6 @@ export class MergeCommands extends AbstractCommands {
     // PRIVATE UTILITY METHODS
     // ============================================================================
 
-
-
     /**
      * Perform merge operations for all repositories.
      *
@@ -69,10 +63,7 @@ export class MergeCommands extends AbstractCommands {
      * @param targetBranch - The branch to merge into
      * @returns Array of merge results for each repository
      */
-    private async performMergesForAllRepos(
-        featureWorktrees: FeatureWorktree[],
-        targetBranch: string,
-    ): Promise<GitOperationResult[]> {
+    private async performMergesForAllRepos(featureWorktrees: FeatureWorktree[], targetBranch: string): Promise<GitOperationResult[]> {
         const results: GitOperationResult[] = [];
 
         for (const wt of featureWorktrees) {
@@ -147,8 +138,6 @@ export class MergeCommands extends AbstractCommands {
             console.log('\n⚠️  Some merges need attention. Please resolve conflicts or errors before proceeding.');
         }
     }
-
-
 
     /**
      * Propose next action after successful merge and execute user's choice.

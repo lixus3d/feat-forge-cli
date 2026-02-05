@@ -24,7 +24,7 @@ import { createIDEWorkspaces } from '../lib/ide';
 import { activeFeatureFile, featureDir, featuresRoot } from '../lib/paths';
 import { promptChoice, promptConfirm, promptText } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
-import { ensureAgentTemplates, FEATURE_FILES, resolveTemplate, templateFor } from '../lib/templates';
+import { ensureAgentTemplates, FEATURE_FILES, resolveCustomTemplate, templateFor } from '../lib/templates';
 import { AbstractCommands } from './abstract';
 import { ModeCommands } from './mode';
 
@@ -261,10 +261,10 @@ export class FeatureCommands extends AbstractCommands {
     /**
      * Set initial mode to spec if no mode is defined yet in the feature
      */
-    private async setInitialMode(featurePath: string): Promise<void> {
+    private async setInitialMode(featureRoot: string, featurePath: string): Promise<void> {
         // Use ModeCommands to set spec mode if not already defined
         const modeCommands = new ModeCommands(this.config);
-        await modeCommands.setInitialModeIfNeeded(featurePath);
+        await modeCommands.setInitialModeIfNeeded(featureRoot, featurePath);
     }
 
     /**
@@ -342,7 +342,14 @@ export class FeatureCommands extends AbstractCommands {
 
         // Create IDE workspaces if configured
         if (this.config.ides.length > 0) {
-            await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, this.config.repoNames, this.config.ides, this.config.agents);
+            await createIDEWorkspaces(
+                safeSlug,
+                featureRoot,
+                mainRepoName,
+                this.config.repoNames,
+                this.config.ides,
+                this.config.agents,
+            );
         }
 
         console.log(`Feature "${safeSlug}" already started.`);
@@ -400,11 +407,18 @@ export class FeatureCommands extends AbstractCommands {
 
         // Set initial mode to spec if not defined
         const featurePath = featureDir(mainWorktree, safeSlug);
-        await this.setInitialMode(featurePath);
+        await this.setInitialMode(featureRoot, featurePath);
 
         // Create IDE workspaces if configured
         if (this.config.ides.length > 0) {
-            await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, this.config.repoNames, this.config.ides, this.config.agents);
+            await createIDEWorkspaces(
+                safeSlug,
+                featureRoot,
+                mainRepoName,
+                this.config.repoNames,
+                this.config.ides,
+                this.config.agents,
+            );
         }
     }
 
@@ -469,11 +483,7 @@ export class FeatureCommands extends AbstractCommands {
      * @param expectedBranch - Expected branch name
      * @returns true if an error occurred, false otherwise
      */
-    private async resyncSingleWorktree(
-        repoName: string,
-        worktreePath: string,
-        expectedBranch: string,
-    ): Promise<boolean> {
+    private async resyncSingleWorktree(repoName: string, worktreePath: string, expectedBranch: string): Promise<boolean> {
         // Check if worktree exists
         if (!(await pathExists(worktreePath))) {
             console.log(`  ⚠ ${repoName}: worktree not found, skipping`);
@@ -593,9 +603,7 @@ export class FeatureCommands extends AbstractCommands {
     /**
      * Check all worktrees for a feature and return which ones are dirty.
      */
-    private async checkDirtyWorktrees(
-        slug: string,
-    ): Promise<Array<{ repoRoot: string; repoName: string; worktreePath: string }>> {
+    private async checkDirtyWorktrees(slug: string): Promise<Array<{ repoRoot: string; repoName: string; worktreePath: string }>> {
         // Build list of all worktrees for this feature
         const worktrees = this.buildWorktreeList(slug);
 
@@ -762,7 +770,7 @@ export class FeatureCommands extends AbstractCommands {
             if (await pathExists(filePath)) {
                 continue;
             }
-            const resolved = await resolveTemplate(repoRoot, fileName);
+            const resolved = await resolveCustomTemplate(this.config.rootDir, repoRoot, fileName);
             await writeTextFile(filePath, resolved ?? templateFor(fileName));
         }
 

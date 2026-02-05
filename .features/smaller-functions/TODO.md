@@ -24,20 +24,20 @@
 ## Phase 4: Refactoring de commands/feature.ts
 
 - [x] Découper la méthode `start()` (actuellement ~70 lignes) en sous-fonctions
-  - [x] Extraire `handleExistingWorktrees()` pour gérer les worktrees existants
-  - [x] Extraire `createNewWorktrees()` pour créer les nouveaux worktrees
-  - [x] Extraire `finalizeFeatureStart()` pour finaliser le démarrage
+    - [x] Extraire `handleExistingWorktrees()` pour gérer les worktrees existants
+    - [x] Extraire `createNewWorktrees()` pour créer les nouveaux worktrees
+    - [x] Extraire `finalizeFeatureStart()` pour finaliser le démarrage
 - [x] Découper la méthode `stop()` (actuellement ~80 lignes) en sous-fonctions
-  - [x] Extraire `cleanupOrphanedWorktrees()` pour gérer les worktrees orphelins
-  - [x] Extraire `handleDirtyWorktrees()` pour gérer les changements non commités
+    - [x] Extraire `cleanupOrphanedWorktrees()` pour gérer les worktrees orphelins
+    - [x] Extraire `handleDirtyWorktrees()` pour gérer les changements non commités
 - [x] Découper la méthode `archive()` (actuellement ~90 lignes) en sous-fonctions
-  - [x] Extraire `determineArchiveWorktree()` pour déterminer le worktree à utiliser
-  - [x] Extraire `performArchiveOperation()` pour effectuer l'archivage
+    - [x] Extraire `determineArchiveWorktree()` pour déterminer le worktree à utiliser
+    - [x] Extraire `performArchiveOperation()` pour effectuer l'archivage
 - [x] Découper la méthode `list()` (actuellement ~65 lignes) en sous-fonctions
-  - [x] Extraire `collectFeatureBranches()` pour collecter les branches
-  - [x] Extraire `formatBranchInfo()` pour formater l'affichage
+    - [x] Extraire `collectFeatureBranches()` pour collecter les branches
+    - [x] Extraire `formatBranchInfo()` pour formater l'affichage
 - [x] Découper la méthode `resync()` (actuellement ~60 lignes) en sous-fonctions
-  - [x] Extraire `resyncSingleWorktree()` pour resynchroniser un worktree
+    - [x] Extraire `resyncSingleWorktree()` pour resynchroniser un worktree
 - [x] Remplacer les patterns de vérification répétés par `getRepoNameOrThrow()`
 - [x] Optimiser l'utilisation de `this.config` au lieu de passer `config` en paramètre
 - [x] Ajouter des commentaires explicatifs avant chaque appel de sous-fonction

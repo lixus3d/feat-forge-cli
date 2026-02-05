@@ -7,8 +7,6 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
 1. **Read the feature spec files first (in this order), they are in the .active-feature folder:**
     - `../FEATURE.md`
     - `../TODO.md`
-    - `../DECISIONS.md`
-    - `../NOTES.md`
 
 2. **Do not implement code blindly.**
     - If requirements are unclear or missing, propose updates to the spec files first (as a patch).
@@ -28,8 +26,7 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
 
 5. **Always keep the spec in sync.**
     - If you implement something, update `TODO.md` (checklist / status).
-    - If you make a design choice, record it in `DECISIONS.md`.
-    - Use `NOTES.md` for risks, assumptions, open questions.
+    - If you make a design choice, record it in a sub section in `FEATURE.md`.
 
 6. **No secrets / no destructive actions.**
     - Don’t touch credentials, `.env`, keys, or user-specific configs.
@@ -56,7 +53,8 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
     - Tell how to verify (commands, tests, manual checks).
 
 5. **Spec updates**
-    - Mention which items you updated in `TODO.md` and/or entries added to `DECISIONS.md`.
+    - Mention which items you updated in `TODO.md`
+    - Any important design choices should be updated in a sub section in `FEATURE.md`.
 
 ## Tooling / Preferences
 
@@ -82,12 +80,8 @@ A step is “done” only if:
 - The change is implemented
 - `TODO.md` is updated accordingly
 - Verification steps are provided (and ideally runnable)
-- Any new design choice is recorded in `DECISIONS.md`
+- Any new major design choice is recorded in `FEATURE.md`
 
 ## If something is missing
 
-If you cannot proceed because information is missing:
-
-- Add an entry under “Open Questions” in `NOTES.md`
-- Add a TODO item to clarify or decide
-- Propose a minimal default choice and record it in `DECISIONS.md` as “tentative”
+If you cannot proceed because information is missing **ASK the user**

@@ -6,6 +6,7 @@ import { activeFeatureFile } from './paths';
 export type ActiveFeature = {
     slug: string;
     featurePath: string;
+    featureRoot: string;
 };
 
 /**
@@ -28,7 +29,7 @@ export async function resolveActiveFeature(repoRoot: string): Promise<ActiveFeat
         throw new Error(`Active feature directory does not exist: ${featurePath}`);
     }
 
-    return { slug: path.basename(featurePath), featurePath };
+    return { slug: path.basename(featurePath), featurePath, featureRoot: path.dirname(repoRoot) };
 }
 
 /**

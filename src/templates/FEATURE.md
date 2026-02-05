@@ -1,20 +1,20 @@
-# Objectif
+# Goal
 
 ---
 
-# Fonctionalités
+# Feature details
 
 -
 -
-- ***
+-
 
-# Critères d’acceptation
+# Acceptance criteria
 
 -
 -
-- ***
+-
 
-# Non-objectifs
+# Not in the perimeter
 
 -
 -

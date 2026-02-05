@@ -5,6 +5,7 @@
 ### Fonctions longues identifiées (> 50 lignes)
 
 #### commands/feature.ts
+
 - `start()` : ~70 lignes - gère la création des worktrees et IDE workspaces
 - `stop()` : ~80 lignes - gère le nettoyage des worktrees avec différentes stratégies
 - `archive()` : ~90 lignes - gère l'archivage avec worktree temporaire
@@ -13,16 +14,19 @@
 - `initSpecInBranch()` : ~50 lignes - initialise les specs dans un worktree temporaire
 
 #### commands/merge.ts
+
 - Déjà bien découpé grâce au refactoring précédent ✅
 - Toutes les fonctions < 50 lignes
 
 #### commands/agent.ts, init.ts, mode.ts
+
 - Déjà courts ✅
 - Pas de refactoring nécessaire au niveau taille
 
 ### Patterns de duplication identifiés
 
 #### 1. Récupération du nom de repo avec vérification
+
 ```typescript
 // Pattern répété ~15 fois dans feature.ts et merge.ts
 const repoName = repoNames.get(repoRoot);
@@ -34,6 +38,7 @@ if (!repoName) {
 **Solution proposée** : Fonction utilitaire `getRepoNameOrThrow()`
 
 #### 2. Vérification d'existence de worktree
+
 ```typescript
 // Pattern répété ~10 fois
 if (await pathExists(worktreePath)) {
@@ -44,6 +49,7 @@ if (await pathExists(worktreePath)) {
 **Solution proposée** : Peut rester tel quel (trop simple pour extraire), mais documenter le pattern
 
 #### 3. Vérification de worktree "propre" (sans changements)
+
 ```typescript
 // Pattern répété ~5 fois
 const status = await getGitStatusPorcelain(worktreePath);
@@ -55,6 +61,7 @@ if (status) {
 **Solution proposée** : Fonction `ensureCleanWorktree()` ou `verifyWorktreeIsClean()`
 
 #### 4. Construction de liste de worktrees
+
 ```typescript
 // Pattern répété ~3 fois avec variations
 const worktrees = repoRoots.map((repoRoot) => {
@@ -73,6 +80,7 @@ const worktrees = repoRoots.map((repoRoot) => {
 ### Impact du changement de config obligatoire
 
 **Files impactés** :
+
 - `commands/abstract.ts` : définition de la classe
 - `commands/feature.ts` : 5 appels à `ensureConfig()`
 - `commands/merge.ts` : 2 appels à `ensureConfig()`
@@ -81,11 +89,13 @@ const worktrees = repoRoots.map((repoRoot) => {
 - `cli.ts` : instanciation des commandes
 
 **Risque** : Si la config n'est pas disponible, les commandes ne peuvent plus être instanciées.
+
 - Mitigation: Gérer l'erreur dans `cli.ts` et afficher un message clair
 
 ### Compatibilité avec le pattern actuel
 
 Le code utilise déjà un pattern similaire dans les `register*Commands()` :
+
 ```typescript
 export function registerFeatureCommands(program: Command, config?: ForgeContext): void {
     const handlers = new FeatureCommands(config);
@@ -94,6 +104,7 @@ export function registerFeatureCommands(program: Command, config?: ForgeContext)
 ```
 
 Après refactoring, ce sera simplement :
+
 ```typescript
 export function registerFeatureCommands(program: Command, config: ForgeContext): void {
     const handlers = new FeatureCommands(config);
@@ -146,13 +157,14 @@ export function registerFeatureCommands(program: Command, config: ForgeContext):
 **Contexte** : Actuellement, si la config n'est pas chargée, les commandes peuvent quand même être instanciées grâce au `config?`.
 
 **Options** :
+
 - **A. Config strictement obligatoire** (recommandé)
-  - Pro: plus simple, plus clair
-  - Con: commandes non-fonctionnelles si config absente
+    - Pro: plus simple, plus clair
+    - Con: commandes non-fonctionnelles si config absente
 
 - **B. Permettre l'absence de config et échouer à l'exécution**
-  - Pro: permet d'afficher l'aide même sans config
-  - Con: erreurs moins claires (échouent au runtime)
+    - Pro: permet d'afficher l'aide même sans config
+    - Con: erreurs moins claires (échouent au runtime)
 
 **Recommandation** : Option A - si config absente, `cli.ts` affiche un message et exit avant d'instancier les commandes.
 
@@ -161,26 +173,28 @@ export function registerFeatureCommands(program: Command, config: ForgeContext):
 **Contexte** : Beaucoup de `throw new Error(...)` avec des messages similaires.
 
 **Options** :
+
 - **A. Garder les Error simples** (recommandé pour cette feature)
-  - Pro: simple, pas de complexité ajoutée
-  - Con: pas de typologie des erreurs
+    - Pro: simple, pas de complexité ajoutée
+    - Con: pas de typologie des erreurs
 
 - **B. Créer ConfigNotFoundError, RepoNotFoundError, etc.**
-  - Pro: meilleure gestion d'erreur, plus testable
-  - Con: hors scope de cette feature
+    - Pro: meilleure gestion d'erreur, plus testable
+    - Con: hors scope de cette feature
 
 **Recommandation** : Option A pour l'instant, noter dans NOTES que c'est une amélioration future possible.
 
 ### Q3: Ordre de refactoring - par phase ou par fichier ?
 
 **Options** :
+
 - **A. Par phase** (recommandé) : D'abord config, puis fonctions utilitaires, puis découpage
-  - Pro: changements progressifs, plus facile à valider
-  - Con: plus de commits
+    - Pro: changements progressifs, plus facile à valider
+    - Con: plus de commits
 
 - **B. Par fichier** : Terminer complètement un fichier avant de passer au suivant
-  - Pro: moins de contexte switching
-  - Con: risque de casser des choses si on refactor abstract.ts en dernier
+    - Pro: moins de contexte switching
+    - Con: risque de casser des choses si on refactor abstract.ts en dernier
 
 **Recommandation** : Option A - suivre les phases de la TODO list.
 
@@ -191,6 +205,7 @@ export function registerFeatureCommands(program: Command, config: ForgeContext):
 ### Statistiques
 
 **Après refactoring** :
+
 - `abstract.ts` : 12 lignes (simplifié de 23)
 - `feature.ts` : ~993 lignes (mais mieux structuré avec fonctions < 50 lignes)
 - `merge.ts` : 351 lignes (maintenu propre)
@@ -199,26 +214,26 @@ export function registerFeatureCommands(program: Command, config: ForgeContext):
 
 ### Améliorations clés
 
-1. **Config obligatoire** : 
-   - Suppression de `ensureConfig()` - moins de code asynchrone inutile
-   - Accès direct à `this.config` partout
-   - Gestion d'erreur centralisée dans `cli.ts`
+1. **Config obligatoire** :
+    - Suppression de `ensureConfig()` - moins de code asynchrone inutile
+    - Accès direct à `this.config` partout
+    - Gestion d'erreur centralisée dans `cli.ts`
 
 2. **Fonctions utilitaires** :
-   - 2 nouvelles fonctions réutilisables
-   - Éliminé 15+ occurrences de code dupliqué
-   - Gestion d'erreurs cohérente
+    - 2 nouvelles fonctions réutilisables
+    - Éliminé 15+ occurrences de code dupliqué
+    - Gestion d'erreurs cohérente
 
 3. **Découpage de fonctions** :
-   - 5 fonctions principales découpées
-   - 10 nouvelles fonctions helper créées
-   - Toutes les fonctions < 50 lignes
-   - Amélioration significative de la lisibilité
+    - 5 fonctions principales découpées
+    - 10 nouvelles fonctions helper créées
+    - Toutes les fonctions < 50 lignes
+    - Amélioration significative de la lisibilité
 
 4. **Documentation** :
-   - Tous les docblocks JSDoc ajoutés
-   - Commentaires explicatifs dans les fonctions principales
-   - Description claire du "pourquoi" pas du "comment"
+    - Tous les docblocks JSDoc ajoutés
+    - Commentaires explicatifs dans les fonctions principales
+    - Description claire du "pourquoi" pas du "comment"
 
 ### Compilation et validation
 
@@ -227,4 +242,3 @@ export function registerFeatureCommands(program: Command, config: ForgeContext):
 ✓ Toutes les fonctions ont des docblocks
 ✓ Duplication de code éliminée (1 seule occurrence de "Missing repo name")
 ✓ Commentaires clairs et utiles
-
