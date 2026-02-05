@@ -31,6 +31,10 @@ type FeatureWorktree = {
  * Commands for merging feature branches into target branches
  */
 export class MergeCommands extends AbstractCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
     /**
      * Merge a feature branch into a target branch for all repos.
      *
@@ -44,27 +48,30 @@ export class MergeCommands extends AbstractCommands {
      * @param slug - The feature slug to merge
      */
     async merge(slug: string): Promise<void> {
-        const config = await this.ensureConfig();
         confirmSlugOrThrow(slug);
 
         console.log(`\n🔀 Merging feature: ${slug}\n`);
 
         // Step 1: Discover feature branches across all repos
-        const featureWorktrees = await this.discoverFeatureWorktrees(slug, config);
+        const featureWorktrees = await this.discoverFeatureWorktrees(slug);
 
         // Step 2: Verify all working trees are clean
-        await this.verifyCleanWorkingTrees(featureWorktrees, config.repoNames);
+        await this.verifyCleanWorkingTrees(featureWorktrees);
 
         // Step 3: Prompt user to select target branch
-        const targetBranch = await this.promptForTargetBranch(config.mainRepoRoot);
+        const targetBranch = await this.promptForTargetBranch(this.config.mainRepoRoot);
         console.log(`\n📍 Target branch: ${targetBranch}\n`);
 
         // Step 4: Perform merge for each repository
-        const results = await this.performMergesForAllRepos(featureWorktrees, targetBranch, config.repoNames);
+        const results = await this.performMergesForAllRepos(featureWorktrees, targetBranch);
 
         // Step 5: Display summary and propose next action
         await this.displaySummaryAndProposeAction(results, slug);
     }
+
+    // ============================================================================
+    // PRIVATE UTILITY METHODS
+    // ============================================================================
 
     /**
      * Discover all repositories that have a branch for this feature.
@@ -73,16 +80,15 @@ export class MergeCommands extends AbstractCommands {
      * Returns information about each worktree that needs to be merged.
      *
      * @param slug - The feature slug
-     * @param config - The forge configuration context
      * @returns Array of feature worktrees to merge
      * @throws Error if no feature branches are found
      */
-    private async discoverFeatureWorktrees(slug: string, config: ForgeContext): Promise<FeatureWorktree[]> {
+    private async discoverFeatureWorktrees(slug: string): Promise<FeatureWorktree[]> {
         const featureWorktrees: FeatureWorktree[] = [];
 
-        for (const repoRoot of config.repoRoots) {
-            const repoName = config.repoNames.get(repoRoot)!;
-            const worktreePath = getFeatureWorktreePath(config.worktreesRoot, slug, repoName);
+        for (const repoRoot of this.config.repoRoots) {
+            const repoName = this.config.repoNames.get(repoRoot)!;
+            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, slug, repoName);
             const featureBranch = `feature/${slug}`;
 
             // Check if feature branch exists for this repo
@@ -98,7 +104,7 @@ export class MergeCommands extends AbstractCommands {
         // Display found branches
         console.log(`Found ${featureWorktrees.length} repo(s) with feature branches:\n`);
         for (const wt of featureWorktrees) {
-            console.log(`  - ${config.repoNames.get(wt.repoRoot)} (${wt.featureBranch})`);
+            console.log(`  - ${this.config.repoNames.get(wt.repoRoot)} (${wt.featureBranch})`);
         }
         console.log();
 
@@ -109,15 +115,14 @@ export class MergeCommands extends AbstractCommands {
      * Verify that all working trees are clean before proceeding with merge.
      *
      * @param featureWorktrees - Array of feature worktrees to check
-     * @param repoNames - Map of repo paths to names
      * @throws Error if any working tree has uncommitted changes
      */
-    private async verifyCleanWorkingTrees(featureWorktrees: FeatureWorktree[], repoNames: Map<string, string>): Promise<void> {
+    private async verifyCleanWorkingTrees(featureWorktrees: FeatureWorktree[]): Promise<void> {
         for (const wt of featureWorktrees) {
             const status = await getGitStatusPorcelain(wt.worktreePath);
             if (status.length > 0) {
                 throw new Error(
-                    `Working tree is not clean in ${repoNames.get(wt.repoRoot)}.\n` +
+                    `Working tree is not clean in ${this.config.repoNames.get(wt.repoRoot)}.\n` +
                         `Please commit or stash your changes before merging.`,
                 );
             }
@@ -132,18 +137,16 @@ export class MergeCommands extends AbstractCommands {
      *
      * @param featureWorktrees - Array of feature worktrees to merge
      * @param targetBranch - The branch to merge into
-     * @param repoNames - Map of repo paths to names
      * @returns Array of merge results for each repository
      */
     private async performMergesForAllRepos(
         featureWorktrees: FeatureWorktree[],
         targetBranch: string,
-        repoNames: Map<string, string>,
     ): Promise<MergeResult[]> {
         const results: MergeResult[] = [];
 
         for (const wt of featureWorktrees) {
-            const repoName = repoNames.get(wt.repoRoot)!;
+            const repoName = this.config.repoNames.get(wt.repoRoot)!;
             const result = await this.mergeSingleRepo(wt, targetBranch, repoName);
             results.push(result);
         }
@@ -310,8 +313,7 @@ export class MergeCommands extends AbstractCommands {
         const selection = await promptChoice('What would you like to do next?', choices);
 
         // Execute the selected action
-        const config = await this.ensureConfig();
-        const featureCmd = new FeatureCommands(config);
+        const featureCmd = new FeatureCommands(this.config);
 
         switch (selection) {
             case '1':
@@ -329,24 +331,4 @@ export class MergeCommands extends AbstractCommands {
                 console.log('\n✅ No action taken.');
         }
     }
-}
-
-/**
- * Register merge commands with the CLI
- */
-export function registerMergeCommands(program: Command, config?: ForgeContext): void {
-    const mergeCmd = new MergeCommands(config);
-
-    function mergeFeature(slug: string): Promise<void> {
-        return mergeCmd.merge(slug);
-    }
-
-    // Main command: forge feature merge <slug>
-    const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
-    if (featureCommand) {
-        featureCommand.command('merge <slug>').description('Merge a feature branch into a target branch').action(mergeFeature);
-    }
-
-    // Shortcut: forge merge <slug>
-    program.command('merge <slug>').description('Merge a feature branch into a target branch (shortcut)').action(mergeFeature);
 }

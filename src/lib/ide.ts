@@ -62,7 +62,7 @@ async function createVSCodeWorkspace(
     const settings = { ...getDefaultIDESettings(mainRepoName, ide.name), ...ide.settings };
 
     const workspace: VSCodeWorkspace = {
-        folders: Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` })),
+        folders: [...Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` })), { path: '.vscode' }],
         settings,
     };
 

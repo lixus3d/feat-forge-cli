@@ -3,7 +3,11 @@ import { Command } from 'commander';
 import { pathExists, writeTextFile, ensureDir, ensureGitIgnore } from '../lib/fs';
 import { ensureAgentTemplates } from '../lib/templates';
 
-class InitCommands {
+export class InitCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
     /**
      * Create a .feat-forge.json in the current working directory.
      */
@@ -31,17 +35,4 @@ class InitCommands {
 
         console.log('Initialized .feat-forge.json and agent templates');
     }
-}
-
-/**
- * Register the init command on the main CLI program.
- */
-export function registerInitCommands(program: Command): void {
-    const handlers = new InitCommands();
-
-    function initForge(): Promise<void> {
-        return handlers.init();
-    }
-
-    program.command('init').description('Create a .feat-forge.json in the current folder').action(initForge);
 }

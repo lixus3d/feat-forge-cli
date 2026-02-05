@@ -29,15 +29,233 @@ import { AbstractCommands } from './abstract';
 import { ModeCommands } from './mode';
 
 export class FeatureCommands extends AbstractCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
+    /**
+     * Create a new feature folder and initialize missing spec files.
+     */
+    async create(slug: string): Promise<void> {
+        await this.prepareFeature(slug);
+    }
+
+    /**
+     * Switch to a feature branch/worktree and update active feature pointer.
+     */
+    async start(slug: string): Promise<void> {
+        // Prepare feature: validate slug, ensure branch and spec exist
+        const { safeSlug, branchName } = await this.prepareFeature(slug);
+
+        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
+        await ensureDir(featureRoot);
+
+        // Check if all worktrees already exist
+        const worktreeTargets = this.config.repoRoots.map((repoRoot) => {
+            const repoName = this.getRepoNameOrThrow(repoRoot);
+            return getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
+        });
+
+        const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
+        if (existingWorktrees.every(Boolean)) {
+            // All worktrees exist - just set active feature and IDE workspaces
+            await this.handleExistingWorktrees(safeSlug, featureRoot);
+            return;
+        }
+
+        // Create new worktrees for all repos
+        await this.createNewWorktrees(safeSlug, branchName);
+
+        // Finalize: set active feature, mode, and IDE workspaces
+        await this.finalizeFeatureStart(safeSlug, featureRoot);
+    }
+
+    /**
+     * List all feature worktrees with their git branches.
+     */
+    async list(): Promise<void> {
+        // Check if worktrees directory exists
+        if (!(await pathExists(this.config.worktreesRoot))) {
+            console.log('No features directory found.');
+            return;
+        }
+
+        // Get list of feature directories
+        const entries = await readdir(this.config.worktreesRoot, { withFileTypes: true });
+        const featureDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+        if (featureDirs.length === 0) {
+            console.log('No feature worktrees found.');
+            return;
+        }
+
+        // Display each feature with branch information
+        console.log('Feature worktrees:');
+        for (const slug of featureDirs.sort()) {
+            // Collect branch information for this feature
+            const branches = await this.collectFeatureBranches(slug);
+
+            // Format branch information
+            const { info: branchInfo, isInconsistent } = this.formatBranchInfo(branches);
+
+            // Use red color for inconsistent branches
+            const RED = '\\x1b[31m';
+            const RESET = '\\x1b[0m';
+            const output = isInconsistent ? `  - ${slug}${RED}${branchInfo}${RESET}` : `  - ${slug}${branchInfo}`;
+
+            console.log(output);
+        }
+    }
+
+    /**
+     * Resync all repos in a feature worktree to the correct branch.
+     */
+    async resync(slug: string): Promise<void> {
+        const safeSlug = await confirmSlugOrThrow(slug);
+        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
+
+        // Verify feature directory exists
+        if (!(await pathExists(featureRoot))) {
+            throw new Error(`Feature worktree not found: ${safeSlug}`);
+        }
+
+        const expectedBranch = `feature/${safeSlug}`;
+        console.log(`Resyncing feature \"${safeSlug}\" to branch \"${expectedBranch}\"...`);
+
+        let hasErrors = false;
+
+        // Resync each repository worktree
+        for (const repoRoot of this.config.repoRoots) {
+            const repoName = this.config.repoNames.get(repoRoot);
+            if (!repoName) continue;
+
+            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
+            const hadError = await this.resyncSingleWorktree(repoName, worktreePath, expectedBranch);
+            if (hadError) {
+                hasErrors = true;
+            }
+        }
+
+        // Display summary
+        if (hasErrors) {
+            console.log('\\n⚠ Resync completed with errors.');
+        } else {
+            console.log('\\n✓ All repos resynced successfully.');
+        }
+    }
+
+    /**
+     * Stop a feature by removing its worktrees and clearing active pointer.
+     */
+    async stop(slug: string): Promise<void> {
+        const safeSlug = await confirmSlugOrThrow(slug);
+        const branchName = `feature/${safeSlug}`;
+
+        // Clean up any orphaned worktrees first
+        await this.cleanupOrphanedWorktrees(branchName);
+
+        // Check for uncommitted changes in worktrees
+        const dirtyWorktrees = await this.checkDirtyWorktrees(safeSlug);
+
+        // Handle dirty worktrees if any exist
+        if (dirtyWorktrees.length > 0) {
+            const shouldProceed = await this.handleDirtyWorktrees(dirtyWorktrees);
+            if (!shouldProceed) {
+                return;
+            }
+        }
+
+        // Clean up all worktrees and feature directory
+        await this.cleanupFeatureWorktrees(safeSlug);
+    }
+
+    /**
+     * Archive a feature by moving it from .features/<slug>/ to .features/.archives/<slug>/
+     * and committing the change in the feature branch.
+     */
+    async archive(slug: string): Promise<void> {
+        const safeSlug = await confirmSlugOrThrow(slug);
+        const branchName = `feature/${safeSlug}`;
+
+        // Verify feature branch exists
+        if (!(await gitBranchExists(this.config.mainRepoRoot, branchName))) {
+            throw new Error(`Feature branch \"${branchName}\" does not exist in main repo.`);
+        }
+
+        // Determine which worktree to use (existing or create temporary)
+        let workingWorktree: string;
+        try {
+            workingWorktree = await this.determineArchiveWorktree(safeSlug, branchName);
+        } catch (error) {
+            // Early return if worktree has uncommitted changes
+            if (error instanceof Error && error.message === 'Feature has uncommitted changes') {
+                return;
+            }
+            throw error;
+        }
+
+        try {
+            // Perform the archive operation
+            await this.performArchiveOperation(workingWorktree, safeSlug);
+
+            // Display success message
+            console.log(`✓ Feature \"${safeSlug}\" archived successfully.`);
+            console.log(`  Moved: .features/${safeSlug}/ → .features/.archives/${safeSlug}/`);
+            console.log(`\nNext steps:`);
+            console.log(`  - Merge branch \"${branchName}\" to main`);
+            console.log(`  - Delete branch \"${branchName}\" if no longer needed`);
+        } finally {
+            // Clean up all worktrees for all repos
+            await this.cleanupFeatureWorktrees(safeSlug);
+        }
+    }
+
+    // ============================================================================
+    // PRIVATE UTILITY METHODS
+    // ============================================================================
+
+    /**
+     * Retrieve the repository name for a given root path.
+     *
+     * Looks up the repository name from the repoNames map and throws
+     * a descriptive error if not found.
+     *
+     * @param repoRoot - Root path of the repository
+     * @returns The repository name
+     * @throws Error if repository name is not found in the map
+     */
+    private getRepoNameOrThrow(repoRoot: string): string {
+        const repoName = this.config.repoNames.get(repoRoot);
+        if (!repoName) {
+            throw new Error(`Missing repo name for ${repoRoot}`);
+        }
+        return repoName;
+    }
+
     /**
      * Resolve the configured main repo name or throw if missing.
+     *
+     * @returns The main repository name
+     * @throws Error if main repository name is not found
      */
-    private getMainRepoName(repoNames: Map<string, string>, mainRepoRoot: string): string {
-        const mainRepoName = repoNames.get(mainRepoRoot);
-        if (!mainRepoName) {
-            throw new Error(`Missing repo name for ${mainRepoRoot}`);
-        }
-        return mainRepoName;
+    private getMainRepoName(): string {
+        return this.getRepoNameOrThrow(this.config.mainRepoRoot);
+    }
+
+    /**
+     * Build a list of worktree metadata for a given feature across all repos.
+     *
+     * Maps each repository root to its worktree path and metadata for the feature.
+     *
+     * @param slug - Feature slug identifier
+     * @returns Array of worktree metadata objects
+     * @throws Error if any repository name is not found in the map
+     */
+    private buildWorktreeList(slug: string): Array<{ repoRoot: string; repoName: string; worktreePath: string }> {
+        return this.config.repoRoots.map((repoRoot) => {
+            const repoName = this.getRepoNameOrThrow(repoRoot);
+            return { repoRoot, repoName, worktreePath: getFeatureWorktreePath(this.config.worktreesRoot, slug, repoName) };
+        });
     }
 
     /**
@@ -46,31 +264,26 @@ export class FeatureCommands extends AbstractCommands {
     private async prepareFeature(slug: string): Promise<{
         safeSlug: string;
         branchName: string;
-        mainRepoRoot: string;
-        repoRoots: string[];
-        repoNames: Map<string, string>;
-        worktreesRoot: string;
-        rootDir: string;
-        agents: Agent[];
-        ides: IDE[];
     }> {
         const safeSlug = await confirmSlugOrThrow(slug);
-        const config = await this.ensureConfig();
-        const { mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides } = config;
         const branchName = `feature/${safeSlug}`;
 
         // Ensure agent templates exist in .features/.template/agent/
-        await ensureAgentTemplates(mainRepoRoot);
-        await ensureGitIgnore(repoRoots);
+        await ensureAgentTemplates(this.config.mainRepoRoot);
 
-        for (const repoRoot of repoRoots) {
+        // Ensure .gitignore includes .active-feature in all repos to avoid accidentally committing active feature pointers
+        await ensureGitIgnore(this.config.repoRoots);
+
+        // Ensure feature branch exists in all repos (creates branch if missing, but does not check it out)
+        for (const repoRoot of this.config.repoRoots) {
             await this.ensureBranchExists(repoRoot, branchName);
         }
 
-        const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
-        await this.initSpecInBranch(mainRepoRoot, mainRepoName, safeSlug, branchName, rootDir);
+        const mainRepoName = this.getMainRepoName();
+        // Init spec files in main repo branch if they don't exist (using a temporary worktree to avoid affecting user's current worktree)
+        await this.initSpecInBranch(this.config.mainRepoRoot, mainRepoName, safeSlug, branchName, this.config.rootDir);
 
-        return { safeSlug, branchName, mainRepoRoot, repoRoots, repoNames, worktreesRoot, rootDir, agents, ides };
+        return { safeSlug, branchName };
     }
 
     /**
@@ -134,235 +347,217 @@ export class FeatureCommands extends AbstractCommands {
     }
 
     /**
-     * Create a new feature folder and initialize missing spec files.
+     * Handle the case where worktrees already exist for a feature.
+     *
+     * Sets the active feature, creates IDE workspaces, and notifies the user.
+     *
+     * @param safeSlug - Validated feature slug
+     * @param featureRoot - Root directory for the feature
      */
-    async create(slug: string): Promise<void> {
-        await this.prepareFeature(slug);
+    private async handleExistingWorktrees(safeSlug: string, featureRoot: string): Promise<void> {
+        const mainRepoName = this.getMainRepoName();
+
+        // Build main worktree path
+        const mainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
+
+        // Build secondary worktrees paths (all repos except main)
+        const secondaryWorktrees = this.config.repoRoots
+            .filter((r) => this.config.repoNames.get(r) !== mainRepoName)
+            .map((r) => getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.config.repoNames.get(r)!));
+
+        // Set active feature pointer
+        await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
+
+        // Create IDE workspaces if configured
+        if (this.config.ides.length > 0) {
+            await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, this.config.repoNames, this.config.ides, this.config.agents);
+        }
+
+        console.log(`Feature "${safeSlug}" already started.`);
     }
 
     /**
-     * Switch to a feature branch/worktree and update active feature pointer.
+     * Create new worktrees for all repos in a feature.
+     *
+     * For each repository, creates a worktree at the appropriate path,
+     * either checking out an existing branch or creating a new one.
+     *
+     * @param safeSlug - Validated feature slug
+     * @param branchName - Name of the feature branch
+     * @throws Error if a worktree path unexpectedly already exists
      */
-    async start(slug: string): Promise<void> {
-        const { safeSlug, mainRepoRoot, repoRoots, repoNames, worktreesRoot, branchName, agents, ides } =
-            await this.prepareFeature(slug);
-        const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
+    private async createNewWorktrees(safeSlug: string, branchName: string): Promise<void> {
+        for (const repoRoot of this.config.repoRoots) {
+            const repoName = this.getRepoNameOrThrow(repoRoot);
+            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
 
-        const featureRoot = getFeatureRoot(worktreesRoot, safeSlug);
-        await ensureDir(featureRoot);
-
-        const worktreeTargets = repoRoots.map((repoRoot) => {
-            const repoName = repoNames.get(repoRoot);
-            if (!repoName) {
-                throw new Error(`Missing repo name for ${repoRoot}`);
-            }
-            return getFeatureWorktreePath(worktreesRoot, safeSlug, repoName);
-        });
-
-        const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
-        if (existingWorktrees.every(Boolean)) {
-            const mainWorktree = getFeatureWorktreePath(worktreesRoot, safeSlug, mainRepoName);
-            const secondaryWorktrees = repoRoots
-                .filter((r) => repoNames.get(r) !== mainRepoName)
-                .map((r) => getFeatureWorktreePath(worktreesRoot, safeSlug, repoNames.get(r)!));
-            await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
-
-            // Create IDE workspaces if needed
-            if (ides.length > 0) {
-                await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, repoNames, ides, agents);
-            }
-
-            console.log(`Feature "${safeSlug}" already started.`);
-            return;
-        }
-
-        for (const repoRoot of repoRoots) {
-            const repoName = repoNames.get(repoRoot);
-            if (!repoName) {
-                throw new Error(`Missing repo name for ${repoRoot}`);
-            }
-            const worktreePath = getFeatureWorktreePath(worktreesRoot, safeSlug, repoName);
+            // Check if worktree unexpectedly exists
             if (await pathExists(worktreePath)) {
                 throw new Error(
-                    `Worktree already exists at ${worktreePath}.\n` +
+                    `Worktree already exists at ${worktreePath}.\\n` +
                         `If you have manually deleted worktree folders, run 'forge feature stop ${safeSlug}' to clean up.`,
                 );
             }
 
+            // Create worktree (checkout existing branch or create new one)
             if (await gitBranchExists(repoRoot, branchName)) {
                 await runGit(repoRoot, ['worktree', 'add', worktreePath, branchName]);
             } else {
                 await runGit(repoRoot, ['worktree', 'add', '-b', branchName, worktreePath]);
             }
         }
+    }
 
-        const mainWorktree = getFeatureWorktreePath(worktreesRoot, safeSlug, mainRepoName);
-        const secondaryWorktrees = repoRoots
-            .filter((r) => repoNames.get(r) !== mainRepoName)
-            .map((r) => getFeatureWorktreePath(worktreesRoot, safeSlug, repoNames.get(r)!));
+    /**
+     * Finalize feature start by setting active feature, mode, and IDE workspaces.
+     *
+     * @param safeSlug - Validated feature slug
+     * @param featureRoot - Root directory for the feature
+     */
+    private async finalizeFeatureStart(safeSlug: string, featureRoot: string): Promise<void> {
+        const mainRepoName = this.getMainRepoName();
+
+        // Build worktree paths
+        const mainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
+        const secondaryWorktrees = this.config.repoRoots
+            .filter((r) => this.config.repoNames.get(r) !== mainRepoName)
+            .map((r) => getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.config.repoNames.get(r)!));
+
+        // Set active feature pointer
         await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
 
         // Set initial mode to spec if not defined
         const featurePath = featureDir(mainWorktree, safeSlug);
         await this.setInitialMode(featurePath);
 
-        // Create IDE workspaces
-        if (ides.length > 0) {
-            await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, repoNames, ides, agents);
+        // Create IDE workspaces if configured
+        if (this.config.ides.length > 0) {
+            await createIDEWorkspaces(safeSlug, featureRoot, mainRepoName, this.config.repoNames, this.config.ides, this.config.agents);
         }
     }
 
     /**
-     * List all feature worktrees with their git branches.
+     * Collect branch information for a feature across all repos.
+     *
+     * @param slug - Feature slug
+     * @returns Map of repository names to branch names
      */
-    async list(): Promise<void> {
-        const config = await this.ensureConfig();
-        const { worktreesRoot, repoRoots, repoNames } = config;
+    private async collectFeatureBranches(slug: string): Promise<Map<string, string>> {
+        const branches: Map<string, string> = new Map();
 
-        if (!(await pathExists(worktreesRoot))) {
-            console.log('No features directory found.');
-            return;
-        }
+        for (const repoRoot of this.config.repoRoots) {
+            const repoName = this.config.repoNames.get(repoRoot);
+            if (!repoName) continue;
 
-        const entries = await readdir(worktreesRoot, { withFileTypes: true });
-        const featureDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-
-        if (featureDirs.length === 0) {
-            console.log('No feature worktrees found.');
-            return;
-        }
-
-        console.log('Feature worktrees:');
-        for (const slug of featureDirs.sort()) {
-            const featureRoot = getFeatureRoot(worktreesRoot, slug);
-            const branches: Map<string, string> = new Map();
-
-            // Get branch for each repo in this feature worktree
-            for (const repoRoot of repoRoots) {
-                const repoName = repoNames.get(repoRoot);
-                if (!repoName) continue;
-
-                const worktreePath = getFeatureWorktreePath(worktreesRoot, slug, repoName);
-                if (await pathExists(worktreePath)) {
-                    const branch = await getCurrentBranch(worktreePath);
-                    if (branch) {
-                        branches.set(repoName, branch);
-                    }
+            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, slug, repoName);
+            if (await pathExists(worktreePath)) {
+                const branch = await getCurrentBranch(worktreePath);
+                if (branch) {
+                    branches.set(repoName, branch);
                 }
             }
+        }
 
-            // Format output based on branch consistency
-            const uniqueBranches = new Set(branches.values());
-            let branchInfo = '';
-            let isInconsistent = false;
+        return branches;
+    }
 
-            if (uniqueBranches.size === 0) {
-                branchInfo = ' (no branch info)';
-            } else if (uniqueBranches.size === 1) {
-                // All repos on same branch
-                branchInfo = ` (branch: ${Array.from(uniqueBranches)[0]})`;
-            } else {
-                // Different branches across repos - show all
-                isInconsistent = true;
-                const branchList = Array.from(branches.entries())
-                    .map(([repo, branch]) => `${repo}: ${branch}`)
-                    .join(', ');
-                branchInfo = ` (${branchList})`;
-            }
+    /**
+     * Format branch information for display.
+     *
+     * Shows a single branch name if consistent across repos,
+     * or all repo-branch pairs if inconsistent (highlighted in red).
+     *
+     * @param branches - Map of repository names to branch names
+     * @returns Formatted branch info string and inconsistency flag
+     */
+    private formatBranchInfo(branches: Map<string, string>): { info: string; isInconsistent: boolean } {
+        const uniqueBranches = new Set(branches.values());
 
-            // Use red color for inconsistent branches
-            const RED = '\x1b[31m';
-            const RESET = '\x1b[0m';
-            const output = isInconsistent ? `  - ${slug}${RED}${branchInfo}${RESET}` : `  - ${slug}${branchInfo}`;
+        if (uniqueBranches.size === 0) {
+            return { info: ' (no branch info)', isInconsistent: false };
+        }
 
-            console.log(output);
+        if (uniqueBranches.size === 1) {
+            // All repos on same branch
+            return { info: ` (branch: ${Array.from(uniqueBranches)[0]})`, isInconsistent: false };
+        }
+
+        // Different branches across repos - show all
+        const branchList = Array.from(branches.entries())
+            .map(([repo, branch]) => `${repo}: ${branch}`)
+            .join(', ');
+        return { info: ` (${branchList})`, isInconsistent: true };
+    }
+
+    /**
+     * Resync a single repository worktree to the expected branch.
+     *
+     * @param repoName - Name of the repository
+     * @param worktreePath - Path to the worktree
+     * @param expectedBranch - Expected branch name
+     * @returns true if an error occurred, false otherwise
+     */
+    private async resyncSingleWorktree(
+        repoName: string,
+        worktreePath: string,
+        expectedBranch: string,
+    ): Promise<boolean> {
+        // Check if worktree exists
+        if (!(await pathExists(worktreePath))) {
+            console.log(`  ⚠ ${repoName}: worktree not found, skipping`);
+            return false;
+        }
+
+        // Check current branch
+        const currentBranch = await getCurrentBranch(worktreePath);
+        if (currentBranch === expectedBranch) {
+            console.log(`  ✓ ${repoName}: already on ${expectedBranch}`);
+            return false;
+        }
+
+        // Check for uncommitted changes
+        const status = await getGitStatusPorcelain(worktreePath);
+        if (status) {
+            console.log(`  ✗ ${repoName}: has uncommitted changes, cannot switch branch`);
+            return true;
+        }
+
+        // Check if expected branch exists
+        if (!(await gitBranchExists(worktreePath, expectedBranch))) {
+            console.log(`  ✗ ${repoName}: branch ${expectedBranch} does not exist`);
+            return true;
+        }
+
+        // Attempt to checkout expected branch
+        try {
+            await checkoutBranch(worktreePath, expectedBranch);
+            console.log(`  ✓ ${repoName}: switched from ${currentBranch} to ${expectedBranch}`);
+            return false;
+        } catch (error) {
+            console.log(`  ✗ ${repoName}: failed to checkout ${expectedBranch}`);
+            return true;
         }
     }
 
     /**
-     * Resync all repos in a feature worktree to the correct branch.
+     * Clean up orphaned worktrees for a feature across all repos.
+     *
+     * An orphaned worktree is registered in git but its directory no longer exists.
+     *
+     * @param branchName - Name of the feature branch
      */
-    async resync(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const config = await this.ensureConfig();
-        const { worktreesRoot, repoRoots, repoNames } = config;
-        const featureRoot = getFeatureRoot(worktreesRoot, safeSlug);
-
-        if (!(await pathExists(featureRoot))) {
-            throw new Error(`Feature worktree not found: ${safeSlug}`);
-        }
-
-        const expectedBranch = `feature/${safeSlug}`;
-        console.log(`Resyncing feature "${safeSlug}" to branch "${expectedBranch}"...`);
-
-        let hasErrors = false;
-
-        for (const repoRoot of repoRoots) {
-            const repoName = repoNames.get(repoRoot);
-            if (!repoName) continue;
-
-            const worktreePath = getFeatureWorktreePath(worktreesRoot, safeSlug, repoName);
-            if (!(await pathExists(worktreePath))) {
-                console.log(`  ⚠ ${repoName}: worktree not found, skipping`);
-                continue;
-            }
-
-            const currentBranch = await getCurrentBranch(worktreePath);
-            if (currentBranch === expectedBranch) {
-                console.log(`  ✓ ${repoName}: already on ${expectedBranch}`);
-                continue;
-            }
-
-            // Check for uncommitted changes
-            const status = await getGitStatusPorcelain(worktreePath);
-            if (status) {
-                console.log(`  ✗ ${repoName}: has uncommitted changes, cannot switch branch`);
-                hasErrors = true;
-                continue;
-            }
-
-            // Check if expected branch exists
-            if (!(await gitBranchExists(worktreePath, expectedBranch))) {
-                console.log(`  ✗ ${repoName}: branch ${expectedBranch} does not exist`);
-                hasErrors = true;
-                continue;
-            }
-
-            try {
-                await checkoutBranch(worktreePath, expectedBranch);
-                console.log(`  ✓ ${repoName}: switched from ${currentBranch} to ${expectedBranch}`);
-            } catch (error) {
-                console.log(`  ✗ ${repoName}: failed to checkout ${expectedBranch}`);
-                hasErrors = true;
-            }
-        }
-
-        if (hasErrors) {
-            console.log('\n⚠ Resync completed with errors.');
-        } else {
-            console.log('\n✓ All repos resynced successfully.');
-        }
-    }
-
-    /**
-     * Stop a feature by removing its worktrees and clearing active pointer.
-     */
-    async stop(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const config = await this.ensureConfig();
-        const { repoRoots, repoNames, worktreesRoot } = config;
-        const featureRoot = getFeatureRoot(worktreesRoot, safeSlug);
-        const branchName = `feature/${safeSlug}`;
-
-        // First, clean up any orphaned worktrees (worktrees pointing to non-existent paths)
+    private async cleanupOrphanedWorktrees(branchName: string): Promise<void> {
         console.log('Checking for orphaned worktrees...');
-        for (const repoRoot of repoRoots) {
-            const repoName = repoNames.get(repoRoot);
+
+        for (const repoRoot of this.config.repoRoots) {
+            const repoName = this.config.repoNames.get(repoRoot);
             if (!repoName) continue;
 
+            // Get all worktrees for this repo
             const worktrees = await getWorktrees(repoRoot);
+
+            // Remove orphaned worktrees for our feature branch
             for (const worktree of worktrees) {
-                // Check if this worktree is for our feature branch
                 if (worktree.branch === branchName && !(await pathExists(worktree.path))) {
                     console.log(`  Removing orphaned worktree for ${repoName}: ${worktree.path}`);
                     try {
@@ -373,61 +568,66 @@ export class FeatureCommands extends AbstractCommands {
                 }
             }
         }
+    }
 
-        // Check for dirty worktrees
-        const dirtyWorktrees = await this.checkDirtyWorktrees(worktreesRoot, safeSlug, repoRoots, repoNames);
+    /**
+     * Handle dirty worktrees by prompting user for action and executing it.
+     *
+     * @param dirtyWorktrees - Array of dirty worktree metadata
+     * @returns true if cleanup should proceed, false if user cancelled
+     */
+    private async handleDirtyWorktrees(
+        dirtyWorktrees: Array<{ repoRoot: string; repoName: string; worktreePath: string }>,
+    ): Promise<boolean> {
+        // Prompt user for action
+        const action = await this.promptDirtyAction();
 
-        if (dirtyWorktrees.length > 0) {
-            const action = await this.promptDirtyAction();
+        // User chose to cancel
+        if (action === 'B') {
+            return false;
+        }
 
-            if (action === 'B') {
-                return;
+        // User chose to commit changes
+        if (action === 'A') {
+            const message = await promptText('Commit message to use');
+            if (!message) {
+                throw new Error('Commit message is required.');
             }
 
-            if (action === 'A') {
-                const message = await promptText('Commit message to use');
-                if (!message) {
-                    throw new Error('Commit message is required.');
-                }
+            // Commit changes in each dirty worktree
+            for (const worktree of dirtyWorktrees) {
+                await runGit(worktree.worktreePath, ['add', '-A']);
+                await runGit(worktree.worktreePath, ['commit', '-m', message]);
 
-                for (const worktree of dirtyWorktrees) {
-                    await runGit(worktree.worktreePath, ['add', '-A']);
-                    await runGit(worktree.worktreePath, ['commit', '-m', message]);
-                    const status = await getGitStatusPorcelain(worktree.worktreePath);
-                    if (status) {
-                        throw new Error(`Worktree still dirty after commit: ${worktree.worktreePath}`);
-                    }
-                }
-            }
-
-            if (action === 'C') {
-                const confirmed = await promptConfirm('This will discard local changes. Proceed?');
-                if (!confirmed) {
-                    return;
+                // Verify worktree is now clean
+                const status = await getGitStatusPorcelain(worktree.worktreePath);
+                if (status) {
+                    throw new Error(`Worktree still dirty after commit: ${worktree.worktreePath}`);
                 }
             }
         }
 
-        await this.cleanupFeatureWorktrees(worktreesRoot, safeSlug, repoRoots, repoNames);
+        // User chose to discard changes
+        if (action === 'C') {
+            const confirmed = await promptConfirm('This will discard local changes. Proceed?');
+            if (!confirmed) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
      * Check all worktrees for a feature and return which ones are dirty.
      */
     private async checkDirtyWorktrees(
-        worktreesRoot: string,
         slug: string,
-        repoRoots: string[],
-        repoNames: Map<string, string>,
     ): Promise<Array<{ repoRoot: string; repoName: string; worktreePath: string }>> {
-        const worktrees = repoRoots.map((repoRoot) => {
-            const repoName = repoNames.get(repoRoot);
-            if (!repoName) {
-                throw new Error(`Missing repo name for ${repoRoot}`);
-            }
-            return { repoRoot, repoName, worktreePath: getFeatureWorktreePath(worktreesRoot, slug, repoName) };
-        });
+        // Build list of all worktrees for this feature
+        const worktrees = this.buildWorktreeList(slug);
 
+        // Filter to find worktrees with uncommitted changes
         const dirtyWorktrees = [];
         for (const worktree of worktrees) {
             if (!(await pathExists(worktree.worktreePath))) {
@@ -445,27 +645,18 @@ export class FeatureCommands extends AbstractCommands {
     /**
      * Clean up all worktrees and feature root directory.
      */
-    private async cleanupFeatureWorktrees(
-        worktreesRoot: string,
-        slug: string,
-        repoRoots: string[],
-        repoNames: Map<string, string>,
-    ): Promise<void> {
-        const worktrees = repoRoots.map((repoRoot) => {
-            const repoName = repoNames.get(repoRoot);
-            if (!repoName) {
-                throw new Error(`Missing repo name for ${repoRoot}`);
-            }
-            return { repoRoot, repoName, worktreePath: getFeatureWorktreePath(worktreesRoot, slug, repoName) };
-        });
+    private async cleanupFeatureWorktrees(slug: string): Promise<void> {
+        // Build list of all worktrees for this feature
+        const worktrees = this.buildWorktreeList(slug);
 
+        // Remove each worktree
         for (const worktree of worktrees) {
             if (await pathExists(worktree.worktreePath)) {
                 await runGit(worktree.repoRoot, ['worktree', 'remove', '--force', worktree.worktreePath]);
             }
         }
 
-        const featureRoot = getFeatureRoot(worktreesRoot, slug);
+        const featureRoot = getFeatureRoot(this.config.worktreesRoot, slug);
         if (await pathExists(featureRoot)) {
             await rm(featureRoot, { recursive: true, force: true });
         }
@@ -490,87 +681,76 @@ export class FeatureCommands extends AbstractCommands {
     }
 
     /**
-     * Archive a feature by moving it from .features/<slug>/ to .features/.archives/<slug>/
-     * and committing the change in the feature branch.
+     * Determine which worktree to use for archiving (existing or temporary).
+     *
+     * @param safeSlug - Validated feature slug
+     * @param branchName - Name of the feature branch
+     * @returns Worktree path to use for archiving
+     * @throws Error if worktree has uncommitted changes or temp worktree exists
      */
-    async archive(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const config = await this.ensureConfig();
-        const { mainRepoRoot, repoRoots, repoNames, worktreesRoot } = config;
-        const branchName = `feature/${safeSlug}`;
+    private async determineArchiveWorktree(safeSlug: string, branchName: string): Promise<string> {
+        const mainRepoName = this.getMainRepoName();
+        const existingMainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
 
-        // Check if feature branch exists in main repo
-        if (!(await gitBranchExists(mainRepoRoot, branchName))) {
-            throw new Error(`Feature branch "${branchName}" does not exist in main repo.`);
-        }
-
-        const mainRepoName = this.getMainRepoName(repoNames, mainRepoRoot);
-        const existingMainWorktree = getFeatureWorktreePath(worktreesRoot, safeSlug, mainRepoName);
-
-        // Check if worktree exists and is clean
-        let useExistingWorktree = false;
-        let workingWorktree = existingMainWorktree;
-
+        // Check if existing worktree is available
         if (await pathExists(existingMainWorktree)) {
-            // Check for dirty worktrees
-            const dirtyWorktrees = await this.checkDirtyWorktrees(worktreesRoot, safeSlug, repoRoots, repoNames);
+            // Verify worktrees are clean before archiving
+            const dirtyWorktrees = await this.checkDirtyWorktrees(safeSlug);
 
             if (dirtyWorktrees.length > 0) {
-                console.log('\n⚠ Cannot archive feature with uncommitted changes:');
+                console.log('\\n⚠ Cannot archive feature with uncommitted changes:');
                 for (const worktree of dirtyWorktrees) {
                     console.log(`  - ${worktree.repoName}`);
                 }
                 console.log("\nPlease commit or discard changes, or use 'forge feature stop' first.");
-                return;
+                throw new Error('Feature has uncommitted changes');
             }
 
-            // Worktree exists and is clean, use it directly
-            useExistingWorktree = true;
-        } else {
-            // No existing worktree, create a temporary one
-            const tempRoot = getTempArchiveRoot(config.rootDir);
-            workingWorktree = getTempArchiveWorktreePath(config.rootDir, safeSlug, mainRepoName);
-
-            await ensureDir(path.dirname(workingWorktree));
-            if (await pathExists(workingWorktree)) {
-                throw new Error(`Temp worktree already exists at ${workingWorktree}`);
-            }
-
-            await runGit(mainRepoRoot, ['worktree', 'add', workingWorktree, branchName]);
+            // Use existing clean worktree
+            return existingMainWorktree;
         }
 
-        try {
-            const featurePath = path.join(workingWorktree, '.features', safeSlug);
-            const archivePath = path.join(workingWorktree, '.features', '.archives', safeSlug);
+        // Create temporary worktree for archiving
+        const workingWorktree = getTempArchiveWorktreePath(this.config.rootDir, safeSlug, mainRepoName);
+        await ensureDir(path.dirname(workingWorktree));
 
-            // Check if feature folder exists in branch
-            if (!(await pathExists(featurePath))) {
-                throw new Error(`Feature folder not found in branch: .features/${safeSlug}/`);
-            }
-
-            // Check if already archived
-            if (await pathExists(archivePath)) {
-                throw new Error(`Feature already archived: .features/.archives/${safeSlug}/`);
-            }
-
-            // Create archives directory
-            await ensureDir(path.join(workingWorktree, '.features', '.archives'));
-
-            // Move feature to archive using git mv
-            await runGit(workingWorktree, ['mv', featurePath, archivePath]);
-
-            // Commit the archive
-            await runGit(workingWorktree, ['commit', '-m', `docs(${safeSlug}): archive feature`]);
-
-            console.log(`✓ Feature "${safeSlug}" archived successfully.`);
-            console.log(`  Moved: .features/${safeSlug}/ → .features/.archives/${safeSlug}/`);
-            console.log(`\nNext steps:`);
-            console.log(`  - Merge branch "${branchName}" to main`);
-            console.log(`  - Delete branch "${branchName}" if no longer needed`);
-        } finally {
-            // Clean up all worktrees for all repos
-            await this.cleanupFeatureWorktrees(worktreesRoot, safeSlug, repoRoots, repoNames);
+        if (await pathExists(workingWorktree)) {
+            throw new Error(`Temp worktree already exists at ${workingWorktree}`);
         }
+
+        await runGit(this.config.mainRepoRoot, ['worktree', 'add', workingWorktree, branchName]);
+        return workingWorktree;
+    }
+
+    /**
+     * Perform the archive operation: move feature folder and commit.
+     *
+     * @param workingWorktree - Path to the worktree to use for archiving
+     * @param safeSlug - Validated feature slug
+     * @throws Error if feature folder doesn't exist or is already archived
+     */
+    private async performArchiveOperation(workingWorktree: string, safeSlug: string): Promise<void> {
+        const featurePath = path.join(workingWorktree, '.features', safeSlug);
+        const archivePath = path.join(workingWorktree, '.features', '.archives', safeSlug);
+
+        // Verify feature folder exists
+        if (!(await pathExists(featurePath))) {
+            throw new Error(`Feature folder not found in branch: .features/${safeSlug}/`);
+        }
+
+        // Verify not already archived
+        if (await pathExists(archivePath)) {
+            throw new Error(`Feature already archived: .features/.archives/${safeSlug}/`);
+        }
+
+        // Create archives directory
+        await ensureDir(path.join(workingWorktree, '.features', '.archives'));
+
+        // Move feature to archive using git mv
+        await runGit(workingWorktree, ['mv', featurePath, archivePath]);
+
+        // Commit the archive
+        await runGit(workingWorktree, ['commit', '-m', `docs(${safeSlug}): archive feature`]);
     }
 
     /**
@@ -622,68 +802,4 @@ export class FeatureCommands extends AbstractCommands {
         const agentDir = path.join(targetDir, 'agent');
         await ensureDir(agentDir);
     }
-}
-
-/**
- * Register feature subcommands on the main CLI program.
- */
-export function registerFeatureCommands(program: Command, config?: ForgeContext): void {
-    const feature = program.command('feature').description('Manage feature lifecycle');
-    const handlers = new FeatureCommands(config);
-
-    function createFeature(slug: string): Promise<void> {
-        return handlers.create(slug);
-    }
-
-    function startFeature(slug: string): Promise<void> {
-        return handlers.start(slug);
-    }
-
-    function stopFeature(slug: string): Promise<void> {
-        return handlers.stop(slug);
-    }
-
-    function listFeatures(): Promise<void> {
-        return handlers.list();
-    }
-
-    function resyncFeature(slug: string): Promise<void> {
-        return handlers.resync(slug);
-    }
-
-    function archiveFeature(slug: string): Promise<void> {
-        return handlers.archive(slug);
-    }
-
-    feature
-        .command('create')
-        .argument('<slug>', 'Feature slug')
-        .description('Create a new feature folder and initialize its spec')
-        .action(createFeature);
-
-    feature
-        .command('start')
-        .argument('<slug>', 'Feature slug')
-        .description('Create/switch to feature worktrees and set local active feature in that worktree')
-        .action(startFeature);
-
-    feature
-        .command('stop')
-        .argument('<slug>', 'Feature slug')
-        .description('Stop a feature and remove its worktrees')
-        .action(stopFeature);
-
-    feature.command('list').description('List all feature worktrees').action(listFeatures);
-
-    feature
-        .command('resync')
-        .argument('<slug>', 'Feature slug')
-        .description('Resync all repos in a feature to the correct branch')
-        .action(resyncFeature);
-
-    feature
-        .command('archive')
-        .argument('<slug>', 'Feature slug')
-        .description('Archive a feature by moving it to .features/.archives/')
-        .action(archiveFeature);
 }
