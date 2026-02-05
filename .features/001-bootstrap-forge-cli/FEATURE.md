@@ -4,8 +4,8 @@ Construire un CLI Node.js global installable (nom de travail: `forge`) qui orche
 
 Le CLI doit permettre de faire travailler des agents IA **dans le contexte d’une feature**, sans jamais écraser les fichiers globaux du projet, et en distinguant clairement :
 
-* la phase de **rédaction / clarification** (spec)
-* la phase d’**implémentation** (code)
+- la phase de **rédaction / clarification** (spec)
+- la phase d’**implémentation** (code)
 
 ---
 
@@ -15,11 +15,11 @@ Le CLI doit permettre de faire travailler des agents IA **dans le contexte d’u
 
 Une feature = un dossier `.features/<slug>/` contenant :
 
-* `FEATURE.md` — objectif, périmètre, critères d’acceptation
-* `TODO.md` — checklist structurée (TODO / DOING / DONE)
-* `DECISIONS.md` — décisions actées + rationales
-* `NOTES.md` — contexte libre, hypothèses, questions ouvertes
-* `agent` — le dossier où les agents doivent être lancé pour travailler sur la feature
+- `FEATURE.md` — objectif, périmètre, critères d’acceptation
+- `TODO.md` — checklist structurée (TODO / DOING / DONE)
+- `DECISIONS.md` — décisions actées + rationales
+- `NOTES.md` — contexte libre, hypothèses, questions ouvertes
+- `agent` — le dossier où les agents doivent être lancé pour travailler sur la feature
 
 Ces fichiers sont la **source de vérité** de la feature.
 
@@ -29,23 +29,21 @@ Ces fichiers sont la **source de vérité** de la feature.
 
 La feature actuellement travaillée est exposée via :
 
-* `.active-feature` → **symlink** pointant vers `.features/<slug>/`
+- `.active-feature` → **symlink** pointant vers `.features/<slug>/`
 
 Caractéristiques :
 
-* `.active-feature` est **gitignored** (état local par worktree)
-* chaque worktree peut avoir sa propre feature active
-* permet d’ouvrir directement VS Code ou un agent sur la feature courante
-* point d’entrée unique et stable, même avec des dizaines de features
+- `.active-feature` est **gitignored** (état local par worktree)
+- chaque worktree peut avoir sa propre feature active
+- permet d’ouvrir directement VS Code ou un agent sur la feature courante
+- point d’entrée unique et stable, même avec des dizaines de features
 
 Convention d’accès :
 
-* les agents utilisent systématiquement :
-
-  * `.active-feature/agent/`
+- les agents utilisent systématiquement :
+    - `.active-feature/agent/`
 
 Cela garantit une navigation simple et prévisible, sans dépendre d’un état stocké dans un fichier.
-
 
 ---
 
@@ -53,12 +51,12 @@ Cela garantit une navigation simple et prévisible, sans dépendre d’un état 
 
 Une feature peut être dans **un mode actif** :
 
-* `spec` → aide à la **complétion et clarification** des 4 fichiers
-* `code` → **lecture stricte** des 4 fichiers pour implémentation
+- `spec` → aide à la **complétion et clarification** des 4 fichiers
+- `code` → **lecture stricte** des 4 fichiers pour implémentation
 
 Le mode courant est stocké dans :
 
-* `.features/<slug>/.forge-mode` (`spec` | `code`)
+- `.features/<slug>/.forge-mode` (`spec` | `code`)
 
 Changer de mode n’implique **aucune modification du code projet**, uniquement une mise à jour du contexte agent.
 
@@ -74,8 +72,8 @@ Les agents sont **toujours lancés depuis** :
 
 Ce dossier contient :
 
-* `CONTEXT.spec.md` — instructions agents en mode *spec*
-* `CONTEXT.code.md` — instructions agents en mode *code*
+- `CONTEXT.spec.md` — instructions agents en mode _spec_
+- `CONTEXT.code.md` — instructions agents en mode _code_
 
 Ces fichiers sont **canoniques**.
 
@@ -87,20 +85,20 @@ Pour compatibilité avec les outils existants (Codex, Claude, Gemini, Copilot, e
 
 Exemples :
 
-* `AGENTS.md`
-* `CLAUDE.md`
-* `GEMINI.md`
-* `COPILOT.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `GEMINI.md`
+- `COPILOT.md`
 
 Le mapping des adapters est configurable via :
 
-* `.feat-forge.json`
+- `.feat-forge.json`
 
 Les adapters :
 
-* sont **scopés à la feature**
-* **ne modifient jamais** les fichiers agents globaux du repo
-* peuvent être régénérés à tout moment
+- sont **scopés à la feature**
+- **ne modifient jamais** les fichiers agents globaux du repo
+- peuvent être régénérés à tout moment
 
 ---
 
@@ -110,28 +108,27 @@ Les adapters :
 
 Les agents :
 
-* peuvent lire le code du projet pour contexte
-* proposent des modifications **uniquement** dans :
+- peuvent lire le code du projet pour contexte
+- proposent des modifications **uniquement** dans :
+    - `FEATURE.md`
+    - `TODO.md`
+    - `DECISIONS.md`
+    - `NOTES.md`
 
-  * `FEATURE.md`
-  * `TODO.md`
-  * `DECISIONS.md`
-  * `NOTES.md`
-* peuvent ajouter : questions ouvertes, hypothèses, options, risques
-* **ne modifient pas** le code applicatif
+- peuvent ajouter : questions ouvertes, hypothèses, options, risques
+- **ne modifient pas** le code applicatif
 
 #### Mode `code`
 
 Les agents :
 
-* lisent les 4 fichiers **dans l’ordre** : Feature → Todo → Decisions → Notes
-* implémentent le code conformément à ces documents
-* peuvent mettre à jour si nécessaire :
-
-  * `FEATURE.md`
-  * `TODO.md`
-  * `DECISIONS.md`
-  * `NOTES.md`
+- lisent les 4 fichiers **dans l’ordre** : Feature → Todo → Decisions → Notes
+- implémentent le code conformément à ces documents
+- peuvent mettre à jour si nécessaire :
+    - `FEATURE.md`
+    - `TODO.md`
+    - `DECISIONS.md`
+    - `NOTES.md`
 
 ---
 
@@ -139,13 +136,13 @@ Les agents :
 
 Les features terminées ou mises en pause peuvent être déplacées dans :
 
-* `.features/.archives/<slug>/`
+- `.features/.archives/<slug>/`
 
 Propriétés :
 
-* `.archives/` est **versionné**
-* conserve l’historique des specs, décisions et notes
-* permet de garder le dossier `.features/` principal lisible, même à grande échelle
+- `.archives/` est **versionné**
+- conserve l’historique des specs, décisions et notes
+- permet de garder le dossier `.features/` principal lisible, même à grande échelle
 
 ---
 
@@ -155,10 +152,10 @@ Propriétés :
 
 Définit :
 
-* le dossier racine des features (`.features/` par défaut)
-* la liste des adapters agents à générer
-* les repositories du projet, le premier étant le main ou mainRepo
-* etc.
+- le dossier racine des features (`.features/` par défaut)
+- la liste des adapters agents à générer
+- les repositories du projet, le premier étant le main ou mainRepo
+- etc.
 
 ---
 
@@ -166,84 +163,75 @@ Définit :
 
 ### Feature
 
-* `forge feature create <slug>`
+- `forge feature create <slug>`
+    - crée `.features/<slug>/`
+    - initialise les 4 fichiers
+    - crée le dossier `agent/`
+    - initialise le mode `spec` pour cette feature
 
-  * crée `.features/<slug>/`
-  * initialise les 4 fichiers
-  * crée le dossier `agent/`
-  * initialise le mode `spec` pour cette feature
+- `forge feature start <slug>`
+    - créé le worktree qui va bien
+    - met à jour le symlink `.active-feature` dans le worktree créé (repo principal)
 
-* `forge feature start <slug>`
+- `forge feature archive <slug>`
+    - a pour objectif de déplacer les fichiers de la feature de `.features/<slug>/` vers `.features/.archives/<slug>/` et de commit ce changement dans la branche de la feature
+    - peut être executé sur un worktree actif ou non, permettant d'archivé n'importe quelle feature
+    - déplace `.features/<slug>/` vers `.features/.archives/<slug>/`
+    - refuse si des worktrees associés/en cours sont _dirty_ (sauf option explicite ultérieure)
+    - garantit qu’aucune modifications non commit soit perdue
+    - suggère ensuite de merge la branche
 
-  * créé le worktree qui va bien
-  * met à jour le symlink `.active-feature` dans le worktree créé (repo principal)
+- `forge feature list`
+    - affiche la liste de tous les worktrees de features actifs
+    - montre la branche git de chaque repo dans le worktree
+    - affiche en rouge les features avec des branches incohérentes entre repos
 
-* `forge feature archive <slug>`
+- `forge feature resync <slug>`
+    - resynchronise tous les repos d'une feature vers la branche attendue (`feature/<slug>`)
+    - vérifie l'absence de changements non commités avant de changer de branche
+    - affiche les erreurs pour les repos qui ne peuvent pas être resynchronisés
 
-  * a pour objectif de déplacer les fichiers de la feature de `.features/<slug>/` vers `.features/.archives/<slug>/` et de commit ce changement dans la branche de la feature
-  * peut être executé sur un worktree actif ou non, permettant d'archivé n'importe quelle feature
-  * déplace `.features/<slug>/` vers `.features/.archives/<slug>/`
-  * refuse si des worktrees associés/en cours sont *dirty* (sauf option explicite ultérieure)
-  * garantit qu’aucune modifications non commit soit perdue
-  * suggère ensuite de merge la branche
-
-* `forge feature list`
-
-  * affiche la liste de tous les worktrees de features actifs
-  * montre la branche git de chaque repo dans le worktree
-  * affiche en rouge les features avec des branches incohérentes entre repos
-
-* `forge feature resync <slug>`
-
-  * resynchronise tous les repos d'une feature vers la branche attendue (`feature/<slug>`)
-  * vérifie l'absence de changements non commités avant de changer de branche
-  * affiche les erreurs pour les repos qui ne peuvent pas être resynchronisés
-
-* `forge feature stop <slug>`
-
-  * arrête le développement de la feature en question
-  * regarde si tous les repos et leurs worktrees sont clean dans git, si ce n'est pas le cas demande quoi faire
-  * supprime les worktrees et supprime le dossier de feature
-  * ne supprime pas la branche en question, on arrête juste de travailler activement dessus
+- `forge feature stop <slug>`
+    - arrête le développement de la feature en question
+    - regarde si tous les repos et leurs worktrees sont clean dans git, si ce n'est pas le cas demande quoi faire
+    - supprime les worktrees et supprime le dossier de feature
+    - ne supprime pas la branche en question, on arrête juste de travailler activement dessus
 
 ---
 
 ### Mode
 
-* `forge mode spec`
+- `forge mode spec`
+    - écrit `.forge-mode = spec`
+    - active `CONTEXT.spec.md`
+    - régénère les adapters agents
 
-  * écrit `.forge-mode = spec`
-  * active `CONTEXT.spec.md`
-  * régénère les adapters agents
-
-* `forge mode code`
-
-  * écrit `.forge-mode = code`
-  * active `CONTEXT.code.md`
-  * régénère les adapters agents
+- `forge mode code`
+    - écrit `.forge-mode = code`
+    - active `CONTEXT.code.md`
+    - régénère les adapters agents
 
 ---
 
 ### Agents
 
-* `forge agent refresh`
-
-  * régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature active du worktree courant (`.active-feature`)
+- `forge agent refresh`
+    - régénère les fichiers adapters selon le mode courant (.forge-mode) dans la feature active du worktree courant (`.active-feature`)
 
 ---
 
 ## Critères d’acceptation MVP
 
-* Une feature peut être créée avec ses fichiers et son dossier agent
-* Le mode peut être changé (`spec` ↔ `code`) sans effet de bord sur le repo
-* Les agents utilisent un contexte **scopé feature**
-* Aucun fichier agent global du projet n’est modifié
-* Le workflow fonctionne localement (WSL2 inclus)
+- Une feature peut être créée avec ses fichiers et son dossier agent
+- Le mode peut être changé (`spec` ↔ `code`) sans effet de bord sur le repo
+- Les agents utilisent un contexte **scopé feature**
+- Aucun fichier agent global du projet n’est modifié
+- Le workflow fonctionne localement (WSL2 inclus)
 
 ---
 
 ## Non-objectifs (MVP)
 
-* RAG / embeddings / indexation
-* UI graphique
-* Orchestration d’agents concurrents
+- RAG / embeddings / indexation
+- UI graphique
+- Orchestration d’agents concurrents

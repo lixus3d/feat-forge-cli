@@ -1,10 +1,11 @@
 # AGENT_CONTEXT - SPEC MODE
 
 This project is **process-first**: clarity before code, implement changes in the feature specifications files :
-   - `../FEATURE.md`
-   - `../TODO.md`
-   - `../DECISIONS.md`
-   - `../NOTES.md`
+
+- `../FEATURE.md`
+- `../TODO.md`
+- `../DECISIONS.md`
+- `../NOTES.md`
 
 You are currently in **SPEC MODE**.
 
@@ -16,37 +17,37 @@ You must modify the features file and NOT implement application code directly
 ## Golden Rules (must follow)
 
 1. **Your scope is limited to the feature spec files, located in `.active-feature`:**
-   - `../FEATURE.md`
-   - `../TODO.md`
-   - `../DECISIONS.md`
-   - `../NOTES.md`
-   You can update them as much as you want
+    - `../FEATURE.md`
+    - `../TODO.md`
+    - `../DECISIONS.md`
+    - `../NOTES.md`
+      You can update them as much as you want
 
 2. **Do NOT modify application code.**
-   - you can modify files in .active-feature folder that's all
-   - No source files, no tests, no build scripts
-   - If you think code changes are needed, express them as spec updates or TODOs.
+    - you can modify files in .active-feature folder that's all
+    - No source files, no tests, no build scripts
+    - If you think code changes are needed, express them as spec updates or TODOs.
 
 3. **Clarity over completeness.**
-   - If something is unclear, surface it explicitly.
-   - Prefer questions, options, and trade-offs over premature conclusions.
+    - If something is unclear, surface it explicitly.
+    - Prefer questions, options, and trade-offs over premature conclusions.
 
 4. **All proposals must be traceable.**
-   - Avoid vague suggestions like “we should consider X” without writing it down.
-   - Any idea must be added to DECISIONS or NOTES
+    - Avoid vague suggestions like “we should consider X” without writing it down.
+    - Any idea must be added to DECISIONS or NOTES
 
 5. **Use user answer in DECISIONS and NOTES files**
-   - The user can edit the specs file, so read them again each time to see if a decisions as been made
-   - Move answered questions into a sub section in DECISIONS
-   - Move answered questions in NOTES into the same sub section in DECISIONS
+    - The user can edit the specs file, so read them again each time to see if a decisions as been made
+    - Move answered questions into a sub section in DECISIONS
+    - Move answered questions in NOTES into the same sub section in DECISIONS
 
 6. **No irreversible or destructive actions.**
-   - Don’t touch credentials, `.env`, keys, or user-specific configs.
-   - Don’t restructure the repo.
+    - Don’t touch credentials, `.env`, keys, or user-specific configs.
+    - Don’t restructure the repo.
 
 7. **Keep it simple**
-   - Features must stay simple as much as possible
-   - The complexity must be reflected by many small tasks in TODO, NOT few big tasks
+    - Features must stay simple as much as possible
+    - The complexity must be reflected by many small tasks in TODO, NOT few big tasks
 
 ---
 
@@ -69,17 +70,17 @@ You are optimizing for **shared understanding**.
 
 - Read existing code to understand context and constraints
 - Propose:
-  - clearer acceptance criteria
-  - missing requirements
-  - edge cases
-  - risks and assumptions
-  - alternative designs
-  - good practice architecture
+    - clearer acceptance criteria
+    - missing requirements
+    - edge cases
+    - risks and assumptions
+    - alternative designs
+    - good practice architecture
 - Improve structure and wording of files in .active-feature :
-  - `FEATURE.md`
-  - `TODO.md`
-  - `DECISIONS.md`
-  - `NOTES.md`
+    - `FEATURE.md`
+    - `TODO.md`
+    - `DECISIONS.md`
+    - `NOTES.md`
 - Do active modifications on these 4 files
 
 ---
@@ -108,21 +109,21 @@ When responding, use the structure below.
 ## Response structure
 
 1. **Current understanding**
-   - Short summary (3–5 lines max) of what the feature is trying to achieve, with an emphasis on what you just updated.
+    - Short summary (3–5 lines max) of what the feature is trying to achieve, with an emphasis on what you just updated.
 
 2. **Gaps / ambiguities**
-   - Bullet list of unclear or missing points.
-   - Reference the relevant file when possible.
+    - Bullet list of unclear or missing points.
+    - Reference the relevant file when possible.
 
 3. **Proposed spec updates**
-   - Summary of concrete changes to spec files you have made
+    - Summary of concrete changes to spec files you have made
 
 4. **Decisions to make**
-   - Things that require an explicit choice (and there must be in DECISIONS or NOTES)
-   - Offer 2–3 reasonable options when possible, with pros/cons.
+    - Things that require an explicit choice (and there must be in DECISIONS or NOTES)
+    - Offer 2–3 reasonable options when possible, with pros/cons.
 
 5. **Next steps**
-   - Updates to `TODO.md` reflecting the correct implementation path and new items if necessary
+    - Updates to `TODO.md` reflecting the correct implementation path and new items if necessary
 
 ---
 

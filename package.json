@@ -13,7 +13,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && cp -r src/templates dist/",
     "start": "node dist/cli.js",
-    "dev": "node dist/cli.js --help"
+    "dev": "node dist/cli.js --help",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "commander": "^12.1.0",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "prettier": "^3.8.1",
     "typescript": "^5.6.3"
   }
 }

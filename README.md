@@ -1,6 +1,6 @@
 # FeatForge
 
-**FeatForge** is a *feature-first* development workflow and a CLI (`forge`) designed to help you build software **deliberately**, **traceably**, and **at scale**, with or without AI agents.
+**FeatForge** is a _feature-first_ development workflow and a CLI (`forge`) designed to help you build software **deliberately**, **traceably**, and **at scale**, with or without AI agents.
 
 This is **not** a tool to type code faster.
 It is a tool to **understand what you are building before you build it**, and to keep that context alive over time — even with dozens or hundreds of features.
@@ -9,14 +9,14 @@ It is a tool to **understand what you are building before you build it**, and to
 
 ## TL;DR — the mental model
 
-* A **feature** is a first-class artifact with its own specification.
-* You always work inside one **active feature** (`.active-feature`).
-* A feature has two **modes**:
+- A **feature** is a first-class artifact with its own specification.
+- You always work inside one **active feature** (`.active-feature`).
+- A feature has two **modes**:
+    - `spec` → think, clarify, write
+    - `code` → implement, guided by the spec
 
-  * `spec` → think, clarify, write
-  * `code` → implement, guided by the spec
-* AI agents are **scoped to a feature**, never global.
-* Finished features are moved to `.features/.archives/`.
+- AI agents are **scoped to a feature**, never global.
+- Finished features are moved to `.features/.archives/`.
 
 If you understand those five points, you understand FeatForge.
 
@@ -28,10 +28,10 @@ When projects grow, features pile up, context gets lost, and AI agents start hal
 
 FeatForge solves this by:
 
-* making **specification explicit and versioned**
-* separating **thinking** from **coding** via modes
-* giving both humans and agents a **single, stable entry point** to feature context
-* keeping finished features without cluttering active work
+- making **specification explicit and versioned**
+- separating **thinking** from **coding** via modes
+- giving both humans and agents a **single, stable entry point** to feature context
+- keeping finished features without cluttering active work
 
 ---
 
@@ -71,10 +71,10 @@ The feature you are currently working on is exposed via:
 
 Properties:
 
-* `.active-feature` is a **symlink**
-* it is **gitignored** (local, per-worktree state)
-* each Git worktree can have its own active feature
-* editors and agents can always rely on a stable path
+- `.active-feature` is a **symlink**
+- it is **gitignored** (local, per-worktree state)
+- each Git worktree can have its own active feature
+- editors and agents can always rely on a stable path
 
 If you open VS Code or an agent inside `.active-feature`, everything you need is there.
 
@@ -96,9 +96,9 @@ Completed or paused features can be moved to:
 
 Properties:
 
-* `.archives/` is **versioned**
-* all specs, decisions, and notes are preserved
-* keeps `.features/` readable even at large scale
+- `.archives/` is **versioned**
+- all specs, decisions, and notes are preserved
+- keeps `.features/` readable even at large scale
 
 Command:
 
@@ -108,9 +108,9 @@ forge feature archive <slug>
 
 The command:
 
-* refuses if the feature is active
-* refuses if related worktrees are dirty
-* guarantees no specification data is lost
+- refuses if the feature is active
+- refuses if related worktrees are dirty
+- guarantees no specification data is lost
 
 ---
 
@@ -118,8 +118,8 @@ The command:
 
 A feature always has one active mode:
 
-* `spec` — specification and clarification
-* `code` — implementation
+- `spec` — specification and clarification
+- `code` — implementation
 
 The current mode is stored in:
 
@@ -140,15 +140,15 @@ forge mode spec
 
 In **spec mode**, agents:
 
-* may read the codebase for context
-* propose changes **only** to:
+- may read the codebase for context
+- propose changes **only** to:
+    - FEATURE.md
+    - TODO.md
+    - DECISIONS.md
+    - NOTES.md
 
-  * FEATURE.md
-  * TODO.md
-  * DECISIONS.md
-  * NOTES.md
-* may add questions, assumptions, options, and risks
-* must not modify application code
+- may add questions, assumptions, options, and risks
+- must not modify application code
 
 You can enter and exit spec mode as many times as needed.
 
@@ -162,14 +162,13 @@ forge mode code
 
 In **code mode**, agents:
 
-* treat the four documents as a strict contract
-* implement code accordingly
-* may update when justified :
-
-  * FEATURE.md
-  * TODO.md
-  * DECISIONS.md
-  * NOTES.md
+- treat the four documents as a strict contract
+- implement code accordingly
+- may update when justified :
+    - FEATURE.md
+    - TODO.md
+    - DECISIONS.md
+    - NOTES.md
 
 All changes are still expected to be reviewable and intentional.
 
@@ -187,15 +186,15 @@ Inside:
 
 You will find two **canonical** context files:
 
-* `CONTEXT.spec.md`
-* `CONTEXT.code.md`
+- `CONTEXT.spec.md`
+- `CONTEXT.code.md`
 
 Depending on the active mode, FeatForge generates adapter files (symlinks or copies), such as:
 
-* `AGENTS.md`
-* `CLAUDE.md`
-* `GEMINI.md`
-* `COPILOT.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `GEMINI.md`
+- `COPILOT.md`
 
 The list of adapters is configurable in:
 
@@ -205,9 +204,9 @@ The list of adapters is configurable in:
 
 Adapters:
 
-* are feature-scoped
-* never modify global agent configuration
-* can be regenerated at any time
+- are feature-scoped
+- never modify global agent configuration
+- can be regenerated at any time
 
 ---
 
@@ -248,9 +247,9 @@ forge feature stop auth-refactor
 
 ## What FeatForge is NOT
 
-* ❌ Not a magic AI coding bot
-* ❌ Not a replacement for Git or your editor
-* ❌ Not "vibe coding"
+- ❌ Not a magic AI coding bot
+- ❌ Not a replacement for Git or your editor
+- ❌ Not "vibe coding"
 
 FeatForge is a **process tool**.
 It makes decisions explicit and work reviewable — for humans and machines.
@@ -263,21 +262,21 @@ FeatForge is under active development.
 
 Current focus:
 
-* single-repo support
-* feature lifecycle
-* spec/code modes
-* agent scoping
+- single-repo support
+- feature lifecycle
+- spec/code modes
+- agent scoping
 
 Planned later:
 
-* multi-repo features
-* background agents
-* richer visualization
-* optional web UI
+- multi-repo features
+- background agents
+- richer visualization
+- optional web UI
 
 ---
 
 ## Naming
 
-* **Project**: FeatForge
-* **CLI**: `forge`
+- **Project**: FeatForge
+- **CLI**: `forge`
