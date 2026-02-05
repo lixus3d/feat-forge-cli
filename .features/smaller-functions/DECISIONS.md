@@ -109,3 +109,80 @@ if (!isInitCommand) {
     }
 }
 ```
+---
+
+### Fonctions utilitaires créées
+
+**Décision** : Créer des fonctions utilitaires privées dans `FeatureCommands` pour éliminer la duplication de code.
+
+**Fonctions créées** :
+1. `getRepoNameOrThrow(repoNames, repoRoot)` - Récupère le nom d'un repo ou lève une erreur
+2. `buildWorktreeList(worktreesRoot, slug, repoRoots, repoNames)` - Construit une liste de worktrees pour une feature
+
+**Justification** :
+- Ces patterns étaient répétés 8-10 fois dans le code
+- Réduction significative de la duplication
+- Amélioration de la maintenabilité
+- Gestion d'erreurs cohérente
+
+**Alternative rejetée** : Créer des fonctions dans `lib/` dès le début
+- Ces fonctions sont spécifiques à `FeatureCommands` pour l'instant
+- On peut les déplacer vers `lib/` dans une future feature si nécessaire
+
+---
+
+### Découpage des fonctions longues
+
+**Décision** : Découper toutes les fonctions > 50 lignes en sous-fonctions avec des responsabilités claires.
+
+**Fonctions refactorisées** :
+- `start()` : 70 → 35 lignes (+ 3 fonctions helper)
+- `stop()` : 80 → 25 lignes (+ 2 fonctions helper)
+- `archive()` : 90 → 30 lignes (+ 2 fonctions helper)
+- `list()` : 65 → 30 lignes (+ 2 fonctions helper)
+- `resync()` : 60 → 30 lignes (+ 1 fonction helper)
+
+**Fonctions helper créées** :
+1. `handleExistingWorktrees()` - Gérer worktrees existants
+2. `createNewWorktrees()` - Créer nouveaux worktrees
+3. `finalizeFeatureStart()` - Finaliser démarrage feature
+4. `cleanupOrphanedWorktrees()` - Nettoyer worktrees orphelins
+5. `handleDirtyWorktrees()` - Gérer changements non commités
+6. `determineArchiveWorktree()` - Déterminer worktree pour archivage
+7. `performArchiveOperation()` - Effectuer opération d'archivage
+8. `collectFeatureBranches()` - Collecter branches d'une feature
+9. `formatBranchInfo()` - Formater info de branches
+10. `resyncSingleWorktree()` - Resynchroniser un worktree
+
+**Impact** :
+- Toutes les fonctions publiques sont maintenant < 40 lignes
+- Les fonctions helper sont < 50 lignes
+- Code beaucoup plus lisible et testable
+- Chaque fonction a une responsabilité unique
+---
+
+### Centralisation de l'enregistrement des commandes
+
+**Décision** : Déplacer toutes les fonctions `register*Commands` vers `cli.ts` pour alléger les fichiers de commandes.
+
+**Justification** :
+- Les fichiers de commandes deviennent plus légers et focalisés sur la logique métier
+- Toute la configuration du CLI est centralisée dans un seul fichier
+- Plus facile de comprendre toute la structure des commandes en un coup d'œil
+- Séparation claire entre la logique métier (dans `commands/`) et la configuration du CLI (dans `cli.ts`)
+
+**Impact sur les fichiers** :
+- `feature.ts` : 990 → 925 lignes (-65 lignes, -6.6%)
+- `merge.ts` : 351 → 330 lignes (-21 lignes, -6.0%)
+- `agent.ts` : 37 → 23 lignes (-14 lignes, -37.8%)
+- `mode.ts` : 70 → 47 lignes (-23 lignes, -32.9%)
+- `init.ts` : 49 → 34 lignes (-15 lignes, -30.6%)
+- `cli.ts` : 51 → 181 lignes (+130 lignes)
+
+**Total** : Réduction de 8 lignes dans les fichiers de commandes, avec centralisation dans le CLI
+
+**Alternative rejetée** : Garder les fonctions dans chaque fichier
+- Pro: chaque fichier est "auto-suffisant"
+- Con: duplication du pattern d'enregistrement
+- Con: fichiers plus longs
+- Con: plus difficile de voir l'ensemble des commandes disponibles

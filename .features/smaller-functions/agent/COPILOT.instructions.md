@@ -1,1 +1,1 @@
-../../.template/agent/CONTEXT.spec.md
+../../.template/agent/CONTEXT.code.md

@@ -21,8 +21,7 @@ export class ModeCommands extends AbstractCommands {
      * Set mode for a specific feature path (useful when creating features)
      */
     async setModeForPath(featurePath: string, mode: ForgeMode): Promise<void> {
-        const config = await this.ensureConfig();
-        const { agents } = config;
+        const { agents } = this.config;
 
         await writeModeFile(featurePath, mode);
         const adapterFiles = agents.map((a) => a.agentFile);
@@ -45,23 +44,4 @@ export class ModeCommands extends AbstractCommands {
         }
         await this.setModeForPath(featurePath, defaultMode);
     }
-}
-
-/**
- * Register the mode commands on the main CLI program.
- */
-export function registerModeCommands(program: Command, config?: ForgeContext): void {
-    const handlers = new ModeCommands(config);
-
-    function setSpec(): Promise<void> {
-        return handlers.setMode(ForgeMode.SPEC);
-    }
-
-    function setCode(): Promise<void> {
-        return handlers.setMode(ForgeMode.CODE);
-    }
-
-    const mode = program.command('mode').description('Switch the active feature mode');
-    mode.command('spec').description('Switch to spec mode').action(setSpec);
-    mode.command('code').description('Switch to code mode').action(setCode);
 }
