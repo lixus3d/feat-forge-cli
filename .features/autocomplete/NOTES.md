@@ -1,38 +1,57 @@
 # Notes et références
 
+## ✅ Implémentation terminée (2026-02-05)
+
+### Points d'attention pour les tests manuels
+1. **Bash** : Tester avec `source <(forge completion bash)` puis `forge <TAB>`, `forge feature <TAB>`, `forge merge <TAB>`
+2. **Zsh** : Vérifier que `compinit` est activé dans .zshrc avant de tester
+3. **Fish** : Les fonctions fish doivent être dans `~/.config/fish/completions/` ou sourcées
+
+### Variable d'environnement
+- `FORGE_WORKTREES_ROOT` : Permet de surcharger le chemin par défaut "features" pour la complétion des slugs
+- Utile si l'utilisateur a configuré un autre chemin dans `.feat-forge.json`
+
+### Limitations connues
+- Les scripts ne gèrent pas l'autocomplete des options longues (--help, --version, etc.) car non requis dans les critères d'acceptation
+- Les scripts ne font pas d'appel à la CLI forge pour récupérer la liste des features (pour des raisons de performance)
+- La complétion des slugs se base uniquement sur les répertoires existants dans worktreesRoot
+
+---
+
 ## UX et documentation
 
-### Messages d'instructions
-Quelles instructions exactes afficher après `forge completion bash`?
-Exemple:
-```
-# Bash completion generated!
-# To enable, run:
-#   forge completion bash > ~/.forge-completion.bash
-#   echo 'source ~/.forge-completion.bash' >> ~/.bashrc
-#   source ~/.bashrc
-```
+### Messages d'instructions ✅
+Instructions complètes affichées après `forge completion <shell>` incluant :
+- Source direct dans session courante
+- Ajout permanent au fichier rc
+- Installation dans répertoire de completions système
 
-### Shell non supporté
-Que retourner si l'utilisateur demande `forge completion powershell`?
-→ Message d'erreur clair avec liste des shells supportés
+### Shell non supporté ✅
+Message d'erreur explicite avec liste des shells supportés : bash, zsh, fish
+
 
 ---
 
 ## Considérations futures
 
-### Autocomplete des slugs de features
-Pourrait-on autocomplete les slugs existants dans d'autres commandes?
-Exemple: `forge feature resume <TAB>` → liste des features archivées
-→ Pourrait être une amélioration future si la feature actuelle fonctionne bien
+### Autocomplete des slugs de features ✅
+Implémenté ! Les slugs sont auto-complétés pour :
+- `forge merge <slug>`
+- `forge feature merge <slug>`
+- `forge feature create/start/stop/resync/archive <slug>`
 
-### Cache des suggestions
-Faut-il implémenter un cache pour éviter de relire le filesystem à chaque TAB?
-→ Probablement pas nécessaire initialement, à mesurer en conditions réelles
+### Cache des suggestions ⏸️
+Pas implémenté car :
+- La lecture du filesystem est suffisamment rapide
+- Les scripts shell sont très légers
+- Pas de problème de performance identifié
 
-### Support de Windows
-Bash sur Windows (WSL/Git Bash) devrait-il être supporté?
-→ Oui, si on génère du bash standard, ça devrait fonctionner
+### Support de Windows ✅
+Les scripts bash générés sont compatibles avec :
+- WSL (Windows Subsystem for Linux)
+- Git Bash
+- Toute implémentation bash standard sur Windows
+
 
 ---
 
@@ -49,7 +68,7 @@ _forge_completion() {
     local cur prev
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
+
     # Logic here
 }
 complete -F _forge_completion forge

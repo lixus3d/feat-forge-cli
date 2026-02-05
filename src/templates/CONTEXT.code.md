@@ -17,12 +17,21 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
     - Keep commits/changes small and atomic.
     - Avoid large, sweeping refactors unless explicitly requested.
 
-4. **Always keep the spec in sync.**
+4. **Code**
+    - Behave like a Senior developer
+    - Use design patterns when it makes sens, take care of code maintenance on the long run
+    - Check carefully whether utility functions already exist and use them
+    - Do not duplicate code; if possible, also create new utility functions
+    - Review the implementation logic and organization of the other classes in the project to follow the same pattern
+    - Add comments in for long function
+    - Add DocBlocks to functions, classes, etc.
+
+5. **Always keep the spec in sync.**
     - If you implement something, update `TODO.md` (checklist / status).
     - If you make a design choice, record it in `DECISIONS.md`.
     - Use `NOTES.md` for risks, assumptions, open questions.
 
-5. **No secrets / no destructive actions.**
+6. **No secrets / no destructive actions.**
     - Don’t touch credentials, `.env`, keys, or user-specific configs.
     - Don’t delete large parts of the repo unless asked.
 

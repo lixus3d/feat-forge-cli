@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { AgentCommands } from './commands/agent';
+import { CompletionCommands, ShellType } from './commands/completion';
 import { FeatureCommands } from './commands/feature';
 import { InitCommands } from './commands/init';
-import { ModeCommands } from './commands/mode';
 import { MergeCommands } from './commands/merge';
+import { ModeCommands } from './commands/mode';
 import { RebaseCommands } from './commands/rebase';
-import { loadForgeConfig, ForgeContext } from './lib/config';
+import { ForgeContext, loadForgeConfig } from './lib/config';
 import { ForgeMode } from './lib/mode';
 
 /**
@@ -64,8 +65,12 @@ function registerModeCommands(program: Command, config: ForgeContext): void {
     const handlers = new ModeCommands(config);
     const mode = program.command('mode').description('Switch the active feature mode');
 
-    mode.command('spec').description('Switch to spec mode').action(() => handlers.setMode(ForgeMode.SPEC));
-    mode.command('code').description('Switch to code mode').action(() => handlers.setMode(ForgeMode.CODE));
+    mode.command('spec')
+        .description('Switch to spec mode')
+        .action(() => handlers.setMode(ForgeMode.SPEC));
+    mode.command('code')
+        .description('Switch to code mode')
+        .action(() => handlers.setMode(ForgeMode.CODE));
 }
 
 /**
@@ -87,11 +92,17 @@ function registerMergeCommands(program: Command, config: ForgeContext): void {
     // Main command: forge feature merge <slug>
     const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
     if (featureCommand) {
-        featureCommand.command('merge <slug>').description('Merge a feature branch into a target branch').action(mergeCmd.merge.bind(mergeCmd));
+        featureCommand
+            .command('merge <slug>')
+            .description('Merge a feature branch into a target branch')
+            .action(mergeCmd.merge.bind(mergeCmd));
     }
 
     // Shortcut: forge merge <slug>
-    program.command('merge <slug>').description('Merge a feature branch into a target branch (shortcut)').action(mergeCmd.merge.bind(mergeCmd));
+    program
+        .command('merge <slug>')
+        .description('Merge a feature branch into a target branch (shortcut)')
+        .action(mergeCmd.merge.bind(mergeCmd));
 }
 
 /**
@@ -103,11 +114,56 @@ function registerRebaseCommands(program: Command, config: ForgeContext): void {
     // Main command: forge feature rebase <slug>
     const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
     if (featureCommand) {
-        featureCommand.command('rebase <slug>').description('Rebase a feature branch onto a base branch').action(rebaseCmd.rebase.bind(rebaseCmd));
+        featureCommand
+            .command('rebase <slug>')
+            .description('Rebase a feature branch onto a base branch')
+            .action(rebaseCmd.rebase.bind(rebaseCmd));
     }
 
     // Shortcut: forge rebase <slug>
-    program.command('rebase <slug>').description('Rebase a feature branch onto a base branch (shortcut)').action(rebaseCmd.rebase.bind(rebaseCmd));
+    program
+        .command('rebase <slug>')
+        .description('Rebase a feature branch onto a base branch (shortcut)')
+        .action(rebaseCmd.rebase.bind(rebaseCmd));
+}
+/*
+ * Register completion commands with the CLI.
+ * This command works both with and without config.
+ */
+function registerCompletionCommands(program: Command, config?: ForgeContext): void {
+    const handlers = config ? new CompletionCommands(config) : null;
+
+    program
+        .command('completion <shell>')
+        .description('Generate shell completion script (bash, zsh, fish)')
+        .action(async (shell: string) => {
+            // Validate shell type
+            const validShells: ShellType[] = ['bash', 'zsh', 'fish'];
+            if (!validShells.includes(shell as ShellType)) {
+                console.error(`Error: Unsupported shell type "${shell}". Supported shells: ${validShells.join(', ')}`);
+                process.exitCode = 1;
+                return;
+            }
+
+            // For completion command, we need config to get worktrees path
+            // If no config, we'll use a fallback implementation
+            if (!handlers) {
+                // Fallback: create minimal context with default values
+                const fallbackConfig: ForgeContext = {
+                    rootDir: process.cwd(),
+                    repoRoots: [],
+                    mainRepoRoot: process.cwd(),
+                    repoNames: new Map(),
+                    worktreesRoot: 'features',
+                    agents: [],
+                    ides: [],
+                };
+                const fallbackHandlers = new CompletionCommands(fallbackConfig);
+                await fallbackHandlers.generate(shell as ShellType);
+            } else {
+                await handlers.generate(shell as ShellType);
+            }
+        });
 }
 
 /**
@@ -121,12 +177,17 @@ async function main() {
     // Init command doesn't need config
     registerInitCommands(program);
 
+    // Completion command should work with or without config
+    // Register it early so it's available even without .feat-forge.json
+    let config: ForgeContext | undefined;
+
     // Load config for other commands
     const isInitCommand = process.argv[2] === 'init';
+    const isCompletionCommand = process.argv[2] === 'completion';
 
     if (!isInitCommand) {
         try {
-            const config = await loadForgeConfig();
+            config = await loadForgeConfig();
 
             // Register commands that require config
             registerFeatureCommands(program, config);
@@ -134,13 +195,20 @@ async function main() {
             registerAgentCommands(program, config);
             registerMergeCommands(program, config);
             registerRebaseCommands(program, config);
+            registerCompletionCommands(program, config);
         } catch (error) {
-            // Config not found - display error message if user is not running init
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`Error: ${message}`);
-            console.error('\\nPlease run "forge init" to initialize your workspace first.');
-            process.exitCode = 1;
-            return;
+            // Config not found
+            if (isCompletionCommand) {
+                // Allow completion to work without config (using fallback)
+                registerCompletionCommands(program);
+            } else {
+                // Display error message for other commands
+                const message = error instanceof Error ? error.message : String(error);
+                console.error(`Error: ${message}`);
+                console.error('\\nPlease run "forge init" to initialize your workspace first.');
+                process.exitCode = 1;
+                return;
+            }
         }
     }
 
