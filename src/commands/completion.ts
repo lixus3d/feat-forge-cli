@@ -91,10 +91,10 @@ _forge_completion() {
     _init_completion || return
 
     # Main commands available at root level
-    local commands="init feature mode agent merge completion"
+    local commands="init feature mode agent merge rebase completion"
 
     # Subcommands for each main command
-    local feature_commands="create start stop list resync archive merge"
+    local feature_commands="create start stop list resync archive merge rebase"
     local mode_commands="spec code"
     local agent_commands="refresh"
 
@@ -102,8 +102,8 @@ _forge_completion() {
     case "\${words[1]}" in
         feature)
             case "\${words[2]}" in
-                merge)
-                    # Suggest available features for merge
+                merge|rebase)
+                    # Suggest available features for merge/rebase
                     if [[ \${cword} -eq 3 ]]; then
                         local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
                         COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
@@ -141,8 +141,8 @@ _forge_completion() {
                 return 0
             fi
             ;;
-        merge)
-            # Suggest available features for merge shortcut
+        merge|rebase)
+            # Suggest available features for merge/rebase shortcut
             if [[ \${cword} -eq 2 ]]; then
                 local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
                 COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
@@ -197,6 +197,7 @@ _forge() {
         'mode:Switch the active feature mode'
         'agent:Manage agent adapters'
         'merge:Merge a feature branch into a target branch'
+        'rebase:Rebase a feature branch onto a base branch'
         'completion:Generate shell completion script'
     )
 
@@ -208,6 +209,7 @@ _forge() {
         'resync:Resync all repos in a feature to the correct branch'
         'archive:Archive a feature by moving it to .features/.archives/'
         'merge:Merge a feature branch into a target branch'
+        'rebase:Rebase a feature branch onto a base branch'
     )
 
     mode_commands=(
@@ -231,7 +233,7 @@ _forge() {
             case \${words[1]} in
                 feature)
                     case \${words[2]} in
-                        merge|create|start|stop|resync|archive)
+                        merge|rebase|create|start|stop|resync|archive)
                             # Suggest available features
                             local features
                             features=(\${(f)"\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
@@ -248,8 +250,8 @@ _forge() {
                 agent)
                     _describe 'agent command' agent_commands
                     ;;
-                merge)
-                    # Suggest available features for merge shortcut
+                merge|rebase)
+                    # Suggest available features for merge/rebase shortcut
                     local features
                     features=(\${(f)"\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
                     _describe 'feature slug' features
@@ -264,7 +266,8 @@ _forge() {
     esac
 }
 
-_forge "$@"
+# Register the completion function
+compdef _forge forge
 
 # Installation instructions:
 #   Option 1 - Add to ~/.zshrc:
@@ -304,16 +307,18 @@ complete -c forge -n "__fish_use_subcommand" -a feature -d "Manage feature lifec
 complete -c forge -n "__fish_use_subcommand" -a mode -d "Switch the active feature mode"
 complete -c forge -n "__fish_use_subcommand" -a agent -d "Manage agent adapters"
 complete -c forge -n "__fish_use_subcommand" -a merge -d "Merge a feature branch into a target branch"
+complete -c forge -n "__fish_use_subcommand" -a rebase -d "Rebase a feature branch onto a base branch"
 complete -c forge -n "__fish_use_subcommand" -a completion -d "Generate shell completion script"
 
 # Feature subcommands
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a create -d "Create a new feature folder"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a start -d "Create/switch to feature worktrees"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a stop -d "Stop a feature and remove its worktrees"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a list -d "List all feature worktrees"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a resync -d "Resync all repos in a feature"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a archive -d "Archive a feature"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge" -a merge -d "Merge a feature branch"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a create -d "Create a new feature folder"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a start -d "Create/switch to feature worktrees"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a stop -d "Stop a feature and remove its worktrees"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a list -d "List all feature worktrees"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a resync -d "Resync all repos in a feature"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a archive -d "Archive a feature"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a merge -d "Merge a feature branch"
+complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a rebase -d "Rebase a feature branch"
 
 # Feature commands with slug completion
 complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from create" -a "(__forge_features)"
@@ -322,6 +327,7 @@ complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subco
 complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from resync" -a "(__forge_features)"
 complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from archive" -a "(__forge_features)"
 complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from merge" -a "(__forge_features)"
+complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from rebase" -a "(__forge_features)"
 
 # Mode subcommands
 complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subcommand_from spec code" -a spec -d "Switch to spec mode"
@@ -330,8 +336,9 @@ complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subc
 # Agent subcommands
 complete -c forge -n "__fish_seen_subcommand_from agent; and not __fish_seen_subcommand_from refresh" -a refresh -d "Refresh agent adapter files"
 
-# Merge shortcut with feature slug completion
+# Merge and rebase shortcuts with feature slug completion
 complete -c forge -n "__fish_seen_subcommand_from merge" -a "(__forge_features)"
+complete -c forge -n "__fish_seen_subcommand_from rebase" -a "(__forge_features)"
 
 # Completion command with shell types
 complete -c forge -n "__fish_seen_subcommand_from completion" -a "bash zsh fish" -d "Shell type"
