@@ -63,8 +63,12 @@ function registerModeCommands(program: Command, config: ForgeContext): void {
     const handlers = new ModeCommands(config);
     const mode = program.command('mode').description('Switch the active feature mode');
 
-    mode.command('spec').description('Switch to spec mode').action(() => handlers.setMode(ForgeMode.SPEC));
-    mode.command('code').description('Switch to code mode').action(() => handlers.setMode(ForgeMode.CODE));
+    mode.command('spec')
+        .description('Switch to spec mode')
+        .action(() => handlers.setMode(ForgeMode.SPEC));
+    mode.command('code')
+        .description('Switch to code mode')
+        .action(() => handlers.setMode(ForgeMode.CODE));
 }
 
 /**
@@ -86,11 +90,17 @@ function registerMergeCommands(program: Command, config: ForgeContext): void {
     // Main command: forge feature merge <slug>
     const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
     if (featureCommand) {
-        featureCommand.command('merge <slug>').description('Merge a feature branch into a target branch').action(mergeCmd.merge.bind(mergeCmd));
+        featureCommand
+            .command('merge <slug>')
+            .description('Merge a feature branch into a target branch')
+            .action(mergeCmd.merge.bind(mergeCmd));
     }
 
     // Shortcut: forge merge <slug>
-    program.command('merge <slug>').description('Merge a feature branch into a target branch (shortcut)').action(mergeCmd.merge.bind(mergeCmd));
+    program
+        .command('merge <slug>')
+        .description('Merge a feature branch into a target branch (shortcut)')
+        .action(mergeCmd.merge.bind(mergeCmd));
 }
 
 /**

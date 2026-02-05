@@ -26,7 +26,7 @@ export class ModeCommands extends AbstractCommands {
     /**
      * Set mode for a specific feature path (useful when creating features)
      */
-    async setModeForPath(featureRoot:string, featurePath: string, mode: ForgeMode): Promise<void> {
+    async setModeForPath(featureRoot: string, featurePath: string, mode: ForgeMode): Promise<void> {
         const { agents } = this.config;
 
         await writeModeFile(featurePath, mode);
@@ -47,7 +47,7 @@ export class ModeCommands extends AbstractCommands {
     /**
      * Set initial mode if not already defined (used during feature creation)
      */
-    async setInitialModeIfNeeded(featureRoot:string, featurePath: string, defaultMode: ForgeMode = ForgeMode.SPEC): Promise<void> {
+    async setInitialModeIfNeeded(featureRoot: string, featurePath: string, defaultMode: ForgeMode = ForgeMode.SPEC): Promise<void> {
         if (await this.modeExists(featurePath)) {
             return;
         }

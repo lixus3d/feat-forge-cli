@@ -5,7 +5,12 @@ import { TemplateFile } from './templates';
 import { ForgeMode } from './mode';
 import { Agent, AgentName } from './config';
 
-export async function refreshAgentContextFiles(featureRoot: string, featurePath: string, agents: Agent[], mode: ForgeMode): Promise<void> {
+export async function refreshAgentContextFiles(
+    featureRoot: string,
+    featurePath: string,
+    agents: Agent[],
+    mode: ForgeMode,
+): Promise<void> {
     const agentDir = path.join(featurePath, 'agent');
     await ensureDir(agentDir);
 
@@ -40,7 +45,6 @@ export async function refreshAgentContextFiles(featureRoot: string, featurePath:
             continue;
         }
 
-
         let useDefaultSymlinkLogic = true;
 
         switch (agent.name) {
@@ -50,8 +54,7 @@ export async function refreshAgentContextFiles(featureRoot: string, featurePath:
         }
 
         if (useDefaultSymlinkLogic) {
-            if (createdAgentFiles.has(path.join(agentDir, agent.agentFile)))
-                continue; // already created symlink for this agent file
+            if (createdAgentFiles.has(path.join(agentDir, agent.agentFile))) continue; // already created symlink for this agent file
 
             const contextFilePath = path.join(agentDir, agent.agentFile);
             await rm(contextFilePath, { force: true });
@@ -61,8 +64,12 @@ export async function refreshAgentContextFiles(featureRoot: string, featurePath:
     }
 }
 
-async function refreshCopilotAgentContextFiles(featureRoot: string, featurePath: string, agent: Agent, mode: ForgeMode): Promise<void> {
-
+async function refreshCopilotAgentContextFiles(
+    featureRoot: string,
+    featurePath: string,
+    agent: Agent,
+    mode: ForgeMode,
+): Promise<void> {
     // Need to create a .github/agents folder in the featureRoot workspace
     const githubAgentsPath = path.join(featureRoot, '.github', 'agents');
     await ensureDir(githubAgentsPath);
@@ -72,8 +79,7 @@ async function refreshCopilotAgentContextFiles(featureRoot: string, featurePath:
     const agentFiles = await readdir(copilotAgentDir);
 
     for (const agentFile of agentFiles) {
-        if (!agentFile.match(/\.agent\.md$/))
-            continue;
+        if (!agentFile.match(/\.agent\.md$/)) continue;
 
         const sourcePath = path.join(copilotAgentDir, agentFile);
         const targetPath = path.join(githubAgentsPath, agentFile);
@@ -81,7 +87,4 @@ async function refreshCopilotAgentContextFiles(featureRoot: string, featurePath:
         await rm(targetPath, { force: true });
         await symlink(sourcePath, targetPath);
     }
-
-
 }
-

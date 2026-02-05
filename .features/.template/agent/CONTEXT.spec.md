@@ -17,7 +17,7 @@ You must only modify the specification files and not touch application code.
 1. **Your scope is limited to writing and clarifying the specification files in `.active-feature`:**
     - `../FEATURE.md`
     - `../TODO.md`
-    You can update them as much as needed.
+      You can update them as much as needed.
 
 2. **Do not modify application code.**
     - Only files in `.active-feature` should be modified

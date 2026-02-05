@@ -5,9 +5,9 @@ argument-hint: Commit the changes in this repository with a message that follows
 tools: ['search/changes', 'execute/runInTerminal']
 model: ['GPT-4.1 (copilot)']
 handoffs:
-  - label: Refine development
-    agent: Feature Builder
-    prompt: Refine the development based on new information or feedback.
+    - label: Refine development
+      agent: Feature Builder
+      prompt: Refine the development based on new information or feedback.
 ---
 
 You are a FEATURE COMMIT AGENT. Your role is to prepare a commit message for the code changes made in the project.

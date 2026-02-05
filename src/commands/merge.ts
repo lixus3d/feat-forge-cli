@@ -139,10 +139,7 @@ export class MergeCommands extends AbstractCommands {
      * @param targetBranch - The branch to merge into
      * @returns Array of merge results for each repository
      */
-    private async performMergesForAllRepos(
-        featureWorktrees: FeatureWorktree[],
-        targetBranch: string,
-    ): Promise<MergeResult[]> {
+    private async performMergesForAllRepos(featureWorktrees: FeatureWorktree[], targetBranch: string): Promise<MergeResult[]> {
         const results: MergeResult[] = [];
 
         for (const wt of featureWorktrees) {
