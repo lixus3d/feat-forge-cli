@@ -131,7 +131,7 @@ function registerRebaseCommands(program: Command, config: ForgeContext): void {
  * This command works both with and without config.
  */
 function registerCompletionCommands(program: Command, config?: ForgeContext): void {
-    const handlers = config ? new CompletionCommands(config) : null;
+    const handlers = config ? new CompletionCommands(config, program) : null;
 
     program
         .command('completion <shell>')
@@ -158,7 +158,7 @@ function registerCompletionCommands(program: Command, config?: ForgeContext): vo
                     agents: [],
                     ides: [],
                 };
-                const fallbackHandlers = new CompletionCommands(fallbackConfig);
+                const fallbackHandlers = new CompletionCommands(fallbackConfig, program);
                 await fallbackHandlers.generate(shell as ShellType);
             } else {
                 await handlers.generate(shell as ShellType);

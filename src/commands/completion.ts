@@ -1,5 +1,6 @@
 import { readdir } from 'fs/promises';
 import { Dirent } from 'fs';
+import { Command } from 'commander';
 import { AbstractCommands } from './abstract';
 import { pathExists } from '../lib/fs';
 
@@ -9,9 +10,25 @@ import { pathExists } from '../lib/fs';
 export type ShellType = 'bash' | 'zsh' | 'fish';
 
 /**
+ * Information about a command extracted from Commander.js
+ */
+interface CommandInfo {
+    name: string;
+    description: string;
+    subcommands: CommandInfo[];
+    hasSlugArgument: boolean;
+}
+
+/**
  * Commands for managing shell completion/autocomplete
  */
 export class CompletionCommands extends AbstractCommands {
+    private readonly program: Command;
+
+    constructor(config: any, program: Command) {
+        super(config);
+        this.program = program;
+    }
     // ============================================================================
     // PUBLIC COMMAND METHODS
     // ============================================================================
@@ -79,11 +96,89 @@ export class CompletionCommands extends AbstractCommands {
     }
 
     /**
+     * Extract command information from Commander.js program.
+     * Recursively extracts all commands and their subcommands.
+     *
+     * @param command - Commander.js Command object
+     * @returns Structured command information
+     */
+    private extractCommandInfo(command: Command): CommandInfo {
+        const name = command.name();
+        const description = command.description();
+        const hasSlugArgument = command.registeredArguments?.some(
+            (arg: any) => arg._name === 'slug' && arg.required
+        ) ?? false;
+
+        const subcommands = command.commands
+            .filter((cmd) => !cmd.name().includes('help'))
+            .map((cmd) => this.extractCommandInfo(cmd));
+
+        return { name, description, subcommands, hasSlugArgument };
+    }
+
+    /**
+     * Get all main commands from the program.
+     *
+     * @returns Array of command information
+     */
+    private getMainCommands(): CommandInfo[] {
+        return this.program.commands
+            .filter((cmd) => !cmd.name().includes('help'))
+            .map((cmd) => this.extractCommandInfo(cmd));
+    }
+
+    /**
+     * Find a specific command by name.
+     *
+     * @param commandName - Name of the command to find
+     * @returns Command information or undefined
+     */
+    private findCommand(commandName: string): CommandInfo | undefined {
+        return this.getMainCommands().find((cmd) => cmd.name === commandName);
+    }
+
+    /**
+     * Get list of command names that have a required slug argument.
+     *
+     * @returns Array of command names
+     */
+    private getCommandsWithSlug(): string[] {
+        const commands: string[] = [];
+
+        const checkCommand = (cmd: CommandInfo, parentName?: string) => {
+            const fullName = parentName ? `${parentName}|${cmd.name}` : cmd.name;
+            if (cmd.hasSlugArgument) {
+                commands.push(cmd.name);
+            }
+            cmd.subcommands.forEach((sub) => checkCommand(sub, cmd.name));
+        };
+
+        this.getMainCommands().forEach((cmd) => checkCommand(cmd));
+        return commands;
+    }
+
+    /**
      * Generate bash completion script.
      *
      * @returns Bash completion script content
      */
     private generateBashCompletion(): string {
+        const mainCommands = this.getMainCommands();
+        const featureCmd = this.findCommand('feature');
+        const modeCmd = this.findCommand('mode');
+        const agentCmd = this.findCommand('agent');
+        const completionCmd = this.findCommand('completion');
+
+        // Build command lists
+        const commands = mainCommands.map((cmd) => cmd.name).join(' ');
+        const featureCommands = featureCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
+        const modeCommands = modeCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
+        const agentCommands = agentCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
+
+        // Find commands with slug argument (for feature suggestions)
+        const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name) || [];
+        const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name);
+
         return `# forge bash completion script
 
 _forge_completion() {
@@ -91,27 +186,19 @@ _forge_completion() {
     _init_completion || return
 
     # Main commands available at root level
-    local commands="init feature mode agent merge rebase completion"
+    local commands="${commands}"
 
     # Subcommands for each main command
-    local feature_commands="create start stop list resync archive merge rebase"
-    local mode_commands="spec code"
-    local agent_commands="refresh"
+    local feature_commands="${featureCommands}"
+    local mode_commands="${modeCommands}"
+    local agent_commands="${agentCommands}"
 
     # Get previous word for context
     case "\${words[1]}" in
         feature)
             case "\${words[2]}" in
-                merge|rebase)
-                    # Suggest available features for merge/rebase
-                    if [[ \${cword} -eq 3 ]]; then
-                        local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
-                        COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
-                        return 0
-                    fi
-                    ;;
-                create|start|stop|resync|archive)
-                    # Suggest available features for other feature commands
+                ${featureWithSlug.join('|')})
+                    # Suggest available features
                     if [[ \${cword} -eq 3 ]]; then
                         local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
                         COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
@@ -141,8 +228,8 @@ _forge_completion() {
                 return 0
             fi
             ;;
-        merge|rebase)
-            # Suggest available features for merge/rebase shortcut
+        ${mainWithSlug.join('|')})
+            # Suggest available features for commands with slug argument
             if [[ \${cword} -eq 2 ]]; then
                 local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
                 COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
@@ -185,6 +272,33 @@ complete -F _forge_completion forge
      * @returns Zsh completion script content
      */
     private generateZshCompletion(): string {
+        const mainCommands = this.getMainCommands();
+        const featureCmd = this.findCommand('feature');
+        const modeCmd = this.findCommand('mode');
+        const agentCmd = this.findCommand('agent');
+        const completionCmd = this.findCommand('completion');
+
+        // Build command arrays with descriptions
+        const commandsArray = mainCommands
+            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
+            .join('\n');
+
+        const featureArray = featureCmd?.subcommands
+            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
+            .join('\n') || '';
+
+        const modeArray = modeCmd?.subcommands
+            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
+            .join('\n') || '';
+
+        const agentArray = agentCmd?.subcommands
+            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
+            .join('\n') || '';
+
+        // Find commands with slug argument
+        const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name) || [];
+        const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name);
+
         return `#compdef forge
 # forge zsh completion script
 
@@ -192,33 +306,19 @@ _forge() {
     local -a commands feature_commands mode_commands agent_commands
 
     commands=(
-        'init:Create a .feat-forge.json in the current folder'
-        'feature:Manage feature lifecycle'
-        'mode:Switch the active feature mode'
-        'agent:Manage agent adapters'
-        'merge:Merge a feature branch into a target branch'
-        'rebase:Rebase a feature branch onto a base branch'
-        'completion:Generate shell completion script'
+${commandsArray}
     )
 
     feature_commands=(
-        'create:Create a new feature folder and initialize its spec'
-        'start:Create/switch to feature worktrees'
-        'stop:Stop a feature and remove its worktrees'
-        'list:List all feature worktrees'
-        'resync:Resync all repos in a feature to the correct branch'
-        'archive:Archive a feature by moving it to .features/.archives/'
-        'merge:Merge a feature branch into a target branch'
-        'rebase:Rebase a feature branch onto a base branch'
+${featureArray}
     )
 
     mode_commands=(
-        'spec:Switch to spec mode'
-        'code:Switch to code mode'
+${modeArray}
     )
 
     agent_commands=(
-        'refresh:Refresh agent adapter files for the active feature'
+${agentArray}
     )
 
     _arguments -C \\
@@ -233,7 +333,7 @@ _forge() {
             case \${words[1]} in
                 feature)
                     case \${words[2]} in
-                        merge|rebase|create|start|stop|resync|archive)
+                        ${featureWithSlug.join('|')})
                             # Suggest available features
                             local features
                             features=(\${(f)"\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
@@ -250,7 +350,7 @@ _forge() {
                 agent)
                     _describe 'agent command' agent_commands
                     ;;
-                merge|rebase)
+                ${mainWithSlug.join('|')})
                     # Suggest available features for merge/rebase shortcut
                     local features
                     features=(\${(f)"\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
@@ -286,6 +386,52 @@ compdef _forge forge
      * @returns Fish completion script content
      */
     private generateFishCompletion(): string {
+        const mainCommands = this.getMainCommands();
+        const featureCmd = this.findCommand('feature');
+        const modeCmd = this.findCommand('mode');
+        const agentCmd = this.findCommand('agent');
+        const completionCmd = this.findCommand('completion');
+
+        // Generate main commands
+        const mainCommandsLines = mainCommands
+            .map((cmd) => `complete -c forge -n "__fish_use_subcommand" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
+            .join('\n');
+
+        // Generate feature subcommands
+        const featureSubLines = featureCmd?.subcommands
+            .map((cmd) => cmd.name)
+            .join(' ') || '';
+        const featureSubCmds = featureCmd?.subcommands
+            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from ${featureSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
+            .join('\n') || '';
+
+        // Generate mode subcommands
+        const modeSubLines = modeCmd?.subcommands
+            .map((cmd) => cmd.name)
+            .join(' ') || '';
+        const modeSubCmds = modeCmd?.subcommands
+            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subcommand_from ${modeSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
+            .join('\n') || '';
+
+        // Generate agent subcommands
+        const agentSubLines = agentCmd?.subcommands
+            .map((cmd) => cmd.name)
+            .join(' ') || '';
+        const agentSubCmds = agentCmd?.subcommands
+            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from agent; and not __fish_seen_subcommand_from ${agentSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
+            .join('\n') || '';
+
+        // Find commands with slug argument
+        const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument) || [];
+        const featureSlugCompletions = featureWithSlug
+            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`)
+            .join('\n');
+
+        const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument);
+        const mainSlugCompletions = mainWithSlug
+            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`)
+            .join('\n');
+
         return `# forge fish completion script
 
 # Helper function to get available features
@@ -302,54 +448,37 @@ end
 complete -c forge -f
 
 # Main commands
-complete -c forge -n "__fish_use_subcommand" -a init -d "Create a .feat-forge.json in the current folder"
-complete -c forge -n "__fish_use_subcommand" -a feature -d "Manage feature lifecycle"
-complete -c forge -n "__fish_use_subcommand" -a mode -d "Switch the active feature mode"
-complete -c forge -n "__fish_use_subcommand" -a agent -d "Manage agent adapters"
-complete -c forge -n "__fish_use_subcommand" -a merge -d "Merge a feature branch into a target branch"
-complete -c forge -n "__fish_use_subcommand" -a rebase -d "Rebase a feature branch onto a base branch"
-complete -c forge -n "__fish_use_subcommand" -a completion -d "Generate shell completion script"
+${mainCommandsLines}
 
 # Feature subcommands
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a create -d "Create a new feature folder"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a start -d "Create/switch to feature worktrees"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a stop -d "Stop a feature and remove its worktrees"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a list -d "List all feature worktrees"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a resync -d "Resync all repos in a feature"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a archive -d "Archive a feature"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a merge -d "Merge a feature branch"
-complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from create start stop list resync archive merge rebase" -a rebase -d "Rebase a feature branch"
+${featureSubCmds}
 
 # Feature commands with slug completion
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from create" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from start" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from stop" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from resync" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from archive" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from merge" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from rebase" -a "(__forge_features)"
+${featureSlugCompletions}
 
 # Mode subcommands
-complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subcommand_from spec code" -a spec -d "Switch to spec mode"
-complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subcommand_from spec code" -a code -d "Switch to code mode"
+${modeSubCmds}
 
 # Agent subcommands
-complete -c forge -n "__fish_seen_subcommand_from agent; and not __fish_seen_subcommand_from refresh" -a refresh -d "Refresh agent adapter files"
+${agentSubCmds}
 
-# Merge and rebase shortcuts with feature slug completion
-complete -c forge -n "__fish_seen_subcommand_from merge" -a "(__forge_features)"
-complete -c forge -n "__fish_seen_subcommand_from rebase" -a "(__forge_features)"
+# Main commands with feature slug completion
+${mainSlugCompletions}
 
 # Completion command with shell types
-complete -c forge -n "__fish_seen_subcommand_from completion" -a "bash zsh fish" -d "Shell type"
+complete -c forge -n "__fish_seen_subcommand_from completion" -a bash -d "Generate bash completion"
+# Completion command with shell types
+complete -c forge -n "__fish_seen_subcommand_from completion" -a bash -d "Generate bash completion"
+complete -c forge -n "__fish_seen_subcommand_from completion" -a zsh -d "Generate zsh completion"
+complete -c forge -n "__fish_seen_subcommand_from completion" -a fish -d "Generate fish completion"
 
 # Installation instructions:
-#   Option 1 - Source directly:
+#   Option 1 - Add to ~/.config/fish/config.fish:
 #     forge completion fish | source
 #
-#   Option 2 - Save to completions directory (recommended):
+#   Option 2 - Save to completions directory:
 #     forge completion fish > ~/.config/fish/completions/forge.fish
-#     # Fish will automatically load it in new sessions
 `;
     }
 }
+
