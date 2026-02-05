@@ -215,34 +215,6 @@ export class FeatureCommands extends AbstractCommands {
     // ============================================================================
 
     /**
-     * Retrieve the repository name for a given root path.
-     *
-     * Looks up the repository name from the repoNames map and throws
-     * a descriptive error if not found.
-     *
-     * @param repoRoot - Root path of the repository
-     * @returns The repository name
-     * @throws Error if repository name is not found in the map
-     */
-    private getRepoNameOrThrow(repoRoot: string): string {
-        const repoName = this.config.repoNames.get(repoRoot);
-        if (!repoName) {
-            throw new Error(`Missing repo name for ${repoRoot}`);
-        }
-        return repoName;
-    }
-
-    /**
-     * Resolve the configured main repo name or throw if missing.
-     *
-     * @returns The main repository name
-     * @throws Error if main repository name is not found
-     */
-    private getMainRepoName(): string {
-        return this.getRepoNameOrThrow(this.config.mainRepoRoot);
-    }
-
-    /**
      * Build a list of worktree metadata for a given feature across all repos.
      *
      * Maps each repository root to its worktree path and metadata for the feature.
@@ -361,9 +333,9 @@ export class FeatureCommands extends AbstractCommands {
         const mainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
 
         // Build secondary worktrees paths (all repos except main)
-        const secondaryWorktrees = this.config.repoRoots
-            .filter((r) => this.config.repoNames.get(r) !== mainRepoName)
-            .map((r) => getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.config.repoNames.get(r)!));
+        const secondaryWorktrees = this.getSecondaryRepoRoots().map((r) =>
+            getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.getRepoNameOrThrow(r)),
+        );
 
         // Set active feature pointer
         await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
@@ -419,9 +391,9 @@ export class FeatureCommands extends AbstractCommands {
 
         // Build worktree paths
         const mainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
-        const secondaryWorktrees = this.config.repoRoots
-            .filter((r) => this.config.repoNames.get(r) !== mainRepoName)
-            .map((r) => getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.config.repoNames.get(r)!));
+        const secondaryWorktrees = this.getSecondaryRepoRoots().map((r) =>
+            getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.getRepoNameOrThrow(r)),
+        );
 
         // Set active feature pointer
         await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
@@ -627,19 +599,16 @@ export class FeatureCommands extends AbstractCommands {
         // Build list of all worktrees for this feature
         const worktrees = this.buildWorktreeList(slug);
 
-        // Filter to find worktrees with uncommitted changes
-        const dirtyWorktrees = [];
+        // Filter to existing worktrees only
+        const existingWorktrees = [];
         for (const worktree of worktrees) {
-            if (!(await pathExists(worktree.worktreePath))) {
-                continue;
-            }
-            const status = await getGitStatusPorcelain(worktree.worktreePath);
-            if (status) {
-                dirtyWorktrees.push(worktree);
+            if (await pathExists(worktree.worktreePath)) {
+                existingWorktrees.push(worktree);
             }
         }
 
-        return dirtyWorktrees;
+        // Use common method to find dirty worktrees
+        return this.findDirtyWorktrees(existingWorktrees);
     }
 
     /**

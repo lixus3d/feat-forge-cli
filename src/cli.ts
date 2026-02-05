@@ -5,6 +5,7 @@ import { FeatureCommands } from './commands/feature';
 import { InitCommands } from './commands/init';
 import { ModeCommands } from './commands/mode';
 import { MergeCommands } from './commands/merge';
+import { RebaseCommands } from './commands/rebase';
 import { loadForgeConfig, ForgeContext } from './lib/config';
 import { ForgeMode } from './lib/mode';
 
@@ -94,6 +95,22 @@ function registerMergeCommands(program: Command, config: ForgeContext): void {
 }
 
 /**
+ * Register rebase commands with the CLI.
+ */
+function registerRebaseCommands(program: Command, config: ForgeContext): void {
+    const rebaseCmd = new RebaseCommands(config);
+
+    // Main command: forge feature rebase <slug>
+    const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
+    if (featureCommand) {
+        featureCommand.command('rebase <slug>').description('Rebase a feature branch onto a base branch').action(rebaseCmd.rebase.bind(rebaseCmd));
+    }
+
+    // Shortcut: forge rebase <slug>
+    program.command('rebase <slug>').description('Rebase a feature branch onto a base branch (shortcut)').action(rebaseCmd.rebase.bind(rebaseCmd));
+}
+
+/**
  * Entry point for the forge CLI.
  */
 async function main() {
@@ -116,6 +133,7 @@ async function main() {
             registerModeCommands(program, config);
             registerAgentCommands(program, config);
             registerMergeCommands(program, config);
+            registerRebaseCommands(program, config);
         } catch (error) {
             // Config not found - display error message if user is not running init
             const message = error instanceof Error ? error.message : String(error);
