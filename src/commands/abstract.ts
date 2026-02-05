@@ -82,9 +82,7 @@ export abstract class AbstractCommands {
      * @param worktrees - Array of worktrees to check
      * @returns Array of dirty worktrees
      */
-    protected async findDirtyWorktrees<T extends WorktreeInfo>(
-        worktrees: T[],
-    ): Promise<T[]> {
+    protected async findDirtyWorktrees<T extends WorktreeInfo>(worktrees: T[]): Promise<T[]> {
         const dirtyWorktrees: T[] = [];
 
         for (const wt of worktrees) {
@@ -109,8 +107,7 @@ export abstract class AbstractCommands {
         if (dirtyWorktrees.length > 0) {
             const repoNames = dirtyWorktrees.map((wt) => this.getRepoNameOrThrow(wt.repoRoot)).join(', ');
             throw new Error(
-                `Working tree is not clean in: ${repoNames}.\n` +
-                    `Please commit or stash your changes before proceeding.`,
+                `Working tree is not clean in: ${repoNames}.\n` + `Please commit or stash your changes before proceeding.`,
             );
         }
     }

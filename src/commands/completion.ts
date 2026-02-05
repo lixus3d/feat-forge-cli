@@ -105,13 +105,9 @@ export class CompletionCommands extends AbstractCommands {
     private extractCommandInfo(command: Command): CommandInfo {
         const name = command.name();
         const description = command.description();
-        const hasSlugArgument = command.registeredArguments?.some(
-            (arg: any) => arg._name === 'slug' && arg.required
-        ) ?? false;
+        const hasSlugArgument = command.registeredArguments?.some((arg: any) => arg._name === 'slug' && arg.required) ?? false;
 
-        const subcommands = command.commands
-            .filter((cmd) => !cmd.name().includes('help'))
-            .map((cmd) => this.extractCommandInfo(cmd));
+        const subcommands = command.commands.filter((cmd) => !cmd.name().includes('help')).map((cmd) => this.extractCommandInfo(cmd));
 
         return { name, description, subcommands, hasSlugArgument };
     }
@@ -122,9 +118,7 @@ export class CompletionCommands extends AbstractCommands {
      * @returns Array of command information
      */
     private getMainCommands(): CommandInfo[] {
-        return this.program.commands
-            .filter((cmd) => !cmd.name().includes('help'))
-            .map((cmd) => this.extractCommandInfo(cmd));
+        return this.program.commands.filter((cmd) => !cmd.name().includes('help')).map((cmd) => this.extractCommandInfo(cmd));
     }
 
     /**
@@ -279,21 +273,16 @@ complete -F _forge_completion forge
         const completionCmd = this.findCommand('completion');
 
         // Build command arrays with descriptions
-        const commandsArray = mainCommands
-            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
-            .join('\n');
+        const commandsArray = mainCommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n');
 
-        const featureArray = featureCmd?.subcommands
-            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
-            .join('\n') || '';
+        const featureArray =
+            featureCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
 
-        const modeArray = modeCmd?.subcommands
-            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
-            .join('\n') || '';
+        const modeArray =
+            modeCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
 
-        const agentArray = agentCmd?.subcommands
-            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
-            .join('\n') || '';
+        const agentArray =
+            agentCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
 
         // Find commands with slug argument
         const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name) || [];
@@ -398,33 +387,42 @@ compdef _forge forge
             .join('\n');
 
         // Generate feature subcommands
-        const featureSubLines = featureCmd?.subcommands
-            .map((cmd) => cmd.name)
-            .join(' ') || '';
-        const featureSubCmds = featureCmd?.subcommands
-            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from ${featureSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
-            .join('\n') || '';
+        const featureSubLines = featureCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
+        const featureSubCmds =
+            featureCmd?.subcommands
+                .map(
+                    (cmd) =>
+                        `complete -c forge -n "__fish_seen_subcommand_from feature; and not __fish_seen_subcommand_from ${featureSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`,
+                )
+                .join('\n') || '';
 
         // Generate mode subcommands
-        const modeSubLines = modeCmd?.subcommands
-            .map((cmd) => cmd.name)
-            .join(' ') || '';
-        const modeSubCmds = modeCmd?.subcommands
-            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subcommand_from ${modeSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
-            .join('\n') || '';
+        const modeSubLines = modeCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
+        const modeSubCmds =
+            modeCmd?.subcommands
+                .map(
+                    (cmd) =>
+                        `complete -c forge -n "__fish_seen_subcommand_from mode; and not __fish_seen_subcommand_from ${modeSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`,
+                )
+                .join('\n') || '';
 
         // Generate agent subcommands
-        const agentSubLines = agentCmd?.subcommands
-            .map((cmd) => cmd.name)
-            .join(' ') || '';
-        const agentSubCmds = agentCmd?.subcommands
-            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from agent; and not __fish_seen_subcommand_from ${agentSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
-            .join('\n') || '';
+        const agentSubLines = agentCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
+        const agentSubCmds =
+            agentCmd?.subcommands
+                .map(
+                    (cmd) =>
+                        `complete -c forge -n "__fish_seen_subcommand_from agent; and not __fish_seen_subcommand_from ${agentSubLines}" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`,
+                )
+                .join('\n') || '';
 
         // Find commands with slug argument
         const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument) || [];
         const featureSlugCompletions = featureWithSlug
-            .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`)
+            .map(
+                (cmd) =>
+                    `complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`,
+            )
             .join('\n');
 
         const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument);
@@ -481,4 +479,3 @@ complete -c forge -n "__fish_seen_subcommand_from completion" -a fish -d "Genera
 `;
     }
 }
-

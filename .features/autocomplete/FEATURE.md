@@ -8,10 +8,10 @@ Permettre l'autocomplete via TAB dans les shells (bash, zsh, fish, etc.) pour la
 
 - **Autocomplete des commandes principales** : `forge <TAB>` cycle/affiche les commandes disponibles (init, feature, mode, agent, merge)
 - **Autocomplete contextuel pour `merge`** : `forge merge <TAB>` propose les features actives disponibles
-- **Autocomplete des sous-commandes** : 
-  - `forge feature <TAB>` → create, start, stop, archive, list, resume, delete
-  - `forge mode <TAB>` → spec, code
-  - `forge agent <TAB>` → refresh
+- **Autocomplete des sous-commandes** :
+    - `forge feature <TAB>` → create, start, stop, archive, list, resume, delete
+    - `forge mode <TAB>` → spec, code
+    - `forge agent <TAB>` → refresh
 - **Support multi-shell** : Génération de scripts d'autocomplete pour bash, zsh, et fish
 - **Installation facile** : Commande `forge completion <shell>` pour générer le script approprié
 - ***

@@ -128,26 +128,33 @@ forge <TAB>
 ## Problèmes potentiels et solutions
 
 ### Problème : L'autocomplete ne fonctionne pas
+
 **Solutions** :
+
 1. Vérifier que le script a bien été sourcé : `type _forge_completion` (bash) ou `which _forge` (zsh)
 2. Vérifier que bash-completion est installé : `apt-get install bash-completion` (Ubuntu/Debian)
 3. Pour zsh, vérifier que `compinit` est appelé dans `.zshrc`
 4. Recharger le shell : `exec bash` ou `exec zsh`
 
 ### Problème : Les features ne sont pas listées
+
 **Solutions** :
+
 1. Vérifier que le répertoire worktrees existe : `ls -la features/`
 2. Définir la variable d'environnement : `export FORGE_WORKTREES_ROOT="chemin/vers/features"`
 3. Vérifier les permissions du répertoire : `ls -ld features/`
 
 ### Problème : Erreurs visibles lors de l'autocomplete
+
 **Solutions** :
+
 1. Vérifier que les commandes dans le script sont disponibles : `which find`, `which basename`
 2. Les erreurs devraient être redirigées vers /dev/null, vérifier le script généré
 
 ## Installation permanente (après validation)
 
 ### Bash
+
 ```bash
 # Ajouter à ~/.bashrc
 echo 'source <(forge completion bash)' >> ~/.bashrc
@@ -155,6 +162,7 @@ source ~/.bashrc
 ```
 
 ### Zsh
+
 ```bash
 # Ajouter à ~/.zshrc
 echo 'source <(forge completion zsh)' >> ~/.zshrc
@@ -162,6 +170,7 @@ source ~/.zshrc
 ```
 
 ### Fish
+
 ```fish
 # Sauvegarder dans le répertoire de completions
 forge completion fish > ~/.config/fish/completions/forge.fish

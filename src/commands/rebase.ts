@@ -52,8 +52,6 @@ export class RebaseCommands extends AbstractCommands {
     // PRIVATE UTILITY METHODS
     // ============================================================================
 
-
-
     /**
      * Perform rebase operations for all repositories.
      *
@@ -64,10 +62,7 @@ export class RebaseCommands extends AbstractCommands {
      * @param baseBranch - The branch to rebase onto
      * @returns Array of rebase results for each repository
      */
-    private async performRebasesForAllRepos(
-        featureWorktrees: FeatureWorktree[],
-        baseBranch: string,
-    ): Promise<GitOperationResult[]> {
+    private async performRebasesForAllRepos(featureWorktrees: FeatureWorktree[], baseBranch: string): Promise<GitOperationResult[]> {
         const results: GitOperationResult[] = [];
 
         for (const wt of featureWorktrees) {
@@ -147,5 +142,4 @@ export class RebaseCommands extends AbstractCommands {
             console.log('After resolving conflicts, you can continue with: git rebase --continue');
         }
     }
-
 }

@@ -159,6 +159,7 @@ CompletionCommands
 ## Patterns et conventions respectés
 
 ### 1. Structure de classe standard
+
 ```typescript
 export class CompletionCommands extends AbstractCommands {
     // ============================================================================
@@ -178,6 +179,7 @@ export class CompletionCommands extends AbstractCommands {
 ```
 
 ### 2. DocBlocks sur toutes les méthodes
+
 ```typescript
 /**
  * Generate and display shell completion script for the specified shell.
@@ -188,6 +190,7 @@ async generate(shell: ShellType): Promise<void>
 ```
 
 ### 3. Gestion d'erreurs gracieuse
+
 ```typescript
 private async getAvailableFeatures(): Promise<string[]> {
     try {
@@ -202,6 +205,7 @@ private async getAvailableFeatures(): Promise<string[]> {
 ```
 
 ### 4. Typage explicite TypeScript
+
 ```typescript
 const entries: Dirent[] = await readdir(this.config.worktreesRoot, { withFileTypes: true });
 return entries
@@ -213,16 +217,19 @@ return entries
 ## Commandes disponibles
 
 ### Nouvelle commande ajoutée
+
 ```bash
 forge completion <shell>    # Génère le script d'autocomplete
 ```
 
 ### Shells supportés
+
 - `bash` - Bourne Again Shell
 - `zsh` - Z Shell
 - `fish` - Friendly Interactive Shell
 
 ### Exemple d'utilisation
+
 ```bash
 # Génération et utilisation directe
 source <(forge completion bash)
@@ -237,6 +244,7 @@ forge completion fish > ~/.config/fish/completions/forge.fish
 ## Variables d'environnement
 
 ### FORGE_WORKTREES_ROOT
+
 ```bash
 # Définir un chemin personnalisé pour les features
 export FORGE_WORKTREES_ROOT="/custom/path/to/features"
