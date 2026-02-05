@@ -31,6 +31,10 @@ type FeatureWorktree = {
  * Commands for merging feature branches into target branches
  */
 export class MergeCommands extends AbstractCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
     /**
      * Merge a feature branch into a target branch for all repos.
      *
@@ -64,6 +68,10 @@ export class MergeCommands extends AbstractCommands {
         // Step 5: Display summary and propose next action
         await this.displaySummaryAndProposeAction(results, slug);
     }
+
+    // ============================================================================
+    // PRIVATE UTILITY METHODS
+    // ============================================================================
 
     /**
      * Discover all repositories that have a branch for this feature.

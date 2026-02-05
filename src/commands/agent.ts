@@ -7,6 +7,10 @@ import { readModeFile } from '../lib/mode';
 import { AbstractCommands } from './abstract';
 
 export class AgentCommands extends AbstractCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
     /**
      * Refresh agent adapter files for the active feature using current mode.
      */

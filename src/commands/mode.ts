@@ -8,6 +8,10 @@ import { ForgeMode, getModePath, writeModeFile } from '../lib/mode';
 import { AbstractCommands } from './abstract';
 
 export class ModeCommands extends AbstractCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
     /**
      * Set the current mode and refresh agent adapters for the active feature.
      */
@@ -27,6 +31,10 @@ export class ModeCommands extends AbstractCommands {
         const adapterFiles = agents.map((a) => a.agentFile);
         await refreshAgentAdapters(featurePath, adapterFiles, mode);
     }
+
+    // ============================================================================
+    // PRIVATE UTILITY METHODS
+    // ============================================================================
 
     /**
      * Check if a mode file exists for a feature

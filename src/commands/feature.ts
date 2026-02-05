@@ -29,6 +29,191 @@ import { AbstractCommands } from './abstract';
 import { ModeCommands } from './mode';
 
 export class FeatureCommands extends AbstractCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
+    /**
+     * Create a new feature folder and initialize missing spec files.
+     */
+    async create(slug: string): Promise<void> {
+        await this.prepareFeature(slug);
+    }
+
+    /**
+     * Switch to a feature branch/worktree and update active feature pointer.
+     */
+    async start(slug: string): Promise<void> {
+        // Prepare feature: validate slug, ensure branch and spec exist
+        const { safeSlug, branchName } = await this.prepareFeature(slug);
+
+        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
+        await ensureDir(featureRoot);
+
+        // Check if all worktrees already exist
+        const worktreeTargets = this.config.repoRoots.map((repoRoot) => {
+            const repoName = this.getRepoNameOrThrow(repoRoot);
+            return getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
+        });
+
+        const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
+        if (existingWorktrees.every(Boolean)) {
+            // All worktrees exist - just set active feature and IDE workspaces
+            await this.handleExistingWorktrees(safeSlug, featureRoot);
+            return;
+        }
+
+        // Create new worktrees for all repos
+        await this.createNewWorktrees(safeSlug, branchName);
+
+        // Finalize: set active feature, mode, and IDE workspaces
+        await this.finalizeFeatureStart(safeSlug, featureRoot);
+    }
+
+    /**
+     * List all feature worktrees with their git branches.
+     */
+    async list(): Promise<void> {
+        // Check if worktrees directory exists
+        if (!(await pathExists(this.config.worktreesRoot))) {
+            console.log('No features directory found.');
+            return;
+        }
+
+        // Get list of feature directories
+        const entries = await readdir(this.config.worktreesRoot, { withFileTypes: true });
+        const featureDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+        if (featureDirs.length === 0) {
+            console.log('No feature worktrees found.');
+            return;
+        }
+
+        // Display each feature with branch information
+        console.log('Feature worktrees:');
+        for (const slug of featureDirs.sort()) {
+            // Collect branch information for this feature
+            const branches = await this.collectFeatureBranches(slug);
+
+            // Format branch information
+            const { info: branchInfo, isInconsistent } = this.formatBranchInfo(branches);
+
+            // Use red color for inconsistent branches
+            const RED = '\\x1b[31m';
+            const RESET = '\\x1b[0m';
+            const output = isInconsistent ? `  - ${slug}${RED}${branchInfo}${RESET}` : `  - ${slug}${branchInfo}`;
+
+            console.log(output);
+        }
+    }
+
+    /**
+     * Resync all repos in a feature worktree to the correct branch.
+     */
+    async resync(slug: string): Promise<void> {
+        const safeSlug = await confirmSlugOrThrow(slug);
+        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
+
+        // Verify feature directory exists
+        if (!(await pathExists(featureRoot))) {
+            throw new Error(`Feature worktree not found: ${safeSlug}`);
+        }
+
+        const expectedBranch = `feature/${safeSlug}`;
+        console.log(`Resyncing feature \"${safeSlug}\" to branch \"${expectedBranch}\"...`);
+
+        let hasErrors = false;
+
+        // Resync each repository worktree
+        for (const repoRoot of this.config.repoRoots) {
+            const repoName = this.config.repoNames.get(repoRoot);
+            if (!repoName) continue;
+
+            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
+            const hadError = await this.resyncSingleWorktree(repoName, worktreePath, expectedBranch);
+            if (hadError) {
+                hasErrors = true;
+            }
+        }
+
+        // Display summary
+        if (hasErrors) {
+            console.log('\\n⚠ Resync completed with errors.');
+        } else {
+            console.log('\\n✓ All repos resynced successfully.');
+        }
+    }
+
+    /**
+     * Stop a feature by removing its worktrees and clearing active pointer.
+     */
+    async stop(slug: string): Promise<void> {
+        const safeSlug = await confirmSlugOrThrow(slug);
+        const branchName = `feature/${safeSlug}`;
+
+        // Clean up any orphaned worktrees first
+        await this.cleanupOrphanedWorktrees(branchName);
+
+        // Check for uncommitted changes in worktrees
+        const dirtyWorktrees = await this.checkDirtyWorktrees(safeSlug);
+
+        // Handle dirty worktrees if any exist
+        if (dirtyWorktrees.length > 0) {
+            const shouldProceed = await this.handleDirtyWorktrees(dirtyWorktrees);
+            if (!shouldProceed) {
+                return;
+            }
+        }
+
+        // Clean up all worktrees and feature directory
+        await this.cleanupFeatureWorktrees(safeSlug);
+    }
+
+    /**
+     * Archive a feature by moving it from .features/<slug>/ to .features/.archives/<slug>/
+     * and committing the change in the feature branch.
+     */
+    async archive(slug: string): Promise<void> {
+        const safeSlug = await confirmSlugOrThrow(slug);
+        const branchName = `feature/${safeSlug}`;
+
+        // Verify feature branch exists
+        if (!(await gitBranchExists(this.config.mainRepoRoot, branchName))) {
+            throw new Error(`Feature branch \"${branchName}\" does not exist in main repo.`);
+        }
+
+        // Determine which worktree to use (existing or create temporary)
+        let workingWorktree: string;
+        try {
+            workingWorktree = await this.determineArchiveWorktree(safeSlug, branchName);
+        } catch (error) {
+            // Early return if worktree has uncommitted changes
+            if (error instanceof Error && error.message === 'Feature has uncommitted changes') {
+                return;
+            }
+            throw error;
+        }
+
+        try {
+            // Perform the archive operation
+            await this.performArchiveOperation(workingWorktree, safeSlug);
+
+            // Display success message
+            console.log(`✓ Feature \"${safeSlug}\" archived successfully.`);
+            console.log(`  Moved: .features/${safeSlug}/ → .features/.archives/${safeSlug}/`);
+            console.log(`\nNext steps:`);
+            console.log(`  - Merge branch \"${branchName}\" to main`);
+            console.log(`  - Delete branch \"${branchName}\" if no longer needed`);
+        } finally {
+            // Clean up all worktrees for all repos
+            await this.cleanupFeatureWorktrees(safeSlug);
+        }
+    }
+
+    // ============================================================================
+    // PRIVATE UTILITY METHODS
+    // ============================================================================
+
     /**
      * Retrieve the repository name for a given root path.
      *
@@ -162,13 +347,6 @@ export class FeatureCommands extends AbstractCommands {
     }
 
     /**
-     * Create a new feature folder and initialize missing spec files.
-     */
-    async create(slug: string): Promise<void> {
-        await this.prepareFeature(slug);
-    }
-
-    /**
      * Handle the case where worktrees already exist for a feature.
      *
      * Sets the active feature, creates IDE workspaces, and notifies the user.
@@ -259,39 +437,6 @@ export class FeatureCommands extends AbstractCommands {
     }
 
     /**
-     * Switch to a feature branch/worktree and update active feature pointer.
-     */
-    async start(slug: string): Promise<void> {
-        // Prepare feature: validate slug, ensure branch and spec exist
-        const { safeSlug, branchName } = await this.prepareFeature(slug);
-
-        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
-        await ensureDir(featureRoot);
-
-        // Check if all worktrees already exist
-        const worktreeTargets = this.config.repoRoots.map((repoRoot) => {
-            const repoName = this.getRepoNameOrThrow(repoRoot);
-            return getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
-        });
-
-        const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
-        if (existingWorktrees.every(Boolean)) {
-            // All worktrees exist - just set active feature and IDE workspaces
-            await this.handleExistingWorktrees(safeSlug, featureRoot);
-            return;
-        }
-
-        // Create new worktrees for all repos
-        await this.createNewWorktrees(safeSlug, branchName);
-
-        // Finalize: set active feature, mode, and IDE workspaces
-        await this.finalizeFeatureStart(safeSlug, featureRoot);
-    }
-
-    /**
-     * List all feature worktrees with their git branches.
-     */
-    /**
      * Collect branch information for a feature across all repos.
      *
      * @param slug - Feature slug
@@ -345,43 +490,6 @@ export class FeatureCommands extends AbstractCommands {
     }
 
     /**
-     * List all feature worktrees with their git branches.
-     */
-    async list(): Promise<void> {
-        // Check if worktrees directory exists
-        if (!(await pathExists(this.config.worktreesRoot))) {
-            console.log('No features directory found.');
-            return;
-        }
-
-        // Get list of feature directories
-        const entries = await readdir(this.config.worktreesRoot, { withFileTypes: true });
-        const featureDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-
-        if (featureDirs.length === 0) {
-            console.log('No feature worktrees found.');
-            return;
-        }
-
-        // Display each feature with branch information
-        console.log('Feature worktrees:');
-        for (const slug of featureDirs.sort()) {
-            // Collect branch information for this feature
-            const branches = await this.collectFeatureBranches(slug);
-
-            // Format branch information
-            const { info: branchInfo, isInconsistent } = this.formatBranchInfo(branches);
-
-            // Use red color for inconsistent branches
-            const RED = '\\x1b[31m';
-            const RESET = '\\x1b[0m';
-            const output = isInconsistent ? `  - ${slug}${RED}${branchInfo}${RESET}` : `  - ${slug}${branchInfo}`;
-
-            console.log(output);
-        }
-    }
-
-    /**
      * Resync a single repository worktree to the expected branch.
      *
      * @param repoName - Name of the repository
@@ -428,43 +536,6 @@ export class FeatureCommands extends AbstractCommands {
         } catch (error) {
             console.log(`  ✗ ${repoName}: failed to checkout ${expectedBranch}`);
             return true;
-        }
-    }
-
-    /**
-     * Resync all repos in a feature worktree to the correct branch.
-     */
-    async resync(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
-
-        // Verify feature directory exists
-        if (!(await pathExists(featureRoot))) {
-            throw new Error(`Feature worktree not found: ${safeSlug}`);
-        }
-
-        const expectedBranch = `feature/${safeSlug}`;
-        console.log(`Resyncing feature \"${safeSlug}\" to branch \"${expectedBranch}\"...`);
-
-        let hasErrors = false;
-
-        // Resync each repository worktree
-        for (const repoRoot of this.config.repoRoots) {
-            const repoName = this.config.repoNames.get(repoRoot);
-            if (!repoName) continue;
-
-            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
-            const hadError = await this.resyncSingleWorktree(repoName, worktreePath, expectedBranch);
-            if (hadError) {
-                hasErrors = true;
-            }
-        }
-
-        // Display summary
-        if (hasErrors) {
-            console.log('\\n⚠ Resync completed with errors.');
-        } else {
-            console.log('\\n✓ All repos resynced successfully.');
         }
     }
 
@@ -545,31 +616,6 @@ export class FeatureCommands extends AbstractCommands {
         }
 
         return true;
-    }
-
-    /**
-     * Stop a feature by removing its worktrees and clearing active pointer.
-     */
-    async stop(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const branchName = `feature/${safeSlug}`;
-
-        // Clean up any orphaned worktrees first
-        await this.cleanupOrphanedWorktrees(branchName);
-
-        // Check for uncommitted changes in worktrees
-        const dirtyWorktrees = await this.checkDirtyWorktrees(safeSlug);
-
-        // Handle dirty worktrees if any exist
-        if (dirtyWorktrees.length > 0) {
-            const shouldProceed = await this.handleDirtyWorktrees(dirtyWorktrees);
-            if (!shouldProceed) {
-                return;
-            }
-        }
-
-        // Clean up all worktrees and feature directory
-        await this.cleanupFeatureWorktrees(safeSlug);
     }
 
     /**
@@ -705,47 +751,6 @@ export class FeatureCommands extends AbstractCommands {
 
         // Commit the archive
         await runGit(workingWorktree, ['commit', '-m', `docs(${safeSlug}): archive feature`]);
-    }
-
-    /**
-     * Archive a feature by moving it from .features/<slug>/ to .features/.archives/<slug>/
-     * and committing the change in the feature branch.
-     */
-    async archive(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const branchName = `feature/${safeSlug}`;
-
-        // Verify feature branch exists
-        if (!(await gitBranchExists(this.config.mainRepoRoot, branchName))) {
-            throw new Error(`Feature branch \"${branchName}\" does not exist in main repo.`);
-        }
-
-        // Determine which worktree to use (existing or create temporary)
-        let workingWorktree: string;
-        try {
-            workingWorktree = await this.determineArchiveWorktree(safeSlug, branchName);
-        } catch (error) {
-            // Early return if worktree has uncommitted changes
-            if (error instanceof Error && error.message === 'Feature has uncommitted changes') {
-                return;
-            }
-            throw error;
-        }
-
-        try {
-            // Perform the archive operation
-            await this.performArchiveOperation(workingWorktree, safeSlug);
-
-            // Display success message
-            console.log(`✓ Feature \"${safeSlug}\" archived successfully.`);
-            console.log(`  Moved: .features/${safeSlug}/ → .features/.archives/${safeSlug}/`);
-            console.log(`\\nNext steps:`);
-            console.log(`  - Merge branch \"${branchName}\" to main`);
-            console.log(`  - Delete branch \"${branchName}\" if no longer needed`);
-        } finally {
-            // Clean up all worktrees for all repos
-            await this.cleanupFeatureWorktrees(safeSlug);
-        }
     }
 
     /**

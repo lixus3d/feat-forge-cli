@@ -4,6 +4,10 @@ import { pathExists, writeTextFile, ensureDir, ensureGitIgnore } from '../lib/fs
 import { ensureAgentTemplates } from '../lib/templates';
 
 export class InitCommands {
+    // ============================================================================
+    // PUBLIC COMMAND METHODS
+    // ============================================================================
+
     /**
      * Create a .feat-forge.json in the current working directory.
      */
