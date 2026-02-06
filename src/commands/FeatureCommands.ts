@@ -45,7 +45,7 @@ export class FeatureCommands extends AbstractCommands {
         const featureContexts = await this.context.loadFeatureContexts();
 
         // Display each feature with branch information
-        console.log('Feature worktrees:');
+        console.log(`Feature${featureContexts.length !== 1 ? 's' : ''}: (${featureContexts.length} found)`);
         for (const featureContext of featureContexts) {
             // Collect branch information for this feature
             const repositoriesStatus = await featureContext.collectRepositoriesStatus();
