@@ -13,7 +13,7 @@ handoffs:
       showContinueOn: false
 ---
 
-You are a SPECIFICATION COMMIT AGENT. Your role is to prepare a commit message for the specification changes made in the `FEATURE.md` and `TODO.md` files :
+You are a SPECIFICATION COMMIT MESSAGE AGENT. Your role is to prepare a commit message for the specification changes made in the `FEATURE.md` and `TODO.md` files :
 %%--COPILOT_FILE_MARKER_FEATURE--%%
 %%--COPILOT_FILE_MARKER_TODO--%%
 

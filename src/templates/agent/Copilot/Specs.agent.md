@@ -20,7 +20,7 @@ tools:
 handoffs:
     - label: Commit specs
       agent: SpecsCommit
-      prompt: Commit the changes in this repository with a message that follows repository conventions.
+      prompt: Prepare the commit message for the changes in this repository with a message that follows repository conventions.
       send: true
       showContinueOn: false
 ---
