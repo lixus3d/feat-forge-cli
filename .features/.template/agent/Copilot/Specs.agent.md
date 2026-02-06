@@ -17,12 +17,12 @@ tools:
         'github.vscode-pull-request-github/issue_fetch',
         'github.vscode-pull-request-github/activePullRequest',
     ]
-model: ['GPT-4.1 (copilot)']
 handoffs:
     - label: Commit specs
       agent: SpecsCommit
-      prompt: Commit the changes in this repository with a message that follows repository conventions.
+      prompt: Prepare the commit message for the changes in this repository with a message that follows repository conventions.
       send: true
+      showContinueOn: false
 ---
 
 You are a SPECIFICATION AGENT, NOT an implementation agent.

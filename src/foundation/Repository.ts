@@ -176,6 +176,10 @@ export abstract class Repository {
         await this.setBranch(featureBranchName);
     }
 
+    async deleteBranch(branchName: string): Promise<void> {
+        await runGit(this.path, ['branch', '-D', branchName]);
+    }
+
     async setActiveFeature(featureContext: FeatureContext): Promise<void> {
         this.mustBeWorktreeRepository();
         if (this.isMainRepository()) {
@@ -332,12 +336,13 @@ export class RootRepository extends Repository {
         return worktrees;
     }
 
-    async cleanOrphanedWorktree(featureContext: FeatureContext): Promise<void> {
+    async cleanOrphanedWorktree(featureSlug: string): Promise<void> {
         const repoAllWorktrees = await this.listGitWorktrees();
+        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
         for (const wt of repoAllWorktrees) {
             if (!(await pathExists(wt.path))) {
-                if ((await wt.getCurrentBranch()) === featureContext.featureBranchName) {
-                    console.log(`Try cleaning up orphaned worktree at ${wt.path} for feature ${featureContext.slug}`);
+                if ((await wt.getCurrentBranch()) === featureBranchName) {
+                    console.log(`Try cleaning up orphaned worktree at ${wt.path} for feature ${featureSlug}`);
                     try {
                         await execa('git', ['worktree', 'remove', '--force', wt.path], { cwd: this.path });
                     } catch (error) {
@@ -345,7 +350,7 @@ export class RootRepository extends Repository {
                     }
                 } else {
                     console.log(
-                        `  Skipping orphaned worktree at ${wt.path} since it's not on the feature branch ${featureContext.featureBranchName}`,
+                        `  Skipping orphaned worktree at ${wt.path} since it's not on the feature branch ${featureBranchName}`,
                     );
                 }
             }

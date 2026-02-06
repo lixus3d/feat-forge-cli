@@ -3,6 +3,7 @@ import 'reflect-metadata';
 // -----------
 import { Command } from 'commander';
 import { AgentCommands } from './commands/AgentCommands';
+import { MaintenanceCommands } from './commands/MaintenanceCommands';
 import { CompletionCommands } from './commands/CompletionCommands';
 import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
@@ -89,6 +90,23 @@ function registerAgentCommands(program: Command, context: ForgeContext): void {
 }
 
 /**
+ * Register maintenance commands on the main CLI program.
+ */
+function registerMaintenanceCommands(program: Command, context: ForgeContext): void {
+    const handlers = new MaintenanceCommands(context);
+    const maintenance = program.command('maintenance').description('Maintenance utilities');
+
+    maintenance
+        .command('rewrite-agent-files <slug>')
+        .description('Rewrite all agent template files from built-in templates (overwrite)')
+        .option('--dry-run', 'Simulate changes without writing files')
+        .option('--commit', 'Commit changes if files are written')
+        .action(async (slug: string, opts: any) => {
+            await handlers.rewriteAgentFiles(slug, { dryRun: opts.dryRun, commit: opts.commit });
+        });
+}
+
+/**
  * Register merge commands with the CLI.
  */
 function registerMergeCommands(program: Command, context: ForgeContext): void {
@@ -158,7 +176,8 @@ function registerCompletionCommands(program: Command, context?: ForgeContext): v
             // For completion command, we need config to get worktrees path
             // If no config, we'll use a fallback implementation
             if (!handlers) {
-                const fallbackContext = new ForgeContext(process.cwd(), new ForgeConfig({ repositories: ['dummy'] }));
+                const cwd = process.cwd();
+                const fallbackContext = new ForgeContext(cwd, new ForgeConfig(cwd, { repositories: ['dummy'] }));
                 const fallbackHandlers = new CompletionCommands(fallbackContext, program);
                 await fallbackHandlers.generate(shell);
             } else {
@@ -203,6 +222,7 @@ async function main() {
             registerFeatureCommands(program, context);
             registerModeCommands(program, context);
             registerAgentCommands(program, context);
+            registerMaintenanceCommands(program, context);
             registerMergeCommands(program, context);
             registerRebaseCommands(program, context);
             registerCompletionCommands(program, context);

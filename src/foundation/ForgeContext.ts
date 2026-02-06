@@ -1,12 +1,8 @@
-import { ensureDir, ensureLineInFile, pathExists, writeTextFile } from '../lib/fs';
-import { PathHelper } from './PathHelper';
-import { FeatureContext } from './FeatureContext';
-import { ForgeConfig, ForgeOptions } from './ForgeConfig';
-import { Repository, RootRepository, WorktreeRepository } from './Repository';
-import { AIAgent } from './types/AIAgent';
-import { IDE } from './types/IDE';
-import { readdir, readFile, rm } from 'fs/promises';
+import { readdir, readFile } from 'fs/promises';
 import path from 'path';
+import { TemporaryFolderType } from '../lib/constants';
+import { ensureDir, ensureLineInFile, pathExists, writeTextFile } from '../lib/fs';
+import { gitPathExistsInBranch } from '../lib/git';
 import {
     FEATURE_FILES,
     replaceTemplateMarkers,
@@ -14,9 +10,12 @@ import {
     SOURCE_TEMPLATE_AGENT_PATH,
     templateFor,
 } from '../lib/templates';
-import { getGitStatusPorcelain, gitPathExistsInBranch, runGit } from '../lib/git';
-import { merge } from '../lib/merger';
-import { TemporaryFolderType } from '../lib/constants';
+import { FeatureContext } from './FeatureContext';
+import { ForgeConfig, ForgeOptions } from './ForgeConfig';
+import { PathHelper } from './PathHelper';
+import { Repository, RootRepository, WorktreeRepository } from './Repository';
+import { AIAgent } from './types/AIAgent';
+import { IDE } from './types/IDE';
 
 export class ForgeContext {
     public readonly config: ForgeConfig;
@@ -111,9 +110,13 @@ export class ForgeContext {
      * This allows users to customize agent context templates on a per-repo basis by modifying the files in .features/.template/agent/.
      * If overwrite is true, existing templates will be overwritten with the built-in versions. Otherwise, existing files will be preserved.
      */
-    async ensureAgentTemplates(overwrite: boolean = false): Promise<string[]> {
-        const rootMainRepo = this.mainRepo;
-        const templateAgentDir = rootMainRepo.getAgentTemplatePath();
+    async ensureAgentTemplates(
+        inRepository: Repository,
+        overwrite: boolean = false,
+        dryRun: boolean = false,
+        doCommit: boolean = true,
+    ): Promise<string[]> {
+        const templateAgentDir = inRepository.getAgentTemplatePath();
         await ensureDir(templateAgentDir);
 
         // basically copy every files in the TEMPLATE_AGENT_PATH folder (with subdirectories)  to templateAgentDir
@@ -129,19 +132,26 @@ export class ForgeContext {
                     await ensureDir(destPath);
                     fileChanges = [...fileChanges, ...(await copyTemplatesRecursively(srcPath, destPath))];
                 } else if (entry.isFile()) {
-                    if (!overwrite && (await pathExists(destPath))) continue; // don't overwrite existing files unless overwrite flag is set
-                    let content = await readFile(srcPath, 'utf8');
-                    content = await replaceTemplateMarkers(content, this); // replace markers in the template content
-                    await writeTextFile(destPath, content);
+                    const destExists = await pathExists(destPath);
+                    if (!overwrite && destExists) continue; // don't overwrite existing files unless overwrite flag is set
+
+                    if (!dryRun) {
+                        let content = await readFile(srcPath, 'utf8');
+                        // Read and replace markers
+                        content = await replaceTemplateMarkers(content, this);
+                        await writeTextFile(destPath, content);
+                    }
+
+                    // Record change only if writing or would write
                     fileChanges.push(destPath);
                 }
             }
             return fileChanges;
         };
         const fileChanges = await copyTemplatesRecursively(SOURCE_TEMPLATE_AGENT_PATH, templateAgentDir);
-        if (fileChanges.length > 0) {
-            await rootMainRepo.commit(
-                `chore: ensure agent templates ${overwrite ? ' (overwriting existing templates)' : ''}`,
+        if (fileChanges.length > 0 && !dryRun && doCommit) {
+            await inRepository.commit(
+                `chore: add feat-forge agent templates ${overwrite ? ' (overwriting existing templates)' : ''}`,
                 fileChanges,
             );
         }
@@ -236,5 +246,16 @@ export class ForgeContext {
         // This will be used later by refreshAgentContextFiles to create the agent context files as symlinks to the templates
         const agentDir = repo.getAgentPath(slug);
         await ensureDir(agentDir);
+    }
+
+    /**
+     * Look for any worktree that matches the feature branch but whose path does not exist (orphaned worktree), and remove it.
+     */
+    async cleanOrphanedWorktrees(featureSlug: string): Promise<void> {
+        // We look at all context repositories to find any worktree that matches the feature branch but
+        // whose path does not exist (orphaned worktree), and we remove it.
+        for (const repo of this.repositories) {
+            await repo.cleanOrphanedWorktree(featureSlug);
+        }
     }
 }

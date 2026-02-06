@@ -1,7 +1,6 @@
 ---
 name: TODO Reader
 description: Reads and interprets all tasks in the specification for implementation.
-model: ['GPT-4.1 (copilot)']
 tools: ['search', 'read', 'todo']
 ---
 

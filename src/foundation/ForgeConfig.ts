@@ -161,19 +161,23 @@ export type RepositoryConfig = {
 };
 
 export class ForgeConfig {
-    public readonly rootDir: string | null;
+    public readonly rootDir: string;
     public readonly repositories: RepositoryInfos[];
     public readonly agents: AIAgent[];
     public readonly ides: IDE[];
     public readonly options: ForgeOptions;
 
-    constructor(configFile: ForgeConfigFile) {
-        this.rootDir = configFile.rootDir ? path.resolve(configFile.rootDir) : null;
+    constructor(configPath: string, configFile: ForgeConfigFile) {
+        this.rootDir = configFile.rootDir ? path.resolve(configFile.rootDir) : configPath;
         // standardize config entries
         this.repositories = this.standardizeRepositories(configFile.repositories);
         this.ides = this.standardizeIDEs(configFile.ides);
         this.agents = this.standardizeAgents(configFile.agents);
         this.options = this.standardizeOptions(configFile.options);
+    }
+
+    private getPath(...segments: string[]): string {
+        return path.join(this.rootDir, ...segments);
     }
 
     private standardizeRepositories(repos: RepositoryConfigEntry[]): RepositoryInfos[] {
@@ -192,7 +196,7 @@ export class ForgeConfig {
                 const rootPath = repositoryConfig.path.trim();
                 return {
                     name: repositoryConfig.name ?? path.basename(rootPath),
-                    path: path.resolve(rootPath),
+                    path: this.getPath(rootPath),
                     main: !!(repositoryConfig.main ?? false),
                 };
             });

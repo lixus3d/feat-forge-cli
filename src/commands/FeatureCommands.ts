@@ -3,6 +3,7 @@ import { RepositoryStatus, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
 import { pathExists } from '../lib/fs';
 import { checkoutBranch, gitBranchExists } from '../lib/git';
+import { promptConfirm } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
 
@@ -111,6 +112,15 @@ export class FeatureCommands extends AbstractCommands {
      */
     async stop(rawSlug: string): Promise<void> {
         const slug = await confirmSlugOrThrow(rawSlug);
+
+        // Clean up any orphaned worktrees first
+        await this.context.cleanOrphanedWorktrees(slug);
+
+        if (!(await this.context.isFeatureActive(slug))) {
+            console.log(`Feature "${slug}" is not active. Nothing to stop.`);
+            return;
+        }
+
         const featureContext = await this.context.loadFeatureContext(slug);
 
         // Verify clean state before stopping
@@ -137,6 +147,18 @@ export class FeatureCommands extends AbstractCommands {
 
         // Clean up all worktrees and feature directory
         await featureContext.delete();
+
+        const confirmDeleteBranch = await promptConfirm(
+            `Do you also want to delete the feature branch "${featureContext.featureBranchName}" in all repos?\nThis cannot be undone, but you can always recreate the branch later if needed.`,
+        );
+        if (confirmDeleteBranch) {
+            await featureContext.deleteBranch();
+            console.log(`Feature branch "${featureContext.featureBranchName}" deleted.`);
+        } else {
+            console.log(
+                `Feature branch "${featureContext.featureBranchName}" not deleted. You can delete it manually later if you change your mind.`,
+            );
+        }
     }
 
     // ============================================================================
@@ -150,7 +172,7 @@ export class FeatureCommands extends AbstractCommands {
         let rootRepoChanges = 0;
         let worktreeRepoChanges = 0;
         // Ensure agent templates exist in .features/.template/agent/
-        rootRepoChanges += (await this.context.ensureAgentTemplates()).length;
+        rootRepoChanges += (await this.context.ensureAgentTemplates(this.context.mainRepo)).length;
 
         // Ensure .gitignore includes .active-feature in all repos to avoid accidentally committing active feature pointers
         rootRepoChanges += await this.context.ensureGitIgnore();

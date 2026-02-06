@@ -30,9 +30,7 @@ export abstract class AbstractCommands {
 
         if (dirtyRepos.length > 0) {
             const repoNames = dirtyRepos.map((repo) => repo.name).join(', ');
-            throw new Error(
-                `Working tree is not clean in: ${repoNames}.\n` + `Please commit or stash your changes before proceeding.`,
-            );
+            throw new Error(`Worktree is not clean in: ${repoNames}.\n` + `Please commit or stash your changes before proceeding.`);
         }
     }
 }
