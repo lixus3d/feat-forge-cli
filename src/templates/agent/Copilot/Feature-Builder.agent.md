@@ -9,6 +9,7 @@ handoffs:
       agent: CodeCommit
       prompt: Commit the changes on this feature with a message that follows repository conventions.
       send: true
+      showContinueOn: false
 ---
 
 You are a Feature Builder agent. Your job is to orchestrate the implementation of features by executing tasks defined in the specifications with precision and high quality.

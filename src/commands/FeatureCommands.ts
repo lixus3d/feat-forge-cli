@@ -21,6 +21,9 @@ export class FeatureCommands extends AbstractCommands {
     async create(rawSlug: string): Promise<void> {
         const slug = await confirmSlugOrThrow(rawSlug);
         await this.prepareFeature(slug, true);
+        console.log(
+            `Feature "${slug}" created and spec files initialized. You can find them in the current branch of the main repository. Use 'forge start ${slug}' to start working on it using git worktrees.`,
+        );
     }
 
     /**
@@ -182,9 +185,9 @@ export class FeatureCommands extends AbstractCommands {
         if (worktreeRepoChanges > 0 && mergeToRoot) {
             // We have made changes to the worktree repo, but they are not visible
             // We need to merge the feature branch back to the main branch to include these changes in the main repo, to ensure they are available for users who don't use worktrees and for the feature context
-            const mainRepo = featureContext.mainRepo;
+            const mainRepo = this.context.mainRepo;
             // If the feature files were initialized in a worktree, we need to merge them back to the main branch to ensure they are available in the main repo for the feature context and for users who don't use worktrees
-            await mainRepo.rootRepository.merge((await mainRepo.getCurrentBranch())!, featureContext.featureBranchName);
+            await mainRepo.merge((await mainRepo.getCurrentBranch())!, featureContext.featureBranchName);
         }
 
         return featureContext;

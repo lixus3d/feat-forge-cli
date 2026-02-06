@@ -194,15 +194,6 @@ export class ForgeContext {
             worktreeRepo = featureContext.getRepo(mainRepo.name);
         } else {
             worktreeRepo = await featureContext.getTemporaryRepo(mainRepo.name, TemporaryFolderType.FEATURE_INIT);
-            // // worktree doesn't exist, we need to use a temporary worktree
-            // const tempWorktree = this.paths.getTempFeatureWorktreePathForRepo(slug, mainRepo.name);
-            // await ensureDir(path.dirname(tempWorktree));
-            // if (await pathExists(tempWorktree)) {
-            //     throw new Error(`Temp worktree already exists at ${tempWorktree}`);
-            // }
-
-            // await runGit(mainRepo.path, ['worktree', 'add', tempWorktree, branchName]);
-            // worktreeRepo = new WorktreeRepository(this, { name: mainRepo.name, path: tempWorktree, main: true }, mainRepo, true);
         }
 
         try {

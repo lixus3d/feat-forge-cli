@@ -8,6 +8,7 @@ handoffs:
     - label: Refine development
       agent: Feature Builder
       prompt: Refine the development based on new information or feedback.
+      showContinueOn: false
 ---
 
 You are a FEATURE COMMIT AGENT. Your role is to prepare a commit message for the code changes made in the project.

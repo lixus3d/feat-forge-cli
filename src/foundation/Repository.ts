@@ -182,13 +182,13 @@ export abstract class Repository {
             const featurePath = this.getFeaturePath(featureContext.slug);
             const mainActivePath = this.activeFeaturePath;
             await rm(mainActivePath, { force: true });
-            await symlink(path.relative(mainActivePath, featurePath), mainActivePath);
+            await symlink(path.relative(path.dirname(mainActivePath), featurePath), mainActivePath);
         } else {
             const mainActivePath = featureContext.mainRepo.activeFeaturePath;
             const secondaryActivePath = this.activeFeaturePath;
             await rm(secondaryActivePath, { force: true });
             // Create relative path from secondary to main's .active-feature
-            await symlink(path.relative(secondaryActivePath, mainActivePath), secondaryActivePath);
+            await symlink(path.relative(path.dirname(secondaryActivePath), mainActivePath), secondaryActivePath);
         }
     }
 
@@ -310,6 +310,7 @@ export class RootRepository extends Repository {
         const worktreePath = worktreeRepository.path;
         if (await pathExists(worktreePath)) {
             await runGit(this.path, ['worktree', 'remove', '--force', worktreePath]);
+            await rm(worktreePath, { recursive: true, force: true });
         } else {
             console.log(`Worktree path does not exist, skipping removal: ${worktreePath}`);
         }

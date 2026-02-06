@@ -192,7 +192,7 @@ export class ForgeConfig {
                 const rootPath = repositoryConfig.path.trim();
                 return {
                     name: repositoryConfig.name ?? path.basename(rootPath),
-                    path: rootPath,
+                    path: path.resolve(rootPath),
                     main: !!(repositoryConfig.main ?? false),
                 };
             });
