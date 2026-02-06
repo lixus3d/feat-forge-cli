@@ -53,7 +53,7 @@ export class FeatureContext {
             return new WorktreeRepository(
                 context,
                 { name: rootRepo.name, path: path.join(featureRootPath, dir.name), main: rootRepo.main },
-                context.mainRepo,
+                rootRepo,
             );
         });
 
