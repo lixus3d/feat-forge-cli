@@ -1,17 +1,17 @@
-import { readdir, readFile, rm, symlink } from 'fs/promises';
+import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
+import { refreshCopilotAgentContextFiles } from '../lib/agents';
+import { TemporaryFolderType } from '../lib/constants';
+import { ensureDir, pathExists } from '../lib/fs';
+import { getGitStatusPorcelain, runGit } from '../lib/git';
+import { createIDEWorkspaces } from '../lib/ide';
+import { promptConfirm, promptForBranch } from '../lib/prompt';
+import { TemplateFile } from '../lib/templates';
 import { ForgeContext } from './ForgeContext';
 import { RepositoryStatus, RootRepository, WorktreeRepository } from './Repository';
-import { ensureDir, ensureLineInFile, pathExists, writeTextFile } from '../lib/fs';
-import { getGitStatusPorcelain, runGit } from '../lib/git';
-import { ForgeMode } from './types/ForgeMode';
-import { replaceTemplateMarkers, SOURCE_TEMPLATE_AGENT_PATH, TemplateFile } from '../lib/templates';
-import { refreshCopilotAgentContextFiles } from '../lib/agents';
 import { AIAgentName } from './types/AIAgentName';
-import { createIDEWorkspaces } from '../lib/ide';
+import { ForgeMode } from './types/ForgeMode';
 import { RepoName } from './types/RepositoryInfos';
-import { promptConfirm, promptForBranch } from '../lib/prompt';
-import { TemporaryFolderType } from '../lib/constants';
 
 export type FeatureSlug = string; // must be sanitized for branch names and file paths
 
@@ -62,28 +62,24 @@ export class FeatureContext {
 
     static async findNearestFeatureContext(context: ForgeContext, startDir: string = process.cwd()): Promise<FeatureContext> {
         const currentDir = path.resolve(startDir);
-        const currentDirParts = currentDir.split(path.sep);
-        const worktreesRootParts = context.paths.worktreesRoot.split(path.sep);
+        const worktreesRoot = path.resolve(context.paths.worktreesRoot);
 
-        const featureRootParts = [];
-
-        for (let i = 0; i < currentDirParts.length; i++) {
-            if (!worktreesRootParts[i]) {
-                if (featureRootParts.length < worktreesRootParts.length) {
-                    throw new Error(`Current directory ${currentDir} is not inside the worktrees root ${context.paths.worktreesRoot}`);
-                }
-                featureRootParts.push(currentDirParts[i]);
-                break;
-            } else {
-                if (currentDirParts[i] === worktreesRootParts[i]) {
-                    featureRootParts.push(currentDirParts[i]);
-                } else {
-                    throw new Error(`Current directory ${currentDir} is not inside the worktrees root ${context.paths.worktreesRoot}`);
-                }
-            }
+        // Verify that the current directory is inside the worktrees root
+        if (!currentDir.startsWith(worktreesRoot + path.sep) && currentDir !== worktreesRoot) {
+            throw new Error(`Current directory ${currentDir} is not inside the worktrees root ${worktreesRoot}`);
         }
 
-        return FeatureContext.loadFromPath(context, path.join(...featureRootParts));
+        // Ensure we're not at the root of worktrees, which is not a feature directory
+        if (currentDir === worktreesRoot) {
+            throw new Error(`Current directory is the worktrees root, not a feature directory`);
+        }
+
+        // Extract the relative path and take the first segment (the feature folder)
+        const relativePath = path.relative(worktreesRoot, currentDir);
+        const featureName = relativePath.split(path.sep)[0];
+        const featurePath = path.join(worktreesRoot, featureName);
+
+        return FeatureContext.loadFromPath(context, featurePath);
     }
 
     protected mustBeActive() {

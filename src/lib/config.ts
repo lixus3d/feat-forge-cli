@@ -42,7 +42,7 @@ export async function loadForgeConfig(startDir: string = process.cwd()): Promise
         if (errors.length > 0) {
             throw new ForgeConfigError(`Invalid config file at ${configFilePath}:\n${JSON.stringify(errors, null, 2)}`);
         }
-        return { configPath, forgeConfig: new ForgeConfig(forgeConfigFile) };
+        return { configPath, forgeConfig: new ForgeConfig(configPath, forgeConfigFile) };
     } catch (err) {
         const forgeConfigError = new ForgeConfigError(`Failed to load Forge config: ${(err as Error).message}`);
         forgeConfigError.stack = (err as Error).stack;
@@ -51,6 +51,6 @@ export async function loadForgeConfig(startDir: string = process.cwd()): Promise
 }
 
 export async function loadForgeContext(startDir: string = process.cwd()): Promise<ForgeContext> {
-    const config = await loadForgeConfig(startDir);
-    return new ForgeContext(config.configPath, config.forgeConfig);
+    const { configPath, forgeConfig } = await loadForgeConfig(startDir);
+    return new ForgeContext(configPath, forgeConfig);
 }

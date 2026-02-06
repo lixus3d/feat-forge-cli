@@ -158,7 +158,8 @@ function registerCompletionCommands(program: Command, context?: ForgeContext): v
             // For completion command, we need config to get worktrees path
             // If no config, we'll use a fallback implementation
             if (!handlers) {
-                const fallbackContext = new ForgeContext(process.cwd(), new ForgeConfig({ repositories: ['dummy'] }));
+                const cwd = process.cwd();
+                const fallbackContext = new ForgeContext(cwd, new ForgeConfig(cwd, { repositories: ['dummy'] }));
                 const fallbackHandlers = new CompletionCommands(fallbackContext, program);
                 await fallbackHandlers.generate(shell);
             } else {

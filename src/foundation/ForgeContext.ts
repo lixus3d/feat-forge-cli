@@ -1,12 +1,8 @@
-import { ensureDir, ensureLineInFile, pathExists, writeTextFile } from '../lib/fs';
-import { PathHelper } from './PathHelper';
-import { FeatureContext } from './FeatureContext';
-import { ForgeConfig, ForgeOptions } from './ForgeConfig';
-import { Repository, RootRepository, WorktreeRepository } from './Repository';
-import { AIAgent } from './types/AIAgent';
-import { IDE } from './types/IDE';
-import { readdir, readFile, rm } from 'fs/promises';
+import { readdir, readFile } from 'fs/promises';
 import path from 'path';
+import { TemporaryFolderType } from '../lib/constants';
+import { ensureDir, ensureLineInFile, pathExists, writeTextFile } from '../lib/fs';
+import { gitPathExistsInBranch } from '../lib/git';
 import {
     FEATURE_FILES,
     replaceTemplateMarkers,
@@ -14,9 +10,12 @@ import {
     SOURCE_TEMPLATE_AGENT_PATH,
     templateFor,
 } from '../lib/templates';
-import { getGitStatusPorcelain, gitPathExistsInBranch, runGit } from '../lib/git';
-import { merge } from '../lib/merger';
-import { TemporaryFolderType } from '../lib/constants';
+import { FeatureContext } from './FeatureContext';
+import { ForgeConfig, ForgeOptions } from './ForgeConfig';
+import { PathHelper } from './PathHelper';
+import { RootRepository, WorktreeRepository } from './Repository';
+import { AIAgent } from './types/AIAgent';
+import { IDE } from './types/IDE';
 
 export class ForgeContext {
     public readonly config: ForgeConfig;
