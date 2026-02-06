@@ -1,7 +1,10 @@
-import path from 'path';
 import { writeFile } from 'fs/promises';
-import { IDEName, IDE, Agent } from './config';
-import { ensureDir, pathExists } from './fs';
+import path from 'path';
+import { WorktreeRepository } from '../foundation/Repository';
+import { pathExists } from './fs';
+import { IDE } from '../foundation/types/IDE';
+import { IDEName } from '../foundation/types/IDEName';
+import { AIAgent } from '../foundation/types/AIAgent';
 
 /**
  * VSCode workspace configuration
@@ -18,9 +21,9 @@ export async function createIDEWorkspaces(
     featureSlug: string,
     worktreePath: string,
     mainRepoName: string,
-    repoNames: Map<string, string>,
+    repositories: WorktreeRepository[],
     ides: IDE[],
-    agents: Agent[],
+    agents: AIAgent[],
 ): Promise<void> {
     for (const ide of ides) {
         if (!ide.createWorkspace) {
@@ -29,7 +32,7 @@ export async function createIDEWorkspaces(
 
         switch (ide.name) {
             case IDEName.VSCODE:
-                await createVSCodeWorkspaceFile(featureSlug, worktreePath, ide, mainRepoName, repoNames, agents);
+                await createVSCodeWorkspaceFile(featureSlug, worktreePath, ide, mainRepoName, repositories, agents);
                 break;
             default:
                 console.warn(`Unknown IDE: ${ide.name}, skipping workspace creation`);
@@ -46,8 +49,8 @@ async function createVSCodeWorkspaceFile(
     workspacePath: string,
     ide: IDE,
     mainRepoName: string,
-    repoNames: Map<string, string>,
-    agents: Agent[],
+    repositories: WorktreeRepository[],
+    agents: AIAgent[],
 ): Promise<void> {
     const workspaceFileName = `${featureSlug}.code-workspace`;
     const workspaceFilePath = path.join(workspacePath, workspaceFileName);
@@ -62,7 +65,7 @@ async function createVSCodeWorkspaceFile(
     const settings = { ...ide.settings };
 
     const workspace: VSCodeWorkspace = {
-        folders: [...Array.from(repoNames.values()).map((repoName) => ({ path: `./${repoName}` }))],
+        folders: repositories.map((repo) => ({ path: `./${repo.name}` })),
         settings,
     };
 

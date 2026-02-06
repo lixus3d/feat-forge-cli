@@ -1,4 +1,6 @@
+import { execa } from 'execa';
 import readline from 'readline/promises';
+import { getBranches } from './git';
 
 type PromptChoice = {
     key: string;
@@ -44,4 +46,82 @@ export async function promptConfirm(prompt: string): Promise<boolean> {
     } finally {
         rl.close();
     }
+}
+
+/**
+ * Prompt user to select a branch from available local branches.
+ *
+ * Displays common branches (main, master, dev, develop, trunk) first,
+ * followed by feature branches (optional) and other branches,
+ * and allows manual entry via "Other" option.
+ *
+ * @param repoRoot - The repository root to query for branches
+ * @param promptMessage - Custom message for the prompt
+ * @param includeFeatureBranches - Whether to include feature/ branches in the list
+ * @returns The selected branch name
+ * @throws Error if branch name is empty or selection is invalid
+ */
+export async function promptForBranch(
+    repoRoot: string,
+    promptMessage: string,
+    featureBranchPrefix: string,
+    includeFeatureBranches: boolean = false,
+): Promise<string> {
+    // Get all local branches
+    const allBranches = await getBranches(repoRoot);
+
+    // Common branches to prioritize in the selection menu
+    const commonBranches = ['main', 'master', 'dev', 'develop', 'trunk'];
+
+    // Separate branches by type
+    const priorityBranches = commonBranches.filter((b: string) => allBranches.includes(b));
+    const featureBranches = allBranches.filter((b: string) => b.startsWith(featureBranchPrefix));
+    const otherBranches = allBranches.filter((b: string) => !commonBranches.includes(b) && !b.startsWith(featureBranchPrefix));
+
+    // Build choices menu
+    const choices: Array<{ key: string; label: string }> = [];
+    let keyIndex = 1;
+
+    // Add priority branches first
+    for (const branch of priorityBranches) {
+        choices.push({ key: String(keyIndex++), label: branch });
+    }
+
+    // Add feature branches if requested
+    if (includeFeatureBranches && featureBranches.length > 0) {
+        for (const branch of featureBranches) {
+            choices.push({ key: String(keyIndex++), label: branch });
+        }
+    }
+
+    // Add other branches
+    for (const branch of otherBranches) {
+        choices.push({ key: String(keyIndex++), label: branch });
+    }
+
+    // Add manual entry option
+    choices.push({ key: 'x', label: 'Other (enter branch name)' });
+
+    let branchName: string | null = null;
+
+    // Expect a choice to be made until a valid branch name is obtained
+    while (!branchName) {
+        const selection = await promptChoice(promptMessage, choices);
+
+        // Handle manual entry
+        if (selection === 'x') {
+            const branchNameInput = (await promptText('Enter branch name:')).trim();
+            if (branchNameInput) {
+                branchName = branchNameInput;
+            }
+        } else {
+            // Find and return selected branch
+            const selectedChoice = choices.find((c) => c.key === selection);
+            if (selectedChoice) {
+                branchName = selectedChoice.label;
+            }
+        }
+    }
+
+    return branchName;
 }

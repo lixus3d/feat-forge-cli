@@ -2,6 +2,20 @@ import path from 'path';
 import { execa } from 'execa';
 import { pathExists } from './fs';
 
+/**
+ * Result of a git operation (merge/rebase) for a single repository
+ */
+export type GitOperationResult = {
+    repo: string;
+    success: boolean;
+    hasConflicts: boolean;
+};
+
+export enum GitOperation {
+    Merge = 'merge',
+    Rebase = 'rebase',
+}
+
 export async function findGitRoot(startDir: string = process.cwd()): Promise<string> {
     let current = path.resolve(startDir);
     while (true) {
@@ -76,6 +90,22 @@ export async function checkoutBranch(repoRoot: string, branchName: string): Prom
 }
 
 /**
+ * Create a new branch in a repo.
+ */
+export async function createBranch(repoRoot: string, branchName: string): Promise<void> {
+    await runGit(repoRoot, ['branch', branchName]);
+}
+
+/**
+ * Get all branches in a repo.
+ */
+
+export async function getBranches(repoRoot: string): Promise<string[]> {
+    const result = await execa('git', ['branch', '--format=%(refname:short)'], { cwd: repoRoot });
+    return result.stdout.split('\n').filter((b: string) => b.trim().length > 0);
+}
+
+/**
  * Get all worktrees for a repo with their paths and branches.
  */
 export async function getWorktrees(repoRoot: string): Promise<Array<{ path: string; branch: string }>> {
@@ -117,4 +147,33 @@ export async function getWorktrees(repoRoot: string): Promise<Array<{ path: stri
  */
 export async function removeOrphanedWorktree(repoRoot: string, worktreePath: string): Promise<void> {
     await execa('git', ['worktree', 'remove', '--force', worktreePath], { cwd: repoRoot });
+}
+
+/**
+ * Display summary of git operation results.
+ *
+ * @param results - Array of operation results
+ * @param operationType - Name of the operation (e.g., "merge", "rebase")
+ */
+export function displayOperationSummary(results: GitOperationResult[], operationType: GitOperation): void {
+    console.log(`\n=== ${operationType.charAt(0).toUpperCase() + operationType.slice(1)} Summary ===`);
+
+    const successful = results.filter((r) => r.success);
+    const conflicts = results.filter((r) => r.hasConflicts);
+    const failed = results.filter((r) => !r.success && !r.hasConflicts);
+
+    if (successful.length > 0) {
+        console.log(`\n✅ Successful ${operationType}s (${successful.length}):`);
+        successful.forEach((r) => console.log(`   - ${r.repo}`));
+    }
+
+    if (conflicts.length > 0) {
+        console.log(`\n⚠️  Conflicts to resolve (${conflicts.length}):`);
+        conflicts.forEach((r) => console.log(`   - ${r.repo}`));
+    }
+
+    if (failed.length > 0) {
+        console.log(`\n❌ Failed ${operationType}s (${failed.length}):`);
+        failed.forEach((r) => console.log(`   - ${r.repo}`));
+    }
 }

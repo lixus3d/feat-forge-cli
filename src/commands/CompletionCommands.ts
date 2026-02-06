@@ -1,8 +1,8 @@
-import { readdir } from 'fs/promises';
-import { Dirent } from 'fs';
 import { Command } from 'commander';
-import { AbstractCommands } from './abstract';
+import { Dirent } from 'fs';
+import { readdir } from 'fs/promises';
 import { pathExists } from '../lib/fs';
+import { AbstractCommands } from './AbstractCommands';
 
 /**
  * Supported shell types for completion script generation
@@ -81,11 +81,11 @@ export class CompletionCommands extends AbstractCommands {
      */
     private async getAvailableFeatures(): Promise<string[]> {
         try {
-            if (!(await pathExists(this.config.worktreesRoot))) {
+            if (!(await pathExists(this.context.paths.worktreesRoot))) {
                 return [];
             }
 
-            const entries: Dirent[] = await readdir(this.config.worktreesRoot, { withFileTypes: true });
+            const entries: Dirent[] = await readdir(this.context.paths.worktreesRoot, { withFileTypes: true });
             return entries
                 .filter((entry: Dirent) => entry.isDirectory())
                 .map((entry: Dirent) => entry.name)

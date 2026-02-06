@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { AgentCommands } from './commands/agent';
-import { CompletionCommands, ShellType } from './commands/completion';
-import { FeatureCommands } from './commands/feature';
-import { InitCommands } from './commands/init';
-import { MergeCommands } from './commands/merge';
-import { ModeCommands } from './commands/mode';
-import { RebaseCommands } from './commands/rebase';
+import { AgentCommands } from './commands/AgentCommands';
+import { CompletionCommands, ShellType } from './commands/CompletionCommands';
+import { FeatureCommands } from './commands/FeatureCommands';
+import { InitCommands } from './commands/InitCommands';
+import { MergeCommands } from './commands/MergeCommands';
+import { ModeCommands } from './commands/ModeCommands';
+import { RebaseCommands } from './commands/RebaseCommands';
 import { ForgeContext, loadForgeConfig } from './lib/config';
 import { ForgeMode } from './lib/mode';
 
@@ -217,6 +217,7 @@ async function main() {
 
 main().catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
+    console.error(err, { stack: err instanceof Error ? err.stack : undefined });
     console.error(message);
     process.exitCode = 1;
 });

@@ -1,14 +1,6 @@
-import { Command } from 'commander';
 import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
-import { Agent, ForgeContext, IDE } from '../lib/config';
-import {
-    getFeatureRoot,
-    getFeatureWorktreePath,
-    getTempArchiveRoot,
-    getTempArchiveWorktreePath,
-    getTempFeatureWorktreePath,
-} from '../lib/feature';
+import { SPECS_FEATURES_FOLDER } from '../lib/constants';
 import { ensureDir, ensureGitIgnore, pathExists, writeTextFile } from '../lib/fs';
 import {
     checkoutBranch,
@@ -21,12 +13,23 @@ import {
     runGit,
 } from '../lib/git';
 import { createIDEWorkspaces } from '../lib/ide';
-import { activeFeatureFile, featureDir, featuresRoot } from '../lib/paths';
+import {
+    activeFeatureFolder,
+    getFeatureRoot,
+    getRelativeFeaturesArchivePath,
+    getRelativeFeatureSpecPath,
+    getRepoPathInFeature,
+    getTempArchiveWorktreePath,
+    getTempFeatureWorktreePath,
+    specsFeatureDir,
+    specsFeaturesRoot,
+} from '../foundation/PathHelper';
 import { promptChoice, promptConfirm, promptText } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { ensureAgentTemplates, FEATURE_FILES, resolveCustomTemplate, templateFor } from '../lib/templates';
-import { AbstractCommands } from './abstract';
-import { ModeCommands } from './mode';
+import { AbstractCommands } from './AbstractCommands';
+import { ModeCommands } from './ModeCommands';
+import { FeatureContext } from '../foundation/FeatureContext';
 
 export class FeatureCommands extends AbstractCommands {
     // ============================================================================
@@ -35,39 +38,21 @@ export class FeatureCommands extends AbstractCommands {
 
     /**
      * Create a new feature folder and initialize missing spec files.
+     * Does not create worktrees or set active feature - use `start` for that.
+     * But it merge spec files to main branch to ensure they are available for users who don't use worktrees and for the feature context.
      */
-    async create(slug: string): Promise<void> {
-        await this.prepareFeature(slug);
+    async create(rawSlug: string): Promise<void> {
+        const slug = await confirmSlugOrThrow(rawSlug);
+        await this.prepareFeature(slug, true);
     }
 
     /**
      * Switch to a feature branch/worktree and update active feature pointer.
      */
-    async start(slug: string): Promise<void> {
+    async start(rawSlug: string): Promise<void> {
+        const slug = await confirmSlugOrThrow(rawSlug);
         // Prepare feature: validate slug, ensure branch and spec exist
-        const { safeSlug, branchName } = await this.prepareFeature(slug);
-
-        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
-        await ensureDir(featureRoot);
-
-        // Check if all worktrees already exist
-        const worktreeTargets = this.config.repoRoots.map((repoRoot) => {
-            const repoName = this.getRepoNameOrThrow(repoRoot);
-            return getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
-        });
-
-        const existingWorktrees = await Promise.all(worktreeTargets.map((worktreePath) => pathExists(worktreePath)));
-        if (existingWorktrees.every(Boolean)) {
-            // All worktrees exist - just set active feature and IDE workspaces
-            await this.handleExistingWorktrees(safeSlug, featureRoot);
-            return;
-        }
-
-        // Create new worktrees for all repos
-        await this.createNewWorktrees(safeSlug, branchName);
-
-        // Finalize: set active feature, mode, and IDE workspaces
-        await this.finalizeFeatureStart(safeSlug, featureRoot);
+        (await this.prepareFeature(slug, false)).start();
     }
 
     /**
@@ -75,13 +60,13 @@ export class FeatureCommands extends AbstractCommands {
      */
     async list(): Promise<void> {
         // Check if worktrees directory exists
-        if (!(await pathExists(this.config.worktreesRoot))) {
+        if (!(await pathExists(this.context.worktreesRoot))) {
             console.log('No features directory found.');
             return;
         }
 
         // Get list of feature directories
-        const entries = await readdir(this.config.worktreesRoot, { withFileTypes: true });
+        const entries = await readdir(this.context.worktreesRoot, { withFileTypes: true });
         const featureDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 
         if (featureDirs.length === 0) {
@@ -110,26 +95,26 @@ export class FeatureCommands extends AbstractCommands {
     /**
      * Resync all repos in a feature worktree to the correct branch.
      */
-    async resync(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const featureRoot = getFeatureRoot(this.config.worktreesRoot, safeSlug);
+    async resync(rawSlug: string): Promise<void> {
+        const slug = await confirmSlugOrThrow(rawSlug);
+        const featureRoot = getFeatureRoot(this.context.worktreesRoot, slug);
 
         // Verify feature directory exists
         if (!(await pathExists(featureRoot))) {
-            throw new Error(`Feature worktree not found: ${safeSlug}`);
+            throw new Error(`Feature worktree not found: ${slug}`);
         }
 
-        const expectedBranch = `feature/${safeSlug}`;
-        console.log(`Resyncing feature \"${safeSlug}\" to branch \"${expectedBranch}\"...`);
+        const expectedBranch = `feature/${slug}`;
+        console.log(`Resyncing feature \"${slug}\" to branch \"${expectedBranch}\"...`);
 
         let hasErrors = false;
 
         // Resync each repository worktree
-        for (const repoRoot of this.config.repoRoots) {
-            const repoName = this.config.repoNames.get(repoRoot);
+        for (const repoRoot of this.context.repoRoots) {
+            const repoName = this.context.repoNames.get(repoRoot);
             if (!repoName) continue;
 
-            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
+            const worktreePath = getRepoPathInFeature(this.context.worktreesRoot, slug, repoName);
             const hadError = await this.resyncSingleWorktree(repoName, worktreePath, expectedBranch);
             if (hadError) {
                 hasErrors = true;
@@ -147,15 +132,15 @@ export class FeatureCommands extends AbstractCommands {
     /**
      * Stop a feature by removing its worktrees and clearing active pointer.
      */
-    async stop(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const branchName = `feature/${safeSlug}`;
+    async stop(rawSlug: string): Promise<void> {
+        const slug = await confirmSlugOrThrow(rawSlug);
+        const branchName = `feature/${slug}`;
 
         // Clean up any orphaned worktrees first
         await this.cleanupOrphanedWorktrees(branchName);
 
         // Check for uncommitted changes in worktrees
-        const dirtyWorktrees = await this.checkDirtyWorktrees(safeSlug);
+        const dirtyWorktrees = await this.checkDirtyWorktrees(slug);
 
         // Handle dirty worktrees if any exist
         if (dirtyWorktrees.length > 0) {
@@ -166,26 +151,26 @@ export class FeatureCommands extends AbstractCommands {
         }
 
         // Clean up all worktrees and feature directory
-        await this.cleanupFeatureWorktrees(safeSlug);
+        await this.cleanupFeatureWorktrees(slug);
     }
 
     /**
      * Archive a feature by moving it from .features/<slug>/ to .features/.archives/<slug>/
      * and committing the change in the feature branch.
      */
-    async archive(slug: string): Promise<void> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const branchName = `feature/${safeSlug}`;
+    async archive(rawSlug: string): Promise<void> {
+        const slug = await confirmSlugOrThrow(rawSlug);
+        const branchName = `feature/${slug}`;
 
         // Verify feature branch exists
-        if (!(await gitBranchExists(this.config.mainRepoRoot, branchName))) {
+        if (!(await gitBranchExists(this.context.mainRepoRoot, branchName))) {
             throw new Error(`Feature branch \"${branchName}\" does not exist in main repo.`);
         }
 
         // Determine which worktree to use (existing or create temporary)
         let workingWorktree: string;
         try {
-            workingWorktree = await this.determineArchiveWorktree(safeSlug, branchName);
+            workingWorktree = await this.determineArchiveWorktree(slug, branchName);
         } catch (error) {
             // Early return if worktree has uncommitted changes
             if (error instanceof Error && error.message === 'Feature has uncommitted changes') {
@@ -196,17 +181,17 @@ export class FeatureCommands extends AbstractCommands {
 
         try {
             // Perform the archive operation
-            await this.performArchiveOperation(workingWorktree, safeSlug);
+            await this.performArchiveOperation(workingWorktree, slug);
 
             // Display success message
-            console.log(`✓ Feature \"${safeSlug}\" archived successfully.`);
-            console.log(`  Moved: .features/${safeSlug}/ → .features/.archives/${safeSlug}/`);
+            console.log(`✓ Feature \"${slug}\" archived successfully.`);
+            console.log(`  Moved: ${SPECS_FEATURES_FOLDER}/${slug}/ → ${SPECS_FEATURES_FOLDER}/.archives/${slug}/`);
             console.log(`\nNext steps:`);
             console.log(`  - Merge branch \"${branchName}\" to main`);
             console.log(`  - Delete branch \"${branchName}\" if no longer needed`);
         } finally {
             // Clean up all worktrees for all repos
-            await this.cleanupFeatureWorktrees(safeSlug);
+            await this.cleanupFeatureWorktrees(slug);
         }
     }
 
@@ -224,38 +209,29 @@ export class FeatureCommands extends AbstractCommands {
      * @throws Error if any repository name is not found in the map
      */
     private buildWorktreeList(slug: string): Array<{ repoRoot: string; repoName: string; worktreePath: string }> {
-        return this.config.repoRoots.map((repoRoot) => {
+        return this.context.repoRoots.map((repoRoot) => {
             const repoName = this.getRepoNameOrThrow(repoRoot);
-            return { repoRoot, repoName, worktreePath: getFeatureWorktreePath(this.config.worktreesRoot, slug, repoName) };
+            return { repoRoot, repoName, worktreePath: getRepoPathInFeature(this.context.worktreesRoot, slug, repoName) };
         });
     }
 
     /**
      * Prepare feature branch + spec initialization shared by create/start.
      */
-    private async prepareFeature(slug: string): Promise<{
-        safeSlug: string;
-        branchName: string;
-    }> {
-        const safeSlug = await confirmSlugOrThrow(slug);
-        const branchName = `feature/${safeSlug}`;
-
+    private async prepareFeature(slug: string, mergeToRoot: boolean = false): Promise<FeatureContext> {
         // Ensure agent templates exist in .features/.template/agent/
-        await ensureAgentTemplates(this.config.mainRepoRoot);
+        await this.context.ensureAgentTemplates();
 
         // Ensure .gitignore includes .active-feature in all repos to avoid accidentally committing active feature pointers
-        await ensureGitIgnore(this.config.repoRoots);
+        await this.context.ensureGitIgnore();
 
         // Ensure feature branch exists in all repos (creates branch if missing, but does not check it out)
-        for (const repoRoot of this.config.repoRoots) {
-            await this.ensureBranchExists(repoRoot, branchName);
-        }
+        await this.context.ensureFeatureBranch(slug);
 
-        const mainRepoName = this.getMainRepoName();
-        // Init spec files in main repo branch if they don't exist (using a temporary worktree to avoid affecting user's current worktree)
-        await this.initSpecInBranch(this.config.mainRepoRoot, mainRepoName, safeSlug, branchName, this.config.rootDir);
+        // Ensure feature spec files exist in the main repo branch, creating them in a temporary worktree if needed
+        await this.context.initFeatureSpecFiles(slug, mergeToRoot);
 
-        return { safeSlug, branchName };
+        return this.context.makeFeatureContext(slug);
     }
 
     /**
@@ -263,7 +239,7 @@ export class FeatureCommands extends AbstractCommands {
      */
     private async setInitialMode(featureRoot: string, featurePath: string): Promise<void> {
         // Use ModeCommands to set spec mode if not already defined
-        const modeCommands = new ModeCommands(this.config);
+        const modeCommands = new ModeCommands(this.context);
         await modeCommands.setInitialModeIfNeeded(featureRoot, featurePath);
     }
 
@@ -287,7 +263,7 @@ export class FeatureCommands extends AbstractCommands {
         branchName: string,
         rootDir: string,
     ): Promise<void> {
-        const featurePaths = FEATURE_FILES.map((fileName) => path.posix.join('.features', slug, fileName));
+        const featurePaths = FEATURE_FILES.map((fileName) => path.posix.join(SPECS_FEATURES_FOLDER, slug, fileName));
         const existing = await Promise.all(
             featurePaths.map((featurePath) => gitPathExistsInBranch(repoRoot, branchName, featurePath)),
         );
@@ -303,9 +279,9 @@ export class FeatureCommands extends AbstractCommands {
 
         await runGit(repoRoot, ['worktree', 'add', tempWorktree, branchName]);
         try {
-            const featurePath = featureDir(tempWorktree, slug);
+            const featurePath = specsFeatureDir(tempWorktree, slug);
             await this.ensureFeatureFiles(tempWorktree, featurePath);
-            await runGit(tempWorktree, ['add', path.join('.features', slug)]);
+            await runGit(tempWorktree, ['add', getRelativeFeatureSpecPath(slug, '*')]);
 
             const status = await getGitStatusPorcelain(tempWorktree);
             if (status) {
@@ -330,25 +306,25 @@ export class FeatureCommands extends AbstractCommands {
         const mainRepoName = this.getMainRepoName();
 
         // Build main worktree path
-        const mainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
+        const mainWorktree = getRepoPathInFeature(this.context.worktreesRoot, safeSlug, mainRepoName);
 
         // Build secondary worktrees paths (all repos except main)
         const secondaryWorktrees = this.getSecondaryRepoRoots().map((r) =>
-            getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.getRepoNameOrThrow(r)),
+            getRepoPathInFeature(this.context.worktreesRoot, safeSlug, this.getRepoNameOrThrow(r)),
         );
 
         // Set active feature pointer
         await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
 
         // Create IDE workspaces if configured
-        if (this.config.ides.length > 0) {
+        if (this.context.ides.length > 0) {
             await createIDEWorkspaces(
                 safeSlug,
                 featureRoot,
                 mainRepoName,
-                this.config.repoNames,
-                this.config.ides,
-                this.config.agents,
+                this.context.repoNames,
+                this.context.ides,
+                this.context.agents,
             );
         }
 
@@ -366,9 +342,9 @@ export class FeatureCommands extends AbstractCommands {
      * @throws Error if a worktree path unexpectedly already exists
      */
     private async createNewWorktrees(safeSlug: string, branchName: string): Promise<void> {
-        for (const repoRoot of this.config.repoRoots) {
+        for (const repoRoot of this.context.repoRoots) {
             const repoName = this.getRepoNameOrThrow(repoRoot);
-            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, repoName);
+            const worktreePath = getRepoPathInFeature(this.context.worktreesRoot, safeSlug, repoName);
 
             // Check if worktree unexpectedly exists
             if (await pathExists(worktreePath)) {
@@ -388,41 +364,6 @@ export class FeatureCommands extends AbstractCommands {
     }
 
     /**
-     * Finalize feature start by setting active feature, mode, and IDE workspaces.
-     *
-     * @param safeSlug - Validated feature slug
-     * @param featureRoot - Root directory for the feature
-     */
-    private async finalizeFeatureStart(safeSlug: string, featureRoot: string): Promise<void> {
-        const mainRepoName = this.getMainRepoName();
-
-        // Build worktree paths
-        const mainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
-        const secondaryWorktrees = this.getSecondaryRepoRoots().map((r) =>
-            getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, this.getRepoNameOrThrow(r)),
-        );
-
-        // Set active feature pointer
-        await this.setActiveFeature(mainWorktree, secondaryWorktrees, mainRepoName, safeSlug);
-
-        // Set initial mode to spec if not defined
-        const featurePath = featureDir(mainWorktree, safeSlug);
-        await this.setInitialMode(featureRoot, featurePath);
-
-        // Create IDE workspaces if configured
-        if (this.config.ides.length > 0) {
-            await createIDEWorkspaces(
-                safeSlug,
-                featureRoot,
-                mainRepoName,
-                this.config.repoNames,
-                this.config.ides,
-                this.config.agents,
-            );
-        }
-    }
-
-    /**
      * Collect branch information for a feature across all repos.
      *
      * @param slug - Feature slug
@@ -431,11 +372,11 @@ export class FeatureCommands extends AbstractCommands {
     private async collectFeatureBranches(slug: string): Promise<Map<string, string>> {
         const branches: Map<string, string> = new Map();
 
-        for (const repoRoot of this.config.repoRoots) {
-            const repoName = this.config.repoNames.get(repoRoot);
+        for (const repoRoot of this.context.repoRoots) {
+            const repoName = this.context.repoNames.get(repoRoot);
             if (!repoName) continue;
 
-            const worktreePath = getFeatureWorktreePath(this.config.worktreesRoot, slug, repoName);
+            const worktreePath = getRepoPathInFeature(this.context.worktreesRoot, slug, repoName);
             if (await pathExists(worktreePath)) {
                 const branch = await getCurrentBranch(worktreePath);
                 if (branch) {
@@ -531,8 +472,8 @@ export class FeatureCommands extends AbstractCommands {
     private async cleanupOrphanedWorktrees(branchName: string): Promise<void> {
         console.log('Checking for orphaned worktrees...');
 
-        for (const repoRoot of this.config.repoRoots) {
-            const repoName = this.config.repoNames.get(repoRoot);
+        for (const repoRoot of this.context.repoRoots) {
+            const repoName = this.context.repoNames.get(repoRoot);
             if (!repoName) continue;
 
             // Get all worktrees for this repo
@@ -633,7 +574,7 @@ export class FeatureCommands extends AbstractCommands {
             }
         }
 
-        const featureRoot = getFeatureRoot(this.config.worktreesRoot, slug);
+        const featureRoot = getFeatureRoot(this.context.worktreesRoot, slug);
         if (await pathExists(featureRoot)) {
             await rm(featureRoot, { recursive: true, force: true });
         }
@@ -667,7 +608,7 @@ export class FeatureCommands extends AbstractCommands {
      */
     private async determineArchiveWorktree(safeSlug: string, branchName: string): Promise<string> {
         const mainRepoName = this.getMainRepoName();
-        const existingMainWorktree = getFeatureWorktreePath(this.config.worktreesRoot, safeSlug, mainRepoName);
+        const existingMainWorktree = getRepoPathInFeature(this.context.worktreesRoot, safeSlug, mainRepoName);
 
         // Check if existing worktree is available
         if (await pathExists(existingMainWorktree)) {
@@ -688,14 +629,14 @@ export class FeatureCommands extends AbstractCommands {
         }
 
         // Create temporary worktree for archiving
-        const workingWorktree = getTempArchiveWorktreePath(this.config.rootDir, safeSlug, mainRepoName);
+        const workingWorktree = getTempArchiveWorktreePath(this.context.rootDir, safeSlug, mainRepoName);
         await ensureDir(path.dirname(workingWorktree));
 
         if (await pathExists(workingWorktree)) {
             throw new Error(`Temp worktree already exists at ${workingWorktree}`);
         }
 
-        await runGit(this.config.mainRepoRoot, ['worktree', 'add', workingWorktree, branchName]);
+        await runGit(this.context.mainRepoRoot, ['worktree', 'add', workingWorktree, branchName]);
         return workingWorktree;
     }
 
@@ -707,76 +648,26 @@ export class FeatureCommands extends AbstractCommands {
      * @throws Error if feature folder doesn't exist or is already archived
      */
     private async performArchiveOperation(workingWorktree: string, safeSlug: string): Promise<void> {
-        const featurePath = path.join(workingWorktree, '.features', safeSlug);
-        const archivePath = path.join(workingWorktree, '.features', '.archives', safeSlug);
+        const featurePath = path.join(workingWorktree, getRelativeFeatureSpecPath(safeSlug));
+        const archivePath = path.join(workingWorktree, getRelativeFeaturesArchivePath(safeSlug));
 
         // Verify feature folder exists
         if (!(await pathExists(featurePath))) {
-            throw new Error(`Feature folder not found in branch: .features/${safeSlug}/`);
+            throw new Error(`Feature folder not found in branch: ${getRelativeFeatureSpecPath(safeSlug)}/`);
         }
 
         // Verify not already archived
         if (await pathExists(archivePath)) {
-            throw new Error(`Feature already archived: .features/.archives/${safeSlug}/`);
+            throw new Error(`Feature already archived: ${getRelativeFeaturesArchivePath(safeSlug)}/`);
         }
 
         // Create archives directory
-        await ensureDir(path.join(workingWorktree, '.features', '.archives'));
+        await ensureDir(path.join(workingWorktree, getRelativeFeaturesArchivePath()));
 
         // Move feature to archive using git mv
         await runGit(workingWorktree, ['mv', featurePath, archivePath]);
 
         // Commit the archive
         await runGit(workingWorktree, ['commit', '-m', `docs(${safeSlug}): archive feature`]);
-    }
-
-    /**
-     * Update the active feature pointers:
-     * - Main repo: .active-feature → .features/<slug>/
-     * - Secondary repos: .active-feature → ../main-repo/.active-feature
-     */
-    private async setActiveFeature(
-        mainRepoWorktree: string,
-        secondaryRepoWorktrees: string[],
-        mainRepoName: string,
-        slug: string,
-    ): Promise<void> {
-        // Set .active-feature in main repo pointing to .features/<slug>/
-        await ensureDir(featuresRoot(mainRepoWorktree));
-        const mainActivePath = activeFeatureFile(mainRepoWorktree);
-        await rm(mainActivePath, { force: true });
-        await symlink(path.join('.features', slug), mainActivePath);
-
-        // Set .active-feature in secondary repos pointing to main repo's .active-feature
-        for (const secondaryWorktree of secondaryRepoWorktrees) {
-            const secondaryActivePath = activeFeatureFile(secondaryWorktree);
-            await rm(secondaryActivePath, { force: true });
-            // Create relative path from secondary to main's .active-feature
-            const relativePathToMain = path.join('..', mainRepoName, '.active-feature');
-            await symlink(relativePathToMain, secondaryActivePath);
-        }
-    }
-
-    /**
-     * Ensure the spec files exist for a feature directory without overwriting existing files.
-     * Also creates the agent subdirectory (empty, ready for symlinks).
-     */
-    private async ensureFeatureFiles(repoRoot: string, targetDir: string): Promise<void> {
-        await ensureDir(targetDir);
-
-        // Create main feature files
-        for (const fileName of FEATURE_FILES) {
-            const filePath = path.join(targetDir, fileName);
-            if (await pathExists(filePath)) {
-                continue;
-            }
-            const resolved = await resolveCustomTemplate(this.config.rootDir, repoRoot, fileName);
-            await writeTextFile(filePath, resolved ?? templateFor(fileName));
-        }
-
-        // Create agent subdirectory (but don't populate with templates)
-        // Templates will be accessed via symlinks to .features/.template/agent/
-        const agentDir = path.join(targetDir, 'agent');
-        await ensureDir(agentDir);
     }
 }
