@@ -6,7 +6,7 @@ agents: ['TODO Reader', 'Code', 'Simplifier', 'Reviewer', 'Tester']
 handoffs:
     - label: Commit feature
       agent: CodeCommit
-      prompt: Commit the changes on this feature with a message that follows repository conventions.
+      prompt: Prepare the commit message for the changes on this feature with a message that follows repository conventions.
       send: true
       showContinueOn: false
 ---
