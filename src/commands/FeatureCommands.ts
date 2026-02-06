@@ -111,6 +111,15 @@ export class FeatureCommands extends AbstractCommands {
      */
     async stop(rawSlug: string): Promise<void> {
         const slug = await confirmSlugOrThrow(rawSlug);
+
+        // Clean up any orphaned worktrees first
+        await this.context.cleanOrphanedWorktrees(slug);
+
+        if (!(await this.context.isFeatureActive(slug))) {
+            console.log(`Feature "${slug}" is not active. Nothing to stop.`);
+            return;
+        }
+
         const featureContext = await this.context.loadFeatureContext(slug);
 
         // Verify clean state before stopping

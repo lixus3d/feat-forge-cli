@@ -269,18 +269,7 @@ export class FeatureContext {
         return status;
     }
 
-    async cleanOrphanedWorktrees(): Promise<void> {
-        // We look at all context repositories to find any worktree that matches the feature branch but
-        // whose path does not exist (orphaned worktree), and we remove it.
-        for (const repo of this.context.repositories) {
-            await repo.cleanOrphanedWorktree(this);
-        }
-    }
-
     async stop(): Promise<void> {
-        // Clean up any orphaned worktrees first
-        await this.cleanOrphanedWorktrees();
-
         // Check for uncommitted changes in worktrees
         const dirtyRepositories = await this.getDirtyRepositories();
 

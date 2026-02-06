@@ -236,4 +236,15 @@ export class ForgeContext {
         const agentDir = repo.getAgentPath(slug);
         await ensureDir(agentDir);
     }
+
+    /**
+     * Look for any worktree that matches the feature branch but whose path does not exist (orphaned worktree), and remove it.
+     */
+    async cleanOrphanedWorktrees(featureSlug: string): Promise<void> {
+        // We look at all context repositories to find any worktree that matches the feature branch but
+        // whose path does not exist (orphaned worktree), and we remove it.
+        for (const repo of this.repositories) {
+            await repo.cleanOrphanedWorktree(featureSlug);
+        }
+    }
 }
