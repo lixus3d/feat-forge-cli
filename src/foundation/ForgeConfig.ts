@@ -7,72 +7,124 @@ import { IDE } from './types/IDE';
 import { IDEName } from './types/IDEName';
 import { RepoName, RepoPath, RepositoryInfos } from './types/RepositoryInfos';
 import { ForgeConfigError } from './errors/ForgeConfigError';
+import { ArrayNotEmpty, IsArray, IsNotEmpty, IsOptional, IsString, Validate, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class ForgeFoldersOptions {
+    /**
+     * Folder for feature specs within each repo. Default: '.features'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    specs: string = '.features';
+    /**
+     * Folder for git worktrees. Default: 'worktrees'
+     * Can be empty to put them in the root of the repo, but that can get messy so we default to a separate folder
+     */
+    @IsOptional()
+    @IsString()
+    worktrees: string = 'worktrees';
+    /**
+     * Folder for active feature tracking. Default: '.active-feature'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    activeFeature: string = '.active-feature';
+    /**
+     * Folder for feature templates. Default: '.template'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    template: string = '.template';
+    /**
+     * Folder for agent instructions. Default: 'agent'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    agent: string = 'agent';
+    /**
+     * Folder for archived feature specs within each repo. Default: '.archives'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    archive: string = '.archives';
+}
+
+export class ForgeFilesOptions {
+    /**
+     * File name for storing the current mode of a feature. Default: '.forge-mode'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    forgeMode: string = '.forge-mode';
+}
+
+export class ForgeGitOptions {
+    /**
+     * Prefix for feature branches. Default: 'feature/'
+     */
+    @IsOptional()
+    @IsString()
+    featureBranchPrefix: string = 'feature/';
+}
+
+export class ForgeOptions {
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeFoldersOptions)
+    folders: ForgeFoldersOptions = new ForgeFoldersOptions();
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeFilesOptions)
+    files: ForgeFilesOptions = new ForgeFilesOptions();
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeGitOptions)
+    git: ForgeGitOptions = new ForgeGitOptions();
+}
 
 /**
  * Type for the .feat-forge.json configuration file
  */
-export type ForgeConfigFile = {
+export class ForgeConfigFile {
+    /**
+     * Optional root directory for all repositories. If not set, repos paths are relative to the config file location. Can be absolute or relative.
+     * Useful for monorepos or when you want to keep the config file in a separate folder.
+     */
+    @IsOptional()
+    @IsString()
     rootDir?: string;
-    repositories: RepositoryConfigEntry[];
+
+    /**
+     * List of repositories to manage. Can be a simple string (repo path) or an object with more options.
+     * If multiple repos are defined, one must be marked as "main" (or it will take the first one) -> this is the repo where the feature branches will be created and where the active feature will be tracked.
+     * If only one repo is defined, it will be considered the main repo by default.
+     */
+    @IsArray()
+    @ArrayNotEmpty()
+    repositories!: RepositoryConfigEntry[];
+
+    @IsOptional()
+    @IsArray()
     agents?: AgentConfigEntry[];
+
+    @IsOptional()
+    @IsArray()
     ides?: IDEConfigEntry[];
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeOptions)
     options?: DeepPartial<ForgeOptions>;
-};
-
-export type ForgeOptions = {
-    folders: {
-        /**
-         * Folder for feature specs within each repo. Default: '.features'
-         */
-        specs: string;
-        /**
-         * Folder for git worktrees. Default: 'worktrees'
-         */
-        worktrees: string;
-        /**
-         * Folder for active feature tracking. Default: '.active-feature'
-         */
-        activeFeature: string;
-        /**
-         * Folder for feature templates. Default: '.template'
-         */
-        template: string;
-        /**
-         * Folder for agent instructions. Default: 'agent'
-         */
-        agent: string;
-        /**
-         * Folder for archived feature specs within each repo. Default: '.archives'
-         */
-        archive: string;
-    };
-    files: {
-        /**
-         * File name for storing the current mode of a feature. Default: '.forge-mode'
-         */
-        forgeMode: string;
-    };
-    git: {
-        featureBranchPrefix: string; // Prefix for feature branches. Default: 'feature/'
-    };
-};
-
-const DEFAULT_FORGE_OPTIONS: ForgeOptions = {
-    folders: {
-        specs: '.features',
-        worktrees: 'worktrees',
-        activeFeature: '.active-feature',
-        template: '.template',
-        agent: 'agent',
-        archive: '.archives',
-    },
-    files: {
-        forgeMode: '.forge-mode',
-    },
-    git: {
-        featureBranchPrefix: 'feature/',
-    },
-};
+}
 
 /**
  * Agent configuration - can be a simple string (agent name or custom file)
@@ -232,7 +284,7 @@ export class ForgeConfig {
     }
 
     private standardizeOptions(options?: DeepPartial<ForgeOptions>): ForgeOptions {
-        return merge({} as ForgeOptions, DEFAULT_FORGE_OPTIONS, options || {});
+        return merge(new ForgeOptions(), options || {});
     }
 
     private static checkMainRepo(repositories: RepositoryInfos[]): void {

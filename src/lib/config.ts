@@ -5,6 +5,8 @@ import { ForgeConfig, ForgeConfigFile } from '../foundation/ForgeConfig';
 import { ForgeContext } from '../foundation/ForgeContext';
 import { ForgeConfigError } from '../foundation/errors/ForgeConfigError';
 import { FEAT_FORGE_CONFIG_FILE } from './constants';
+import { validate, ValidationError } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 
 /**
  * Find the nearest .feat-forge.json by walking up from startDir.
@@ -35,10 +37,16 @@ export async function loadForgeConfig(startDir: string = process.cwd()): Promise
 
     try {
         const raw = await readFile(configFilePath, 'utf8');
-        const forgeConfigFile = JSON.parse(raw) as ForgeConfigFile;
+        const forgeConfigFile = plainToInstance(ForgeConfigFile, JSON.parse(raw));
+        const errors = await validate(forgeConfigFile, { whitelist: true, validationError: { target: false, value: false } });
+        if (errors.length > 0) {
+            throw new ForgeConfigError(`Invalid config file at ${configFilePath}:\n${JSON.stringify(errors, null, 2)}`);
+        }
         return { configPath, forgeConfig: new ForgeConfig(forgeConfigFile) };
     } catch (err) {
-        throw new ForgeConfigError(`Failed to load Forge config: ${(err as Error).message}`);
+        const forgeConfigError = new ForgeConfigError(`Failed to load Forge config: ${(err as Error).message}`);
+        forgeConfigError.stack = (err as Error).stack;
+        throw forgeConfigError;
     }
 }
 

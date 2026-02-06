@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import 'reflect-metadata';
+// -----------
 import { Command } from 'commander';
 import { AgentCommands } from './commands/AgentCommands';
 import { CompletionCommands } from './commands/CompletionCommands';
@@ -187,7 +189,16 @@ async function main() {
     if (!isInitCommand) {
         try {
             context = await loadForgeContext();
-
+        } catch (error) {
+            // Config not found
+            if (isCompletionCommand) {
+                // Allow completion to work without config (using fallback)
+                registerCompletionCommands(program);
+            } else {
+                throw error;
+            }
+        }
+        if (context) {
             // Register commands that require config
             registerFeatureCommands(program, context);
             registerModeCommands(program, context);
@@ -195,19 +206,6 @@ async function main() {
             registerMergeCommands(program, context);
             registerRebaseCommands(program, context);
             registerCompletionCommands(program, context);
-        } catch (error) {
-            // Config not found
-            if (isCompletionCommand) {
-                // Allow completion to work without config (using fallback)
-                registerCompletionCommands(program);
-            } else {
-                // Display error message for other commands
-                const message = error instanceof Error ? error.message : String(error);
-                console.error(`Error: ${message}`);
-                console.error('\\nPlease run "forge init" to initialize your workspace first.');
-                process.exitCode = 1;
-                return;
-            }
         }
     }
 
@@ -215,8 +213,6 @@ async function main() {
 }
 
 main().catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(err, { stack: err instanceof Error ? err.stack : undefined });
-    console.error(message);
+    console.error(err);
     process.exitCode = 1;
 });
