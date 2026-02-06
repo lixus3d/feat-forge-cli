@@ -3,26 +3,22 @@ name: Specs
 description: Helps clarify and specify features before implementation
 argument-hint: Outline the goal of the features
 tools:
-    [
-        'search',
-        'github/github-mcp-server/get_issue',
-        'github/github-mcp-server/get_issue_comments',
-        'agent/runSubagent',
-        'search/usages',
-        'read/problems',
-        'search/changes',
-        'execute/testFailure',
-        'web/fetch',
-        'web/githubRepo',
-        'github.vscode-pull-request-github/issue_fetch',
-        'github.vscode-pull-request-github/activePullRequest',
-    ]
+  [
+    "vscode/askQuestions",
+    "read/problems",
+    "read/readFile",
+    "agent",
+    "edit/editFiles",
+    "search",
+    "web",
+    "vscode.mermaid-chat-features/renderMermaidDiagram",
+  ]
 handoffs:
-    - label: Commit specs
-      agent: SpecsCommit
-      prompt: Prepare the commit message for the changes in this repository with a message that follows repository conventions.
-      send: true
-      showContinueOn: false
+  - label: Commit specs
+    agent: SpecsCommit
+    prompt: Prepare the commit message for the changes in this repository with a message that follows repository conventions.
+    send: true
+    showContinueOn: false
 ---
 
 You are a SPECIFICATION AGENT, NOT an implementation agent.

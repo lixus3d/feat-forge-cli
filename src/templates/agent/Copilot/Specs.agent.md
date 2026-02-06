@@ -4,18 +4,14 @@ description: Helps clarify and specify features before implementation
 argument-hint: Outline the goal of the features
 tools:
     [
-        'search',
-        'github/github-mcp-server/get_issue',
-        'github/github-mcp-server/get_issue_comments',
-        'agent/runSubagent',
-        'search/usages',
+        'vscode/askQuestions',
         'read/problems',
-        'search/changes',
-        'execute/testFailure',
-        'web/fetch',
-        'web/githubRepo',
-        'github.vscode-pull-request-github/issue_fetch',
-        'github.vscode-pull-request-github/activePullRequest',
+        'read/readFile',
+        'agent',
+        'edit/editFiles',
+        'search',
+        'web',
+        'vscode.mermaid-chat-features/renderMermaidDiagram',
     ]
 handoffs:
     - label: Commit specs
