@@ -176,6 +176,10 @@ export abstract class Repository {
         await this.setBranch(featureBranchName);
     }
 
+    async deleteBranch(branchName: string): Promise<void> {
+        await runGit(this.path, ['branch', '-D', branchName]);
+    }
+
     async setActiveFeature(featureContext: FeatureContext): Promise<void> {
         this.mustBeWorktreeRepository();
         if (this.isMainRepository()) {

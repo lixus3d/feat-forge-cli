@@ -143,6 +143,13 @@ export class FeatureContext {
         }
     }
 
+    async deleteBranch(): Promise<void> {
+        // Must be done on all repositories, not only the one from the feature
+        // It also makes more sense to execute this command on the "root" repositories
+        // Note: This will not work if the branch is still used by a worktree
+        await Promise.all(this.context.repositories.map((repo) => repo.deleteBranch(this.featureBranchName)));
+    }
+
     async getDirtyRepositories(): Promise<WorktreeRepository[]> {
         this.mustBeActive();
 
@@ -308,6 +315,7 @@ export class FeatureContext {
             // worktree already exists, we can use it to create the feature files without affecting the main branch
             worktreeRepo = this.getRepo(this.mainRepo.name);
         } else {
+            // create a temporary worktree to move the feature files without affecting the main branch
             worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.FEATURE_ARCHIVE);
         }
 
