@@ -12,6 +12,7 @@ Permettre de réécrire tous les fichiers d’agents dans le dossier de template
 - Affiche la liste des fichiers modifiés/écrasés si possible
 - Supporte les options :
     - `--dry-run` : simule sans écrire
+    - `--commit` : pour faire un commit des fichiers (optionnel)
 - Idempotence : relancer sans changement ne modifie rien.
 
 **Cas d’usage**
@@ -24,6 +25,6 @@ Permettre de réécrire tous les fichiers d’agents dans le dossier de template
 - Présence et bon fonctionnement de la logique d’overwrite (`ensureAgentTemplates(overwrite: boolean)`).
 - Récursivité et gestion des sous-dossiers.
 - Gestion des erreurs (dossier source manquant).
-- Création du commit conditionnelle.
+- Création du commit devient conditionnelle.
 - Ajout/gestion des options `dry-run`
 - Affichage de la liste des fichiers modifiés.

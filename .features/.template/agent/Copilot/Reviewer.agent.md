@@ -1,7 +1,6 @@
 ---
 name: Reviewer
 description: Reviews code changes for correctness, style, and best practices.
-model: ['GPT-4.1 (copilot)']
 tools: ['search', 'read', 'web']
 ---
 

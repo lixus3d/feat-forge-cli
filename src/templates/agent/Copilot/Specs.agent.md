@@ -17,7 +17,6 @@ tools:
         'github.vscode-pull-request-github/issue_fetch',
         'github.vscode-pull-request-github/activePullRequest',
     ]
-model: ['GPT-4.1 (copilot)']
 handoffs:
     - label: Commit specs
       agent: SpecsCommit

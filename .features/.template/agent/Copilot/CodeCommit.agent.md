@@ -3,7 +3,6 @@ name: CodeCommit
 description: Prepare the commit message after code changes have been made for a feature task.
 argument-hint: Commit the changes in this repository with a message that follows repository conventions.
 tools: ['search/changes', 'execute/runInTerminal']
-model: ['GPT-4.1 (copilot)']
 handoffs:
     - label: Refine development
       agent: Feature Builder

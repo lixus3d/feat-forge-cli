@@ -172,7 +172,7 @@ export class FeatureCommands extends AbstractCommands {
         let rootRepoChanges = 0;
         let worktreeRepoChanges = 0;
         // Ensure agent templates exist in .features/.template/agent/
-        rootRepoChanges += (await this.context.ensureAgentTemplates()).length;
+        rootRepoChanges += (await this.context.ensureAgentTemplates(this.context.mainRepo)).length;
 
         // Ensure .gitignore includes .active-feature in all repos to avoid accidentally committing active feature pointers
         rootRepoChanges += await this.context.ensureGitIgnore();
