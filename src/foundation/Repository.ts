@@ -1,17 +1,25 @@
+import { rm, symlink } from 'fs/promises';
 import path from 'path';
-import { pathExists, readTextFile, writeTextFile } from '../lib/fs';
+import { ensureDir, pathExists, readTextFile, writeTextFile } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
     getCurrentBranch,
     getGitStatusPorcelain,
+    getGitWorktrees,
     gitBranchExists,
     GitOperationResult,
     runGit,
 } from '../lib/git';
+import { FeatureContext } from './FeatureContext';
 import { ForgeContext } from './ForgeContext';
 import { ForgeMode } from './types/ForgeMode';
 import { RepositoryInfos } from './types/RepositoryInfos';
+import { execa } from 'execa';
+import { DirtyAction, promptConfirm, promptDirtyActions, promptText } from '../lib/prompt';
+import { TemporaryFolderType } from '../lib/constants';
+
+export type RepositoryStatus = { branch: string | null; dirty: boolean; onFeatureBranch: boolean };
 
 export abstract class Repository {
     public readonly name: string;
@@ -29,33 +37,33 @@ export abstract class Repository {
         this.rootRepository = rootRepository;
     }
 
-    protected isRootRepository(): boolean {
+    public isRootRepository(): boolean {
         return this.rootRepository === null;
     }
 
-    protected isWorktreeRepository(): boolean {
+    public isWorktreeRepository(): boolean {
         return this.rootRepository !== null;
     }
 
-    protected isMainRepository(): boolean {
+    public isMainRepository(): boolean {
         return this.main;
     }
 
-    protected mustBeRootRepository(): this is RootRepository {
+    public mustBeRootRepository(): this is RootRepository {
         if (!this.isRootRepository()) {
             throw new Error('This operation is only available for the root repository.');
         }
         return true;
     }
 
-    protected mustBeWorktreeRepository(): this is WorktreeRepository {
+    public mustBeWorktreeRepository(): this is WorktreeRepository {
         if (!this.isWorktreeRepository()) {
             throw new Error('This operation is only available for worktree repositories.');
         }
         return true;
     }
 
-    protected mustBeMainRepository() {
+    public mustBeMainRepository() {
         if (!this.isMainRepository()) {
             throw new Error('This operation is only available for the main repository.');
         }
@@ -146,15 +154,58 @@ export abstract class Repository {
         return this.hasBranch(featureBranchName);
     }
 
-    async createFeatureBranch(featureSlug: string): Promise<void> {
+    async createFeatureBranch(featureSlug: string): Promise<number> {
         const featureBranchName = this.context.getFeatureBranchName(featureSlug);
         if (!(await this.hasBranch(featureBranchName))) {
             await createBranch(this.path, featureBranchName);
+            return 1;
         }
+        return 0;
     }
 
     async getCurrentBranch(): Promise<string | null> {
         return getCurrentBranch(this.path);
+    }
+
+    async setBranch(branchName: string): Promise<void> {
+        await checkoutBranch(this.path, branchName);
+    }
+
+    async setFeatureBranch(featureSlug: string): Promise<void> {
+        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
+        await this.setBranch(featureBranchName);
+    }
+
+    async setActiveFeature(featureContext: FeatureContext): Promise<void> {
+        this.mustBeWorktreeRepository();
+        if (this.isMainRepository()) {
+            const featurePath = this.getFeaturePath(featureContext.slug);
+            const mainActivePath = this.activeFeaturePath;
+            await rm(mainActivePath, { force: true });
+            await symlink(path.relative(mainActivePath, featurePath), mainActivePath);
+        } else {
+            const mainActivePath = featureContext.mainRepo.activeFeaturePath;
+            const secondaryActivePath = this.activeFeaturePath;
+            await rm(secondaryActivePath, { force: true });
+            // Create relative path from secondary to main's .active-feature
+            await symlink(path.relative(secondaryActivePath, mainActivePath), secondaryActivePath);
+        }
+    }
+
+    async getGitStatus(): Promise<string> {
+        return getGitStatusPorcelain(this.path);
+    }
+
+    async isDirty(): Promise<boolean> {
+        const status = await this.getGitStatus();
+        return status.length > 0;
+    }
+
+    async getStatus(featureSlug: string): Promise<RepositoryStatus> {
+        const branch = await this.getCurrentBranch()!;
+        const dirty = await this.isDirty();
+        const onFeatureBranch = branch === this.context.getFeatureBranchName(featureSlug);
+        return { branch, dirty, onFeatureBranch };
     }
 
     async commit(message: string, files: string[] = ['.']): Promise<void> {
@@ -162,8 +213,146 @@ export abstract class Repository {
         await runGit(this.path, ['commit', '-m', message]);
     }
 
+    async promptDirtyActions(): Promise<boolean> {
+        if (!(await this.isDirty())) {
+            return true;
+        }
+        console.log(`Repository ${this.name} at ${this.path} has uncommitted changes.`);
+        // Prompt user for action
+        const { action, commitMessage } = await promptDirtyActions();
+
+        switch (action) {
+            case DirtyAction.Commit:
+                await runGit(this.path, ['add', '-A']);
+                await runGit(this.path, ['commit', '-m', commitMessage!]);
+
+                // Verify worktree is now clean
+                if (await this.isDirty()) {
+                    throw new Error(`Worktree still dirty after commit: ${this.path}`);
+                }
+                return true;
+            case DirtyAction.Cancel:
+                return false;
+            case DirtyAction.Discard:
+                return await promptConfirm('This will discard local changes. Proceed?');
+            default:
+                // Should never reach here due to prompt validation, but return false just in case
+                return false;
+        }
+    }
+}
+
+export class RootRepository extends Repository {
+    public override readonly rootRepository!: RootRepository;
+    public readonly _rootRepository = true;
+
+    constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
+        super(context, repoInfos, null);
+    }
+
+    getWorktreePath(featureSlug: string, temporary?: TemporaryFolderType): string {
+        return temporary
+            ? this.getTempWorktreePath(featureSlug, temporary)
+            : this.context.paths.getPathInFeatureRoot(featureSlug, this.name);
+    }
+
+    getTempWorktreePath(featureSlug: string, type: TemporaryFolderType): string {
+        return this.context.paths.getTempWorktreePathForRepo(type, featureSlug, this.name);
+    }
+
+    async hasWorktree(featureSlug: string, temporary?: TemporaryFolderType): Promise<boolean> {
+        const worktreePath = temporary ? this.getTempWorktreePath(featureSlug, temporary) : this.getWorktreePath(featureSlug);
+        return await pathExists(worktreePath);
+    }
+
+    async addWorktree(featureSlug: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
+        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
+        const worktreePath: string = temporary ? this.getTempWorktreePath(featureSlug, temporary) : this.getWorktreePath(featureSlug);
+
+        // Check if worktree unexpectedly exists
+        if (await pathExists(worktreePath)) {
+            throw new Error(
+                `Worktree already exists at ${worktreePath}.\\n` +
+                    `If you have manually deleted worktree folders, run 'forge feature stop ${featureSlug}' to clean up.`,
+            );
+        }
+
+        if (await this.hasBranch(featureBranchName)) {
+            await runGit(this.path, ['worktree', 'add', worktreePath, featureBranchName]);
+        } else {
+            await runGit(this.path, ['worktree', 'add', '-b', featureBranchName, worktreePath]);
+        }
+
+        return this.getWorktree(featureSlug, temporary);
+    }
+
+    async getTemporaryWorktree(featureSlug: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
+        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
+        if (!(await this.hasBranch(featureBranchName))) {
+            throw new Error(`Feature branch ${featureBranchName} does not exist in repository ${this.name}`);
+        }
+        return this.addWorktree(featureSlug, type);
+    }
+
+    async getWorktree(featureSlug: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
+        if (!(await this.hasWorktree(featureSlug, temporary))) {
+            throw new Error(`Worktree for feature ${featureSlug} does not exist in repository ${this.name}`);
+        }
+        return new WorktreeRepository(
+            this.context,
+            { name: this.name, path: this.getWorktreePath(featureSlug, temporary), main: this.main },
+            this,
+            !!temporary,
+        );
+    }
+
+    async removeWorktree(worktreeRepository: WorktreeRepository): Promise<void> {
+        const worktreePath = worktreeRepository.path;
+        if (await pathExists(worktreePath)) {
+            await runGit(this.path, ['worktree', 'remove', '--force', worktreePath]);
+        } else {
+            console.log(`Worktree path does not exist, skipping removal: ${worktreePath}`);
+        }
+    }
+
+    async listGitWorktrees(): Promise<WorktreeRepository[]> {
+        const rawWorktrees = await getGitWorktrees(this.path);
+        const worktrees: WorktreeRepository[] = [];
+        for (const wt of rawWorktrees) {
+            const isTemporary = wt.path.startsWith(this.context.paths.tempFolderRoot);
+            const wtRepo = new WorktreeRepository(
+                this.context,
+                { name: this.name, path: wt.path, main: this.main },
+                this,
+                isTemporary,
+            );
+            worktrees.push(wtRepo);
+        }
+        return worktrees;
+    }
+
+    async cleanOrphanedWorktree(featureContext: FeatureContext): Promise<void> {
+        const repoAllWorktrees = await this.listGitWorktrees();
+        for (const wt of repoAllWorktrees) {
+            if (!(await pathExists(wt.path))) {
+                if ((await wt.getCurrentBranch()) === featureContext.featureBranchName) {
+                    console.log(`Try cleaning up orphaned worktree at ${wt.path} for feature ${featureContext.slug}`);
+                    try {
+                        await execa('git', ['worktree', 'remove', '--force', wt.path], { cwd: this.path });
+                    } catch (error) {
+                        console.log(`  Warning: Could not remove orphaned worktree: ${error}`);
+                    }
+                } else {
+                    console.log(
+                        `  Skipping orphaned worktree at ${wt.path} since it's not on the feature branch ${featureContext.featureBranchName}`,
+                    );
+                }
+            }
+        }
+    }
+
     async merge(sourceBranch: string, targetBranch: string): Promise<GitOperationResult> {
-        this.mustBeRootRepository();
+        this.mustBeRootRepository(); // FIXME: should be allowed on any repository
 
         console.log(`\n=== Merging "${sourceBranch}" into "${targetBranch}" on repo "${this.name}" ===`);
 
@@ -195,11 +384,32 @@ export abstract class Repository {
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }
+}
+
+export class WorktreeRepository extends Repository {
+    public override readonly rootRepository!: RootRepository;
+    public readonly _worktreeRepository = true;
+    public readonly temporary: boolean;
+
+    constructor(context: ForgeContext, repoInfos: RepositoryInfos, rootRepository: RootRepository, temporary = false) {
+        super(context, repoInfos, rootRepository);
+        this.temporary = temporary;
+    }
+
+    remove() {
+        return this.rootRepository.removeWorktree(this);
+    }
 
     async rebase(featureBranch: string, baseBranch: string): Promise<GitOperationResult> {
-        this.mustBeWorktreeRepository();
+        this.mustBeWorktreeRepository(); // FIXME: should be allowed on any repository
 
         try {
+            if (await this.isDirty()) {
+                console.log(
+                    `⚠️  Worktree repository ${this.name} has uncommitted changes. Please commit or stash them before rebasing.`,
+                );
+                return { repo: this.name, success: false, hasConflicts: false };
+            }
             // Make sure we're on the feature branch in the worktree
             const currentBranch = await this.getCurrentBranch();
             if (currentBranch !== featureBranch) {
@@ -215,9 +425,9 @@ export abstract class Repository {
                 return { repo: this.name, success: true, hasConflicts: false };
             } catch (error) {
                 // Check if it's a rebase conflict
-                const status = await getGitStatusPorcelain(this.path);
+                const status = await this.getGitStatus();
                 if (status.includes('UU ') || status.includes('AA ') || status.includes('DD ')) {
-                    console.log(`⚠️  Rebase conflicts detected in ${this.name}`);
+                    console.log(`⚠️  Rebase conflicts detected in worktree repository: ${this.name}`);
                     console.log(`Please resolve conflicts manually in: ${this.path}`);
                     console.log(`After resolving, run: git rebase --continue`);
                     console.log(`To abort, run: git rebase --abort`);
@@ -231,57 +441,5 @@ export abstract class Repository {
             console.error(`❌ Error rebasing ${this.name}:`, error instanceof Error ? error.message : error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
-    }
-}
-
-export class RootRepository extends Repository {
-    public override readonly rootRepository!: RootRepository;
-    public readonly _rootRepository = true;
-
-    constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
-        super(context, repoInfos, null);
-    }
-
-    getWorktreePath(featureSlug: string): string {
-        return this.context.paths.getPathInFeatureRoot(featureSlug, this.name);
-    }
-
-    async addWorktree(featureSlug: string): Promise<WorktreeRepository> {
-        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
-        const worktreePath = this.getWorktreePath(featureSlug);
-
-        // Check if worktree unexpectedly exists
-        if (await pathExists(worktreePath)) {
-            throw new Error(
-                `Worktree already exists at ${worktreePath}.\\n` +
-                    `If you have manually deleted worktree folders, run 'forge feature stop ${featureSlug}' to clean up.`,
-            );
-        }
-
-        if (await this.hasBranch(featureBranchName)) {
-            await runGit(this.path, ['worktree', 'add', worktreePath, featureBranchName]);
-        } else {
-            await runGit(this.path, ['worktree', 'add', '-b', featureBranchName, worktreePath]);
-        }
-
-        return this.getWorktree(featureSlug);
-    }
-
-    async hasWorktree(featureSlug: string): Promise<boolean> {
-        const worktreePath = this.getWorktreePath(featureSlug);
-        return await pathExists(worktreePath);
-    }
-
-    async getWorktree(featureSlug: string): Promise<WorktreeRepository> {
-        return new WorktreeRepository(this.context, { name: this.name, path: this.getWorktreePath(featureSlug), main: false }, this);
-    }
-}
-
-export class WorktreeRepository extends Repository {
-    public override readonly rootRepository!: RootRepository;
-    public readonly _worktreeRepository = true;
-
-    constructor(context: ForgeContext, repoInfos: RepositoryInfos, rootRepository: RootRepository) {
-        super(context, repoInfos, rootRepository);
     }
 }

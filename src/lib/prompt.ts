@@ -1,4 +1,3 @@
-import { execa } from 'execa';
 import readline from 'readline/promises';
 import { getBranches } from './git';
 
@@ -124,4 +123,43 @@ export async function promptForBranch(
     }
 
     return branchName;
+}
+
+export enum DirtyAction {
+    Commit = 'A',
+    Cancel = 'B',
+    Discard = 'C',
+}
+
+function isDirtyAction(value: string): value is DirtyAction {
+    return value === DirtyAction.Commit || value === DirtyAction.Cancel || value === DirtyAction.Discard;
+}
+
+/**
+ * Prompt user to select an action for dirty worktrees.
+ *
+ * Presents options to commit changes, discard changes, or stop the operation.
+ * Returns the user's choice as 'A', 'B', or 'C'.
+ */
+export async function promptDirtyActions(): Promise<{ action: DirtyAction; commitMessage?: string }> {
+    while (true) {
+        const answer = await promptChoice('Worktree contain uncommitted changes. Choose an action:', [
+            { key: DirtyAction.Commit, label: 'Commit work (you will be asked for a commit message)' },
+            { key: DirtyAction.Cancel, label: 'Stop here and do nothing' },
+            { key: DirtyAction.Discard, label: 'Discard work and remove worktrees' },
+        ]);
+
+        const normalized = answer.trim().toUpperCase();
+        if (isDirtyAction(normalized)) {
+            if (normalized === DirtyAction.Commit) {
+                const commitMessage = await promptText('Enter commit message:');
+                if (!commitMessage) {
+                    console.log('Commit message is required.');
+                    continue;
+                }
+                return { action: DirtyAction.Commit, commitMessage };
+            }
+            return { action: normalized };
+        }
+    }
 }

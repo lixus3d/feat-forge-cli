@@ -26,7 +26,7 @@ export abstract class AbstractCommands {
     constructor(protected readonly context: ForgeContext) {}
 
     protected async verifyCleanFeature(featureContext: FeatureContext): Promise<void> {
-        const dirtyRepos = await featureContext.findDirtyRepositories();
+        const dirtyRepos = await featureContext.getDirtyRepositories();
 
         if (dirtyRepos.length > 0) {
             const repoNames = dirtyRepos.map((repo) => repo.name).join(', ');

@@ -1,10 +1,9 @@
+import { readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { readdir, readFile } from 'fs/promises';
-import { readFileSync } from 'fs';
-import { pathExists } from './fs';
-import { FeatureContext } from '../foundation/FeatureContext';
 import { ForgeContext } from '../foundation/ForgeContext';
+import { pathExists } from './fs';
 
 export enum TemplateFile {
     FEATURE = 'FEATURE.md',

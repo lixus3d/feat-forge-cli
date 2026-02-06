@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { AgentCommands } from './commands/AgentCommands';
-import { CompletionCommands, ShellType } from './commands/CompletionCommands';
+import { CompletionCommands } from './commands/CompletionCommands';
 import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
 import { MergeCommands } from './commands/MergeCommands';
 import { ModeCommands } from './commands/ModeCommands';
 import { RebaseCommands } from './commands/RebaseCommands';
-import { ForgeContext, loadForgeConfig } from './lib/config';
-import { ForgeMode } from './lib/mode';
+import { ForgeContext } from './foundation/ForgeContext';
+import { ForgeMode } from './foundation/types/ForgeMode';
+import { loadForgeContext } from './lib/config';
+import { ForgeConfig } from './foundation/ForgeConfig';
+import { ShellName } from './foundation/types/ShellName';
 
 /**
  * Register the init command on the main CLI program.
@@ -21,9 +24,9 @@ function registerInitCommands(program: Command): void {
 /**
  * Register feature subcommands on the main CLI program.
  */
-function registerFeatureCommands(program: Command, config: ForgeContext): void {
+function registerFeatureCommands(program: Command, context: ForgeContext): void {
     const feature = program.command('feature').description('Manage feature lifecycle');
-    const handlers = new FeatureCommands(config);
+    const handlers = new FeatureCommands(context);
 
     feature
         .command('create')
@@ -61,8 +64,8 @@ function registerFeatureCommands(program: Command, config: ForgeContext): void {
 /**
  * Register the mode commands on the main CLI program.
  */
-function registerModeCommands(program: Command, config: ForgeContext): void {
-    const handlers = new ModeCommands(config);
+function registerModeCommands(program: Command, context: ForgeContext): void {
+    const handlers = new ModeCommands(context);
     const mode = program.command('mode').description('Switch the active feature mode');
 
     mode.command('spec')
@@ -76,8 +79,8 @@ function registerModeCommands(program: Command, config: ForgeContext): void {
 /**
  * Register agent commands on the main CLI program.
  */
-function registerAgentCommands(program: Command, config: ForgeContext): void {
-    const handlers = new AgentCommands(config);
+function registerAgentCommands(program: Command, context: ForgeContext): void {
+    const handlers = new AgentCommands(context);
     const agent = program.command('agent').description('Manage agent adapters');
 
     agent.command('refresh').description('Refresh agent adapter files for the active feature').action(handlers.refresh.bind(handlers));
@@ -86,8 +89,8 @@ function registerAgentCommands(program: Command, config: ForgeContext): void {
 /**
  * Register merge commands with the CLI.
  */
-function registerMergeCommands(program: Command, config: ForgeContext): void {
-    const mergeCmd = new MergeCommands(config);
+function registerMergeCommands(program: Command, context: ForgeContext): void {
+    const mergeCmd = new MergeCommands(context);
 
     // Main command: forge feature merge <slug>
     const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
@@ -108,8 +111,8 @@ function registerMergeCommands(program: Command, config: ForgeContext): void {
 /**
  * Register rebase commands with the CLI.
  */
-function registerRebaseCommands(program: Command, config: ForgeContext): void {
-    const rebaseCmd = new RebaseCommands(config);
+function registerRebaseCommands(program: Command, context: ForgeContext): void {
+    const rebaseCmd = new RebaseCommands(context);
 
     // Main command: forge feature rebase <slug>
     const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
@@ -130,16 +133,21 @@ function registerRebaseCommands(program: Command, config: ForgeContext): void {
  * Register completion commands with the CLI.
  * This command works both with and without config.
  */
-function registerCompletionCommands(program: Command, config?: ForgeContext): void {
-    const handlers = config ? new CompletionCommands(config, program) : null;
+function registerCompletionCommands(program: Command, context?: ForgeContext): void {
+    const handlers = context ? new CompletionCommands(context, program) : null;
+
+    const validShells: string[] = [ShellName.Bash, ShellName.Zsh, ShellName.Fish];
+
+    function isValidShellName(value: string): value is ShellName {
+        return validShells.includes(value);
+    }
 
     program
         .command('completion <shell>')
-        .description('Generate shell completion script (bash, zsh, fish)')
+        .description(`Generate shell completion script (${validShells.join(', ')})`)
         .action(async (shell: string) => {
             // Validate shell type
-            const validShells: ShellType[] = ['bash', 'zsh', 'fish'];
-            if (!validShells.includes(shell as ShellType)) {
+            if (!isValidShellName(shell)) {
                 console.error(`Error: Unsupported shell type "${shell}". Supported shells: ${validShells.join(', ')}`);
                 process.exitCode = 1;
                 return;
@@ -148,20 +156,11 @@ function registerCompletionCommands(program: Command, config?: ForgeContext): vo
             // For completion command, we need config to get worktrees path
             // If no config, we'll use a fallback implementation
             if (!handlers) {
-                // Fallback: create minimal context with default values
-                const fallbackConfig: ForgeContext = {
-                    rootDir: process.cwd(),
-                    repoRoots: [],
-                    mainRepoRoot: process.cwd(),
-                    repoNames: new Map(),
-                    worktreesRoot: 'features',
-                    agents: [],
-                    ides: [],
-                };
-                const fallbackHandlers = new CompletionCommands(fallbackConfig, program);
-                await fallbackHandlers.generate(shell as ShellType);
+                const fallbackContext = new ForgeContext(process.cwd(), new ForgeConfig({ repositories: ['dummy'] }));
+                const fallbackHandlers = new CompletionCommands(fallbackContext, program);
+                await fallbackHandlers.generate(shell);
             } else {
-                await handlers.generate(shell as ShellType);
+                await handlers.generate(shell);
             }
         });
 }
@@ -179,7 +178,7 @@ async function main() {
 
     // Completion command should work with or without config
     // Register it early so it's available even without .feat-forge.json
-    let config: ForgeContext | undefined;
+    let context: ForgeContext | undefined;
 
     // Load config for other commands
     const isInitCommand = process.argv[2] === 'init';
@@ -187,15 +186,15 @@ async function main() {
 
     if (!isInitCommand) {
         try {
-            config = await loadForgeConfig();
+            context = await loadForgeContext();
 
             // Register commands that require config
-            registerFeatureCommands(program, config);
-            registerModeCommands(program, config);
-            registerAgentCommands(program, config);
-            registerMergeCommands(program, config);
-            registerRebaseCommands(program, config);
-            registerCompletionCommands(program, config);
+            registerFeatureCommands(program, context);
+            registerModeCommands(program, context);
+            registerAgentCommands(program, context);
+            registerMergeCommands(program, context);
+            registerRebaseCommands(program, context);
+            registerCompletionCommands(program, context);
         } catch (error) {
             // Config not found
             if (isCompletionCommand) {

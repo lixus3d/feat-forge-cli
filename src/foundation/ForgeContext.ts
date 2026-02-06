@@ -16,6 +16,7 @@ import {
 } from '../lib/templates';
 import { getGitStatusPorcelain, gitPathExistsInBranch, runGit } from '../lib/git';
 import { merge } from '../lib/merger';
+import { TemporaryFolderType } from '../lib/constants';
 
 export class ForgeContext {
     public readonly config: ForgeConfig;
@@ -50,6 +51,10 @@ export class ForgeContext {
         return this.repositories.filter((repo) => !repo.main);
     }
 
+    getRepo(repoName: string): RootRepository {
+        return this.repositories.find((r) => r.name === repoName)!;
+    }
+
     makeFeatureContext(featureSlug: string) {
         const featureRootPath = this.paths.getFeatureRootPath(featureSlug);
         return new FeatureContext(this, featureSlug, featureRootPath, [], false);
@@ -60,8 +65,25 @@ export class ForgeContext {
         return FeatureContext.loadFromPath(this, featureRootPath);
     }
 
+    async loadFeatureContexts(): Promise<FeatureContext[]> {
+        if (!(await pathExists(this.paths.worktreesRoot))) {
+            return [];
+        }
+        const entries = await readdir(this.paths.worktreesRoot, { withFileTypes: true });
+        const featureRoots = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+        return Promise.all(featureRoots.map((featureSlug) => this.loadFeatureContext(featureSlug)));
+    }
+
     async isFeatureActive(featureSlug: string): Promise<boolean> {
         return this.featureRootExists(featureSlug);
+    }
+
+    async getFeatureContext(featureSlug: string): Promise<FeatureContext> {
+        if (!(await this.isFeatureActive(featureSlug))) {
+            return this.makeFeatureContext(featureSlug);
+        }
+        return this.loadFeatureContext(featureSlug);
     }
 
     async featureRootExists(featureSlug: string): Promise<boolean> {
@@ -76,6 +98,12 @@ export class ForgeContext {
     async hasFeatureBranchOnAllRepositories(featureSlug: string): Promise<boolean> {
         const branchName = this.getFeatureBranchName(featureSlug);
         return Promise.all(this.repositories.map((repo) => repo.hasBranch(branchName))).then((results) => results.every(Boolean));
+    }
+
+    async hasFeatureBranch(featureSlug: string): Promise<boolean> {
+        // only check on mainRepo
+        const branchName = this.getFeatureBranchName(featureSlug);
+        return this.mainRepo.hasBranch(branchName);
     }
 
     /**
@@ -123,54 +151,72 @@ export class ForgeContext {
     /**
      * Ensure .active-feature is in .gitignore for one or more repo roots.
      */
-    async ensureGitIgnore(): Promise<void> {
+    async ensureGitIgnore(): Promise<number> {
+        let totalChanges = 0;
         for (const repo of this.repositories) {
             const gitignorePath = path.join(repo.path, '.gitignore');
             const changes = await ensureLineInFile(gitignorePath, this.options.folders.activeFeature);
             if (changes > 0) {
-                await repo.commit(`chore: add ${this.options.folders.activeFeature} to .gitignore`);
+                await repo.commit(`chore: add ${this.options.folders.activeFeature} to .gitignore`, [gitignorePath]);
+                totalChanges += changes;
             }
         }
+        return totalChanges;
     }
 
-    async ensureFeatureBranch(featureSlug: string): Promise<void> {
+    async ensureFeatureBranch(featureSlug: string): Promise<number> {
+        let totalChanges = 0;
         for (const repo of this.repositories) {
-            await repo.createFeatureBranch(featureSlug);
+            totalChanges += await repo.createFeatureBranch(featureSlug);
         }
+        return totalChanges;
     }
 
-    async initFeatureSpecFiles(slug: string, mergeToRoot: boolean = false): Promise<void> {
+    async initFeatureSpecFiles(featureContext: FeatureContext): Promise<number> {
+        const slug = featureContext.slug;
         const mainRepo = this.mainRepo;
         const branchName = this.getFeatureBranchName(slug);
         // Look directly in the branch first, to avoid creating a worktree if the files already exist in the branch
-        const relativeFeatureSpecPath = path.relative(mainRepo.path, mainRepo.getFeaturePath(slug)).split(path.sep);
-        const featureSpecFilePaths = FEATURE_FILES.map((fileName) => path.posix.join(...relativeFeatureSpecPath, fileName));
+        const relativeFeatureSpecPathParts = path.relative(mainRepo.path, mainRepo.getFeaturePath(slug)).split(path.sep);
+        const featureSpecFilePaths = FEATURE_FILES.map((fileName) => path.posix.join(...relativeFeatureSpecPathParts, fileName));
         const existing = await Promise.all(
             featureSpecFilePaths.map((featureSpecFilePath) => gitPathExistsInBranch(mainRepo.path, branchName, featureSpecFilePath)),
         );
         if (existing.every(Boolean)) {
-            return;
+            return 0;
         }
 
-        const tempWorktree = this.paths.getTempFeatureWorktreePathForRepo(slug, mainRepo.name);
-        await ensureDir(path.dirname(tempWorktree));
-        if (await pathExists(tempWorktree)) {
-            throw new Error(`Temp worktree already exists at ${tempWorktree}`);
+        console.log(`Feature spec files missing for feature '${slug}', trying to add them...`);
+
+        let worktreeRepo: WorktreeRepository;
+        if (featureContext.hasRepo(mainRepo.name)) {
+            // worktree already exists, we can use it to create the feature files without affecting the main branch
+            worktreeRepo = featureContext.getRepo(mainRepo.name);
+        } else {
+            worktreeRepo = await featureContext.getTemporaryRepo(mainRepo.name, TemporaryFolderType.FEATURE_INIT);
+            // // worktree doesn't exist, we need to use a temporary worktree
+            // const tempWorktree = this.paths.getTempFeatureWorktreePathForRepo(slug, mainRepo.name);
+            // await ensureDir(path.dirname(tempWorktree));
+            // if (await pathExists(tempWorktree)) {
+            //     throw new Error(`Temp worktree already exists at ${tempWorktree}`);
+            // }
+
+            // await runGit(mainRepo.path, ['worktree', 'add', tempWorktree, branchName]);
+            // worktreeRepo = new WorktreeRepository(this, { name: mainRepo.name, path: tempWorktree, main: true }, mainRepo, true);
         }
 
-        await runGit(mainRepo.path, ['worktree', 'add', tempWorktree, branchName]);
-        const worktreeRepo = new WorktreeRepository(this, { name: mainRepo.name, path: tempWorktree, main: true }, mainRepo);
         try {
             await this.ensureFeatureFiles(worktreeRepo, slug);
-            await worktreeRepo.commit(`docs(${slug}): init feature spec`, [path.join(...relativeFeatureSpecPath, '*')]);
+            await worktreeRepo.commit(`docs(${slug}): init feature spec`, [path.join(...relativeFeatureSpecPathParts, '*')]);
         } finally {
-            await runGit(mainRepo.path, ['worktree', 'remove', '--force', tempWorktree]);
-            // Cleanup temp directory
-            await rm(tempWorktree, { recursive: true, force: true });
-        }
-        if (mergeToRoot) {
-            // If the feature files were initialized in a worktree, we need to merge them back to the main branch to ensure they are available in the main repo for the feature context and for users who don't use worktrees
-            await mainRepo.merge(branchName, (await mainRepo.getCurrentBranch())!);
+            if (worktreeRepo.temporary) {
+                await worktreeRepo.remove();
+                // Report that we have made changes
+                return 1;
+            } else {
+                // We made changes, but they are visible in the existing worktree, so we don't need to merge them back to the main branch
+                return 0;
+            }
         }
     }
 
@@ -179,6 +225,8 @@ export class ForgeContext {
      * Also creates the agent subdirectory (empty, ready for symlinks).
      */
     private async ensureFeatureFiles(repo: WorktreeRepository, slug: string): Promise<void> {
+        repo.mustBeMainRepository();
+
         const featureSpecsPath = repo.getFeaturePath(slug);
         await ensureDir(featureSpecsPath);
 

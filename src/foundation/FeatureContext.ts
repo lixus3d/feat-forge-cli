@@ -1,27 +1,30 @@
 import { readdir, readFile, rm, symlink } from 'fs/promises';
 import path from 'path';
 import { ForgeContext } from './ForgeContext';
-import { RootRepository, WorktreeRepository } from './Repository';
+import { RepositoryStatus, RootRepository, WorktreeRepository } from './Repository';
 import { ensureDir, ensureLineInFile, pathExists, writeTextFile } from '../lib/fs';
-import { getGitStatusPorcelain } from '../lib/git';
+import { getGitStatusPorcelain, runGit } from '../lib/git';
 import { ForgeMode } from './types/ForgeMode';
 import { replaceTemplateMarkers, SOURCE_TEMPLATE_AGENT_PATH, TemplateFile } from '../lib/templates';
 import { refreshCopilotAgentContextFiles } from '../lib/agents';
 import { AIAgentName } from './types/AIAgentName';
 import { createIDEWorkspaces } from '../lib/ide';
+import { RepoName } from './types/RepositoryInfos';
+import { promptConfirm, promptForBranch } from '../lib/prompt';
+import { TemporaryFolderType } from '../lib/constants';
 
-export type FeatureSlug = string;
+export type FeatureSlug = string; // must be sanitized for branch names and file paths
 
 export class FeatureContext {
     private context: ForgeContext;
-    name: string;
+    slug: FeatureSlug;
     path: string;
     repositories: WorktreeRepository[];
     active: boolean;
 
     constructor(context: ForgeContext, slug: FeatureSlug, path: string, repositories: WorktreeRepository[], active: boolean) {
         this.context = context;
-        this.name = slug;
+        this.slug = slug;
         this.path = path;
         this.repositories = repositories;
         this.active = active;
@@ -33,6 +36,11 @@ export class FeatureContext {
         if ((await pathExists(featureRootPath)) === false) {
             throw new Error(`Feature root path does not exist: ${featureRootPath}`);
         }
+        const repositories = await FeatureContext.loadWorktreeRepositories(context, featureRootPath);
+        return new FeatureContext(context, slug, featureRootPath, repositories, true);
+    }
+
+    static async loadWorktreeRepositories(context: ForgeContext, featureRootPath: string): Promise<WorktreeRepository[]> {
         const items = await readdir(featureRootPath, { withFileTypes: true });
         const repoDirs = items.filter((item) => item.isDirectory() && context.repositories.some((repo) => repo.name === item.name));
 
@@ -49,7 +57,7 @@ export class FeatureContext {
             );
         });
 
-        return new FeatureContext(context, slug, featureRootPath, repositories, true);
+        return repositories;
     }
 
     static async findNearestFeatureContext(context: ForgeContext, startDir: string = process.cwd()): Promise<FeatureContext> {
@@ -92,8 +100,28 @@ export class FeatureContext {
         return this.repositories.filter((repo) => !repo.main);
     }
 
+    get featureBranchName(): string {
+        return this.context.getFeatureBranchName(this.slug);
+    }
+
+    hasRepo(repoName: string): boolean {
+        return this.repositories.some((repo) => repo.name === repoName);
+    }
+
+    getRepo(repoName: string): WorktreeRepository {
+        if (!this.hasRepo(repoName)) throw new Error(`Repository ${repoName} is not part of the feature context`);
+        return this.repositories.find((r) => r.name === repoName)!;
+    }
+
+    async getTemporaryRepo(repoName: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
+        const rootRepo = this.context.getRepo(repoName);
+        const tempRepo = await rootRepo.getTemporaryWorktree(this.slug, type);
+        this.repositories.push(tempRepo);
+        return tempRepo;
+    }
+
     getAgentPath(): string {
-        return this.mainRepo.getAgentPath(this.name);
+        return this.mainRepo.getAgentPath(this.slug);
     }
 
     getTemplatePath(...segments: string[]): string {
@@ -119,7 +147,7 @@ export class FeatureContext {
         }
     }
 
-    async findDirtyRepositories(): Promise<WorktreeRepository[]> {
+    async getDirtyRepositories(): Promise<WorktreeRepository[]> {
         this.mustBeActive();
 
         const dirtyRepositories: WorktreeRepository[] = [];
@@ -206,7 +234,7 @@ export class FeatureContext {
         // Create IDE workspaces if configured
         if (this.context.ides.length > 0) {
             await createIDEWorkspaces(
-                this.name,
+                this.slug,
                 this.path,
                 this.mainRepo.name,
                 this.repositories,
@@ -214,6 +242,7 @@ export class FeatureContext {
                 this.context.agents,
             );
         }
+        this.active = true;
     }
 
     async ensureWorktrees(): Promise<WorktreeRepository[]> {
@@ -225,26 +254,107 @@ export class FeatureContext {
     }
 
     async ensureWorktreeForRepo(repo: RootRepository): Promise<WorktreeRepository> {
-        if (await repo.hasWorktree(this.name)) {
-            return repo.getWorktree(this.name);
+        if (await repo.hasWorktree(this.slug)) {
+            return repo.getWorktree(this.slug);
         } else {
-            return repo.addWorktree(this.name);
+            return repo.addWorktree(this.slug);
         }
     }
 
     async setActiveFeature(): Promise<void> {
-        // Set .active-feature in main repo pointing to .features/<slug>/
-        const featurePath = this.mainRepo.getFeaturePath(this.name);
-        const mainActivePath = this.mainRepo.activeFeaturePath;
-        await rm(mainActivePath, { force: true });
-        await symlink(path.relative(mainActivePath, featurePath), mainActivePath);
+        await Promise.all(this.repositories.map((repo) => repo.setActiveFeature(this)));
+    }
 
-        // Set .active-feature in secondary repos pointing to main repo's .active-feature
-        for (const secondaryRepo of this.secondaryRepos) {
-            const secondaryActivePath = secondaryRepo.activeFeaturePath;
-            await rm(secondaryActivePath, { force: true });
-            // Create relative path from secondary to main's .active-feature
-            await symlink(path.relative(secondaryActivePath, mainActivePath), secondaryActivePath);
+    async collectRepositoriesStatus(): Promise<Record<RepoName, RepositoryStatus>> {
+        const status: Record<RepoName, RepositoryStatus> = {};
+        for (const repo of this.repositories) {
+            status[repo.name] = await repo.getStatus(this.slug); // use the new getStatus method that includes onFeatureBranch information
+        }
+        return status;
+    }
+
+    async cleanOrphanedWorktrees(): Promise<void> {
+        // We look at all context repositories to find any worktree that matches the feature branch but
+        // whose path does not exist (orphaned worktree), and we remove it.
+        for (const repo of this.context.repositories) {
+            await repo.cleanOrphanedWorktree(this);
+        }
+    }
+
+    async stop(): Promise<void> {
+        // Clean up any orphaned worktrees first
+        await this.cleanOrphanedWorktrees();
+
+        // Check for uncommitted changes in worktrees
+        const dirtyRepositories = await this.getDirtyRepositories();
+
+        // Handle dirty worktrees if any exist
+        if (dirtyRepositories.length > 0) {
+            for (const repo of dirtyRepositories) {
+                const repoShouldProceed = await repo.promptDirtyActions();
+                if (!repoShouldProceed) {
+                    return;
+                }
+            }
+        }
+    }
+
+    async delete(): Promise<void> {
+        // Remove worktrees for all repositories
+        await Promise.all(this.repositories.map((repo) => repo.remove()));
+
+        if (await pathExists(this.path)) {
+            if ((await readdir(this.path)).length !== 0) {
+                // Remove feature path if empty
+                const confirm = await promptConfirm(`Feature path ${this.path} is not empty. Do you want to remove it?`);
+                if (!confirm) {
+                    console.log(`Please manually clean up the feature path: ${this.path}`);
+                    return;
+                }
+            }
+            await rm(this.path, { recursive: true, force: true });
+        }
+        this.active = false;
+    }
+
+    async archive(): Promise<void> {
+        let worktreeRepo: WorktreeRepository;
+        if (this.hasRepo(this.mainRepo.name)) {
+            // worktree already exists, we can use it to create the feature files without affecting the main branch
+            worktreeRepo = this.getRepo(this.mainRepo.name);
+        } else {
+            worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.FEATURE_ARCHIVE);
+        }
+
+        // Create archives directory
+        await ensureDir(worktreeRepo.specsArchivePath);
+
+        const archivePath = path.join(worktreeRepo.specsArchivePath, this.slug);
+        const featurePath = worktreeRepo.getFeaturePath(this.slug);
+
+        // Move feature to archive using git mv
+        await runGit(worktreeRepo.path, ['mv', featurePath, archivePath]);
+
+        // Commit the archive
+        await worktreeRepo.commit(`docs(${this.slug}): archive feature`, [archivePath]);
+
+        console.log(`✓ Feature \"${this.slug}\" archived successfully.`);
+        console.log(
+            `  Moved: ${this.context.options.folders.specs}/${this.slug}/ → ${this.context.options.folders.specs}/${this.context.options.folders.archive}/${this.slug}/`,
+        );
+
+        // Ask for merge
+        const confirmMerge = await promptConfirm(
+            'Do you want to merge the archived branch to another branch? (recommended to keep trace in main/dev branch)',
+        );
+        if (confirmMerge) {
+            const targetBranch = await promptForBranch(
+                this.context.mainRepo.path,
+                'Select target branch to merge archived branch:',
+                this.context.options.git.featureBranchPrefix,
+                false,
+            );
+            await worktreeRepo.rootRepository.merge(this.featureBranchName, targetBranch);
         }
     }
 }

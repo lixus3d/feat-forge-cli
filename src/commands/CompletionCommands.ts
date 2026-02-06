@@ -3,11 +3,7 @@ import { Dirent } from 'fs';
 import { readdir } from 'fs/promises';
 import { pathExists } from '../lib/fs';
 import { AbstractCommands } from './AbstractCommands';
-
-/**
- * Supported shell types for completion script generation
- */
-export type ShellType = 'bash' | 'zsh' | 'fish';
+import { ShellName } from '../foundation/types/ShellName';
 
 /**
  * Information about a command extracted from Commander.js
@@ -45,7 +41,7 @@ export class CompletionCommands extends AbstractCommands {
      *
      * @param shell - The target shell type (bash, zsh, or fish)
      */
-    async generate(shell: ShellType): Promise<void> {
+    async generate(shell: ShellName): Promise<void> {
         const script = await this.generateCompletionScript(shell);
         console.log(script);
     }
@@ -60,7 +56,7 @@ export class CompletionCommands extends AbstractCommands {
      * @param shell - The target shell type
      * @returns The generated completion script as a string
      */
-    private async generateCompletionScript(shell: ShellType): Promise<string> {
+    private async generateCompletionScript(shell: ShellName): Promise<string> {
         switch (shell) {
             case 'bash':
                 return this.generateBashCompletion();

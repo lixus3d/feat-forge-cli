@@ -108,7 +108,7 @@ export async function getBranches(repoRoot: string): Promise<string[]> {
 /**
  * Get all worktrees for a repo with their paths and branches.
  */
-export async function getWorktrees(repoRoot: string): Promise<Array<{ path: string; branch: string }>> {
+export async function getGitWorktrees(repoRoot: string): Promise<Array<{ path: string; branch: string }>> {
     try {
         const result = await execa('git', ['worktree', 'list', '--porcelain'], { cwd: repoRoot });
         const lines = result.stdout.split('\n');
@@ -138,15 +138,10 @@ export async function getWorktrees(repoRoot: string): Promise<Array<{ path: stri
 
         return worktrees;
     } catch {
-        return [];
+        throw new Error(
+            `Failed to get worktrees for repo at ${repoRoot}. Ensure it's a valid git repository and that git is installed.`,
+        );
     }
-}
-
-/**
- * Remove an orphaned worktree (worktree path that no longer exists).
- */
-export async function removeOrphanedWorktree(repoRoot: string, worktreePath: string): Promise<void> {
-    await execa('git', ['worktree', 'remove', '--force', worktreePath], { cwd: repoRoot });
 }
 
 /**

@@ -1,6 +1,12 @@
 import path from 'path';
 import { ForgeContext } from './ForgeContext';
-import { FEAT_FORGE_CONFIG_FOLDER, TEMP_FEATURE_ARCHIVE_FOLDER, TEMP_FEATURE_INIT_FOLDER, TEMP_FOLDER } from '../lib/constants';
+import {
+    FEAT_FORGE_CONFIG_FOLDER,
+    TEMP_FEATURE_ARCHIVE_FOLDER,
+    TEMP_FEATURE_INIT_FOLDER,
+    TEMP_FOLDER,
+    TemporaryFolderType,
+} from '../lib/constants';
 import { ForgeOptions } from './ForgeConfig';
 
 export class PathHelper {
@@ -47,47 +53,17 @@ export class PathHelper {
     }
 
     /**
-     * Get the temporary worktree path used during feature initialization.
-     * Default Pattern: <rootDir>/.feat-forge/tmp/feature-init/<slug>/<repoName>/
-     *
-     * @param slug - The feature slug
-     * @param repoName - The repository name
-     * @returns The temporary worktree path
+     * Get the temporary worktree path for a specific repository and operation type.
      */
-    getTempFeatureWorktreePathForRepo(slug: string, repoName: string): string {
-        return this.getTempFeatureRoot(slug, repoName);
-    }
-
-    /**
-     * Get the temporary root path for feature initialization.
-     * Pattern: <rootDir>/.feat-forge/tmp/feature-init/
-     *
-     * @returns The temporary root path
-     */
-    getTempFeatureRoot(...segments: string[]): string {
-        return this.getPathInTemp(TEMP_FEATURE_INIT_FOLDER, ...segments);
-    }
-
-    /**
-     * Get the temporary worktree path used during feature archiving.
-     * Pattern: <rootDir>/.feat-forge/tmp/feature-archive/<slug>/<repoName>/
-     *
-     * @param slug - The feature slug
-     * @param repoName - The repository name
-     * @returns The temporary archive worktree path
-     */
-    getTempArchiveWorktreePathForRepo(slug: string, repoName: string): string {
-        return this.getTempArchiveRoot(slug, repoName);
-    }
-
-    /**
-     * Get the temporary root path for feature archiving.
-     * Pattern: <rootDir>/.feat-forge/tmp/feature-archive/
-     *
-     * @returns The temporary archive root path
-     */
-    getTempArchiveRoot(...segments: string[]): string {
-        return this.getPathInTemp(TEMP_FEATURE_ARCHIVE_FOLDER, ...segments);
+    getTempWorktreePathForRepo(type: TemporaryFolderType, slug: string, repoName: string): string {
+        switch (type) {
+            case TemporaryFolderType.FEATURE_INIT:
+                return this.getPathInTemp(TEMP_FEATURE_INIT_FOLDER, slug, repoName);
+            case TemporaryFolderType.FEATURE_ARCHIVE:
+                return this.getPathInTemp(TEMP_FEATURE_ARCHIVE_FOLDER, slug, repoName);
+            default:
+                throw new Error(`Unknown temporary type: ${type}`);
+        }
     }
 }
 
