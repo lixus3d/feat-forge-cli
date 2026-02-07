@@ -9,6 +9,7 @@ import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
 import { MergeCommands } from './commands/MergeCommands';
 import { ModeCommands } from './commands/ModeCommands';
+import { OpenCommands } from './commands/OpenCommands';
 import { RebaseCommands } from './commands/RebaseCommands';
 import { ForgeContext } from './foundation/ForgeContext';
 import { ForgeMode } from './foundation/types/ForgeMode';
@@ -149,6 +150,28 @@ function registerRebaseCommands(program: Command, context: ForgeContext): void {
         .description('Rebase a feature branch onto a base branch (shortcut)')
         .action(rebaseCmd.rebase.bind(rebaseCmd));
 }
+/**
+ * Register open commands with the CLI.
+ */
+function registerOpenCommands(program: Command, context: ForgeContext): void {
+    const handlers = new OpenCommands(context);
+
+    // Main command: forge feature open [slug]
+    const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
+    if (featureCommand) {
+        featureCommand
+            .command('open [slug]')
+            .description('Open the feature workspace in IDE')
+            .action(handlers.open.bind(handlers));
+    }
+
+    // Shortcut: forge open [slug]
+    program
+        .command('open [slug]')
+        .description('Open the feature workspace in IDE (shortcut)')
+        .action(handlers.open.bind(handlers));
+}
+
 /*
  * Register completion commands with the CLI.
  * This command works both with and without config.
@@ -223,6 +246,7 @@ async function main() {
             registerModeCommands(program, context);
             registerAgentCommands(program, context);
             registerMaintenanceCommands(program, context);
+            registerOpenCommands(program, context);
             registerMergeCommands(program, context);
             registerRebaseCommands(program, context);
             registerCompletionCommands(program, context);

@@ -175,10 +175,10 @@ export class CompletionCommands extends AbstractCommands {
         const agentCommands = agentCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
 
         // Limit slug completions to active feature commands only
-        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase', 'open'];
         const featureWithActiveSlug =
             featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
-        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name)).map((cmd) => cmd.name);
+        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase', 'open'].includes(cmd.name)).map((cmd) => cmd.name);
 
         const featureSlugCase =
             featureWithActiveSlug.length > 0
@@ -347,10 +347,10 @@ complete -F _forge_completion forge
             agentCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
 
         // Limit slug completions to active feature commands only
-        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase', 'open'];
         const featureWithActiveSlug =
             featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
-        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name)).map((cmd) => cmd.name);
+        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase', 'open'].includes(cmd.name)).map((cmd) => cmd.name);
 
         const featureSlugCase =
             featureWithActiveSlug.length > 0
@@ -367,7 +367,7 @@ complete -F _forge_completion forge
         const mainSlugCase =
             mainWithActiveSlug.length > 0
                 ? `                ${mainWithActiveSlug.join('|')})
-                    # Suggest available features for merge/rebase shortcut
+                    # Suggest available features for shortcut commands
                     local features
                     local worktrees_root="\$(_forge_worktrees_root)"
                     features=(\${(f)"\$(find "\${worktrees_root}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
@@ -536,7 +536,7 @@ compdef _forge forge
                 .join('\n') || '';
 
         // Limit slug completions to active feature commands only
-        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase', 'open'];
         const featureWithActiveSlug = featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)) || [];
         const featureSlugCompletions = featureWithActiveSlug
             .map(
@@ -545,7 +545,7 @@ compdef _forge forge
             )
             .join('\n');
 
-        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name));
+        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase', 'open'].includes(cmd.name));
         const mainSlugCompletions = mainWithActiveSlug
             .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`)
             .join('\n');
@@ -659,11 +659,11 @@ complete -c forge -n "__fish_seen_subcommand_from completion" -a pwsh -d "Genera
         const modeCommandsList = toPsArray(modeCmd?.subcommands.map((cmd) => cmd.name) || []);
         const agentCommandsList = toPsArray(agentCmd?.subcommands.map((cmd) => cmd.name) || []);
 
-        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase', 'open'];
         const featureWithActiveSlug = featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)) || [];
         const featureSlugCommandsList = toPsArray(featureWithActiveSlug.map((cmd) => cmd.name));
         const mainSlugCommandsList = toPsArray(
-            mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name)).map((cmd) => cmd.name),
+            mainCommands.filter((cmd) => ['merge', 'rebase', 'open'].includes(cmd.name)).map((cmd) => cmd.name),
         );
         const completionShellsList = toPsArray(['bash', 'zsh', 'fish', 'powershell', 'pwsh']);
 

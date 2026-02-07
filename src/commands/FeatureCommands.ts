@@ -6,6 +6,7 @@ import { checkoutBranch, gitBranchExists } from '../lib/git';
 import { promptConfirm } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
+import { OpenCommands } from './OpenCommands';
 
 export class FeatureCommands extends AbstractCommands {
     // ============================================================================
@@ -36,7 +37,16 @@ export class FeatureCommands extends AbstractCommands {
     async start(rawSlug: string): Promise<void> {
         const slug = await confirmSlugOrThrow(rawSlug);
         // Prepare feature: validate slug, ensure branch and spec exist
-        (await this.prepareFeature(slug, false)).start();
+        await (await this.prepareFeature(slug, false)).start();
+
+        // Propose to open the feature in the configured IDE
+        if (this.context.ides.length > 0) {
+            const shouldOpen = await promptConfirm(`Open feature "${slug}" in ${this.context.ides[0].name}?`);
+            if (shouldOpen) {
+                const openCommands = new OpenCommands(this.context);
+                await openCommands.open(slug);
+            }
+        }
     }
 
     /**

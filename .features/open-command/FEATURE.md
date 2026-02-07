@@ -94,10 +94,11 @@ Follow the same structure as existing commands:
 - Errors clearly if the feature is not active/started
 - The IDE process is spawned detached (CLI exits immediately, IDE stays open)
 - Shell completion works for the slug argument (list active features)
+- After `forge feature start`, the user is prompted to open the feature in the IDE (only if an IDE is configured)
 
 # Not in the perimeter
 
 - Adding new IDE types to the `IDEName` enum (separate feature)
 - `--ide` flag to choose between multiple configured IDEs
 - Opening spec files directly in an editor (could be a separate command)
-- Auto-opening the IDE after `forge feature start` (could be added later as a config option)
+- Auto-opening the IDE after `forge feature start` without user confirmation
