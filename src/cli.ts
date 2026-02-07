@@ -156,7 +156,7 @@ function registerRebaseCommands(program: Command, context: ForgeContext): void {
 function registerCompletionCommands(program: Command, context?: ForgeContext): void {
     const handlers = context ? new CompletionCommands(context, program) : null;
 
-    const validShells: string[] = [ShellName.Bash, ShellName.Zsh, ShellName.Fish];
+    const validShells: string[] = [ShellName.Bash, ShellName.Zsh, ShellName.Fish, ShellName.PowerShell, ShellName.Pwsh];
 
     function isValidShellName(value: string): value is ShellName {
         return validShells.includes(value);
