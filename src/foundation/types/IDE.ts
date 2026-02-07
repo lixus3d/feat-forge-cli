@@ -7,4 +7,5 @@ export type IDE = {
     name: IDEName;
     createWorkspace: boolean;
     settings?: Record<string, unknown>;
+    openCommand?: string;
 };

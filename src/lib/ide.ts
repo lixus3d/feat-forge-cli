@@ -7,6 +7,19 @@ import { IDEName } from '../foundation/types/IDEName';
 import { AIAgent } from '../foundation/types/AIAgent';
 
 /**
+ * Get the default CLI command for an IDE
+ * @param ideName - The IDE name
+ * @returns The default CLI command for the IDE
+ */
+export function getDefaultIDECommand(ideName: IDEName): string {
+    const defaultCommands: Record<IDEName, string> = {
+        [IDEName.VSCODE]: 'code',
+    };
+
+    return defaultCommands[ideName];
+}
+
+/**
  * VSCode workspace configuration
  */
 type VSCodeWorkspace = {

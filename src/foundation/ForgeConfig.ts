@@ -147,6 +147,7 @@ export type IDEConfig = {
     name: IDEName;
     createWorkspace?: boolean;
     settings?: Record<string, unknown>;
+    openCommand?: string;
 };
 
 /**
@@ -237,6 +238,7 @@ export class ForgeConfig {
                     name: ideName,
                     createWorkspace: ideConfig.createWorkspace ?? true,
                     settings: ideConfig.settings ?? {},
+                    openCommand: ideConfig.openCommand,
                 };
             });
     }
