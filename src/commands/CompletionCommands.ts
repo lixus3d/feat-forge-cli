@@ -64,6 +64,9 @@ export class CompletionCommands extends AbstractCommands {
                 return this.generateZshCompletion();
             case 'fish':
                 return this.generateFishCompletion();
+            case 'powershell':
+            case 'pwsh':
+                return this.generatePowerShellCompletion();
             default:
                 throw new Error(`Unsupported shell: ${shell}`);
         }
@@ -127,6 +130,14 @@ export class CompletionCommands extends AbstractCommands {
         return this.getMainCommands().find((cmd) => cmd.name === commandName);
     }
 
+    private escapeDoubleQuotes(value: string): string {
+        return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    }
+
+    private escapeSingleQuotes(value: string): string {
+        return value.replace(/'/g, "''");
+    }
+
     /**
      * Get list of command names that have a required slug argument.
      *
@@ -157,19 +168,92 @@ export class CompletionCommands extends AbstractCommands {
         const featureCmd = this.findCommand('feature');
         const modeCmd = this.findCommand('mode');
         const agentCmd = this.findCommand('agent');
-        const completionCmd = this.findCommand('completion');
-
         // Build command lists
         const commands = mainCommands.map((cmd) => cmd.name).join(' ');
         const featureCommands = featureCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
         const modeCommands = modeCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
         const agentCommands = agentCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
 
-        // Find commands with slug argument (for feature suggestions)
-        const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name) || [];
-        const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name);
+        // Limit slug completions to active feature commands only
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const featureWithActiveSlug =
+            featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name)).map((cmd) => cmd.name);
+
+        const featureSlugCase =
+            featureWithActiveSlug.length > 0
+                ? `                ${featureWithActiveSlug.join('|')})
+                    # Suggest available features
+                    if [[ \${cword} -eq 3 ]]; then
+                        local worktrees_root="\$(_forge_worktrees_root)"
+                        local features=\$(find "\${worktrees_root}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
+                        COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
+                        return 0
+                    fi
+                    ;;
+`
+                : '';
+
+        const mainSlugCase =
+            mainWithActiveSlug.length > 0
+                ? `        ${mainWithActiveSlug.join('|')})
+            # Suggest available features for commands with slug argument
+            if [[ \${cword} -eq 2 ]]; then
+                local worktrees_root="\$(_forge_worktrees_root)"
+                local features=\$(find "\${worktrees_root}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
+                COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
+                return 0
+            fi
+            ;;
+`
+                : '';
 
         return `# forge bash completion script
+
+_forge_find_config() {
+    local dir="\$1"
+    while [[ -n "\${dir}" && "\${dir}" != "/" ]]; do
+        if [[ -f "\${dir}/.feat-forge.json" ]]; then
+            echo "\${dir}"
+            return 0
+        fi
+        dir="\${dir%/*}"
+    done
+    return 1
+}
+
+_forge_worktrees_root() {
+    if [[ -n "\${FORGE_WORKTREES_ROOT}" ]]; then
+        echo "\${FORGE_WORKTREES_ROOT}"
+        return 0
+    fi
+    local start="\${PWD}"
+    local config_root
+    config_root="\$(_forge_find_config "\${start}")" || true
+    if [[ -n "\${config_root}" ]]; then
+        local worktrees
+        worktrees=\$(node -e 'const fs=require("fs");const path=require("path");
+try{
+  const file=process.argv[1];
+  const configRoot=path.dirname(file);
+  const data=JSON.parse(fs.readFileSync(file,"utf8"));
+  let rootDir=data.rootDir;
+  if(rootDir){ if(!path.isAbsolute(rootDir)) rootDir=path.join(configRoot, rootDir); }
+  else { rootDir=configRoot; }
+  const folders=(data.options && data.options.folders) || data.folders || {};
+  const worktrees=folders.worktrees || "features";
+  process.stdout.write(path.join(rootDir, worktrees));
+}catch(e){}
+' "\${config_root}/.feat-forge.json" 2>/dev/null)
+        if [[ -n "\${worktrees}" ]]; then
+            echo "\${worktrees}"
+            return 0
+        fi
+        echo "\${config_root}/features"
+        return 0
+    fi
+    echo "features"
+}
 
 _forge_completion() {
     local cur prev words cword
@@ -187,15 +271,7 @@ _forge_completion() {
     case "\${words[1]}" in
         feature)
             case "\${words[2]}" in
-                ${featureWithSlug.join('|')})
-                    # Suggest available features
-                    if [[ \${cword} -eq 3 ]]; then
-                        local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
-                        COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
-                        return 0
-                    fi
-                    ;;
-                *)
+${featureSlugCase}                *)
                     # Suggest feature subcommands
                     if [[ \${cword} -eq 2 ]]; then
                         COMPREPLY=( \$(compgen -W "\${feature_commands}" -- "\${cur}") )
@@ -218,18 +294,10 @@ _forge_completion() {
                 return 0
             fi
             ;;
-        ${mainWithSlug.join('|')})
-            # Suggest available features for commands with slug argument
-            if [[ \${cword} -eq 2 ]]; then
-                local features=\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)
-                COMPREPLY=( \$(compgen -W "\${features}" -- "\${cur}") )
-                return 0
-            fi
-            ;;
-        completion)
+${mainSlugCase}        completion)
             # Suggest shell types for completion
             if [[ \${cword} -eq 2 ]]; then
-                COMPREPLY=( \$(compgen -W "bash zsh fish" -- "\${cur}") )
+                COMPREPLY=( \$(compgen -W "bash zsh fish powershell pwsh" -- "\${cur}") )
                 return 0
             fi
             ;;
@@ -266,8 +334,6 @@ complete -F _forge_completion forge
         const featureCmd = this.findCommand('feature');
         const modeCmd = this.findCommand('mode');
         const agentCmd = this.findCommand('agent');
-        const completionCmd = this.findCommand('completion');
-
         // Build command arrays with descriptions
         const commandsArray = mainCommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n');
 
@@ -280,12 +346,83 @@ complete -F _forge_completion forge
         const agentArray =
             agentCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
 
-        // Find commands with slug argument
-        const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name) || [];
-        const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument).map((cmd) => cmd.name);
+        // Limit slug completions to active feature commands only
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const featureWithActiveSlug =
+            featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name)).map((cmd) => cmd.name);
+
+        const featureSlugCase =
+            featureWithActiveSlug.length > 0
+                ? `                        ${featureWithActiveSlug.join('|')})
+                            # Suggest available features
+                            local features
+                            local worktrees_root="\$(_forge_worktrees_root)"
+                            features=(\${(f)"\$(find "\${worktrees_root}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
+                            _describe 'feature slug' features
+                            ;;
+`
+                : '';
+
+        const mainSlugCase =
+            mainWithActiveSlug.length > 0
+                ? `                ${mainWithActiveSlug.join('|')})
+                    # Suggest available features for merge/rebase shortcut
+                    local features
+                    local worktrees_root="\$(_forge_worktrees_root)"
+                    features=(\${(f)"\$(find "\${worktrees_root}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
+                    _describe 'feature slug' features
+                    ;;
+`
+                : '';
 
         return `#compdef forge
 # forge zsh completion script
+
+_forge_find_config() {
+    local dir="\$1"
+    while [[ -n "\${dir}" && "\${dir}" != "/" ]]; do
+        if [[ -f "\${dir}/.feat-forge.json" ]]; then
+            echo "\${dir}"
+            return 0
+        fi
+        dir="\${dir%/*}"
+    done
+    return 1
+}
+
+_forge_worktrees_root() {
+    if [[ -n "\${FORGE_WORKTREES_ROOT}" ]]; then
+        echo "\${FORGE_WORKTREES_ROOT}"
+        return 0
+    fi
+    local start="\${PWD}"
+    local config_root
+    config_root="\$(_forge_find_config "\${start}")" || true
+    if [[ -n "\${config_root}" ]]; then
+        local worktrees
+        worktrees=\$(node -e 'const fs=require("fs");const path=require("path");
+try{
+  const file=process.argv[1];
+  const configRoot=path.dirname(file);
+  const data=JSON.parse(fs.readFileSync(file,"utf8"));
+  let rootDir=data.rootDir;
+  if(rootDir){ if(!path.isAbsolute(rootDir)) rootDir=path.join(configRoot, rootDir); }
+  else { rootDir=configRoot; }
+  const folders=(data.options && data.options.folders) || data.folders || {};
+  const worktrees=folders.worktrees || "features";
+  process.stdout.write(path.join(rootDir, worktrees));
+}catch(e){}
+' "\${config_root}/.feat-forge.json" 2>/dev/null)
+        if [[ -n "\${worktrees}" ]]; then
+            echo "\${worktrees}"
+            return 0
+        fi
+        echo "\${config_root}/features"
+        return 0
+    fi
+    echo "features"
+}
 
 _forge() {
     local -a commands feature_commands mode_commands agent_commands
@@ -318,13 +455,7 @@ ${agentArray}
             case \${words[1]} in
                 feature)
                     case \${words[2]} in
-                        ${featureWithSlug.join('|')})
-                            # Suggest available features
-                            local features
-                            features=(\${(f)"\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
-                            _describe 'feature slug' features
-                            ;;
-                        *)
+${featureSlugCase}                        *)
                             _describe 'feature command' feature_commands
                             ;;
                     esac
@@ -335,15 +466,9 @@ ${agentArray}
                 agent)
                     _describe 'agent command' agent_commands
                     ;;
-                ${mainWithSlug.join('|')})
-                    # Suggest available features for merge/rebase shortcut
-                    local features
-                    features=(\${(f)"\$(find "\${FORGE_WORKTREES_ROOT:-features}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \\; 2>/dev/null)"})
-                    _describe 'feature slug' features
-                    ;;
-                completion)
+${mainSlugCase}                completion)
                     local shells
-                    shells=('bash' 'zsh' 'fish')
+                    shells=('bash' 'zsh' 'fish' 'powershell' 'pwsh')
                     _describe 'shell type' shells
                     ;;
             esac
@@ -375,8 +500,6 @@ compdef _forge forge
         const featureCmd = this.findCommand('feature');
         const modeCmd = this.findCommand('mode');
         const agentCmd = this.findCommand('agent');
-        const completionCmd = this.findCommand('completion');
-
         // Generate main commands
         const mainCommandsLines = mainCommands
             .map((cmd) => `complete -c forge -n "__fish_use_subcommand" -a ${cmd.name} -d "${cmd.description.replace(/"/g, '\\"')}"`)
@@ -412,25 +535,68 @@ compdef _forge forge
                 )
                 .join('\n') || '';
 
-        // Find commands with slug argument
-        const featureWithSlug = featureCmd?.subcommands.filter((cmd) => cmd.hasSlugArgument) || [];
-        const featureSlugCompletions = featureWithSlug
+        // Limit slug completions to active feature commands only
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const featureWithActiveSlug = featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)) || [];
+        const featureSlugCompletions = featureWithActiveSlug
             .map(
                 (cmd) =>
                     `complete -c forge -n "__fish_seen_subcommand_from feature; and __fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`,
             )
             .join('\n');
 
-        const mainWithSlug = mainCommands.filter((cmd) => cmd.hasSlugArgument);
-        const mainSlugCompletions = mainWithSlug
+        const mainWithActiveSlug = mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name));
+        const mainSlugCompletions = mainWithActiveSlug
             .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from ${cmd.name}" -a "(__forge_features)"`)
             .join('\n');
 
         return `# forge fish completion script
 
-# Helper function to get available features
+# Helper functions to get available features
+function __forge_find_config_root
+    set -l dir $PWD
+    while test -n "$dir" -a "$dir" != "/"
+        if test -f "$dir/.feat-forge.json"
+            echo $dir
+            return 0
+        end
+        set dir (dirname $dir)
+    end
+    return 1
+end
+
+function __forge_worktrees_root
+    if test -n "$FORGE_WORKTREES_ROOT"
+        echo $FORGE_WORKTREES_ROOT
+        return 0
+    end
+    set -l config_root (__forge_find_config_root)
+    if test -n "$config_root"
+        set -l worktrees (node -e 'const fs=require("fs");const path=require("path");
+try{
+  const file=process.argv[1];
+  const configRoot=path.dirname(file);
+  const data=JSON.parse(fs.readFileSync(file,"utf8"));
+  let rootDir=data.rootDir;
+  if(rootDir){ if(!path.isAbsolute(rootDir)) rootDir=path.join(configRoot, rootDir); }
+  else { rootDir=configRoot; }
+  const folders=(data.options && data.options.folders) || data.folders || {};
+  const worktrees=folders.worktrees || "features";
+  process.stdout.write(path.join(rootDir, worktrees));
+}catch(e){}
+' "$config_root/.feat-forge.json" 2>/dev/null)
+        if test -n "$worktrees"
+            echo "$worktrees"
+            return 0
+        end
+        echo "$config_root/features"
+        return 0
+    end
+    echo "features"
+end
+
 function __forge_features
-    set -l worktrees_root (test -n "$FORGE_WORKTREES_ROOT"; and echo $FORGE_WORKTREES_ROOT; or echo "features")
+    set -l worktrees_root (__forge_worktrees_root)
     if test -d $worktrees_root
         for dir in $worktrees_root/*/
             basename $dir
@@ -461,10 +627,10 @@ ${mainSlugCompletions}
 
 # Completion command with shell types
 complete -c forge -n "__fish_seen_subcommand_from completion" -a bash -d "Generate bash completion"
-# Completion command with shell types
-complete -c forge -n "__fish_seen_subcommand_from completion" -a bash -d "Generate bash completion"
 complete -c forge -n "__fish_seen_subcommand_from completion" -a zsh -d "Generate zsh completion"
 complete -c forge -n "__fish_seen_subcommand_from completion" -a fish -d "Generate fish completion"
+complete -c forge -n "__fish_seen_subcommand_from completion" -a powershell -d "Generate PowerShell completion"
+complete -c forge -n "__fish_seen_subcommand_from completion" -a pwsh -d "Generate PowerShell completion"
 
 # Installation instructions:
 #   Option 1 - Add to ~/.config/fish/config.fish:
@@ -472,6 +638,145 @@ complete -c forge -n "__fish_seen_subcommand_from completion" -a fish -d "Genera
 #
 #   Option 2 - Save to completions directory:
 #     forge completion fish > ~/.config/fish/completions/forge.fish
+`;
+    }
+
+    /**
+     * Generate PowerShell completion script.
+     *
+     * @returns PowerShell completion script content
+     */
+    private generatePowerShellCompletion(): string {
+        const mainCommands = this.getMainCommands();
+        const featureCmd = this.findCommand('feature');
+        const modeCmd = this.findCommand('mode');
+        const agentCmd = this.findCommand('agent');
+        const toPsArray = (items: string[]): string =>
+            items.length > 0 ? items.map((item) => `'${item.replace(/'/g, "''")}'`).join(', ') : '';
+
+        const mainCommandsList = toPsArray(mainCommands.map((cmd) => cmd.name));
+        const featureCommandsList = toPsArray(featureCmd?.subcommands.map((cmd) => cmd.name) || []);
+        const modeCommandsList = toPsArray(modeCmd?.subcommands.map((cmd) => cmd.name) || []);
+        const agentCommandsList = toPsArray(agentCmd?.subcommands.map((cmd) => cmd.name) || []);
+
+        const activeFeatureSlugCommands = ['stop', 'archive', 'resync', 'merge', 'rebase'];
+        const featureWithActiveSlug = featureCmd?.subcommands.filter((cmd) => activeFeatureSlugCommands.includes(cmd.name)) || [];
+        const featureSlugCommandsList = toPsArray(featureWithActiveSlug.map((cmd) => cmd.name));
+        const mainSlugCommandsList = toPsArray(
+            mainCommands.filter((cmd) => ['merge', 'rebase'].includes(cmd.name)).map((cmd) => cmd.name),
+        );
+        const completionShellsList = toPsArray(['bash', 'zsh', 'fish', 'powershell', 'pwsh']);
+
+        return `# forge PowerShell completion script
+
+function __ForgeFindConfigRoot {
+    $dir = $PWD.Path
+    while ($dir -and $dir -ne [System.IO.Path]::GetPathRoot($dir)) {
+        if (Test-Path (Join-Path $dir ".feat-forge.json")) {
+            return $dir
+        }
+        $dir = Split-Path -Parent $dir
+    }
+    return $null
+}
+
+function __ForgeWorktreesRoot {
+    if ($env:FORGE_WORKTREES_ROOT) { return $env:FORGE_WORKTREES_ROOT }
+    $configRoot = __ForgeFindConfigRoot
+    if ($configRoot) {
+        try {
+            $json = Get-Content -Raw -Path (Join-Path $configRoot ".feat-forge.json") | ConvertFrom-Json
+            $rootDir = $json.rootDir
+            if ($rootDir) {
+                if (-not [System.IO.Path]::IsPathRooted($rootDir)) {
+                    $rootDir = Join-Path $configRoot $rootDir
+                }
+            } else {
+                $rootDir = $configRoot
+            }
+            if ($json.options -and $json.options.folders -and $json.options.folders.worktrees) {
+                return (Join-Path $rootDir $json.options.folders.worktrees)
+            }
+            if ($json.folders -and $json.folders.worktrees) {
+                return (Join-Path $rootDir $json.folders.worktrees)
+            }
+        } catch {
+        }
+        return (Join-Path $rootDir "features")
+    }
+    return "features"
+}
+
+function __ForgeFeatureSlugs {
+    $worktreesRoot = __ForgeWorktreesRoot
+    if (Test-Path $worktreesRoot) {
+        Get-ChildItem -Directory -Path $worktreesRoot | ForEach-Object { $_.Name }
+    }
+}
+
+function __ForgeCompletionResults {
+    param([string[]]$Items, [string]$Word)
+    if (-not $Items) { return }
+    $Items | Where-Object { $_ -like "$Word*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }
+}
+
+$mainCommands = @(${mainCommandsList})
+$featureCommands = @(${featureCommandsList})
+$modeCommands = @(${modeCommandsList})
+$agentCommands = @(${agentCommandsList})
+$featureSlugCommands = @(${featureSlugCommandsList})
+$mainSlugCommands = @(${mainSlugCommandsList})
+$completionShells = @(${completionShellsList})
+
+Register-ArgumentCompleter -CommandName forge -ScriptBlock {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+
+    $elements = $commandAst.CommandElements | ForEach-Object { $_.Value }
+
+    if ($elements.Count -le 1) {
+        __ForgeCompletionResults -Items $mainCommands -Word $wordToComplete
+        return
+    }
+
+    $first = $elements[1]
+    switch ($first) {
+        'feature' {
+            if ($elements.Count -le 2) {
+                __ForgeCompletionResults -Items $featureCommands -Word $wordToComplete
+                return
+            }
+            $sub = $elements[2]
+            if ($featureSlugCommands -contains $sub) {
+                __ForgeCompletionResults -Items (__ForgeFeatureSlugs) -Word $wordToComplete
+                return
+            }
+        }
+        'mode' {
+            __ForgeCompletionResults -Items $modeCommands -Word $wordToComplete
+            return
+        }
+        'agent' {
+            __ForgeCompletionResults -Items $agentCommands -Word $wordToComplete
+            return
+        }
+        'completion' {
+            __ForgeCompletionResults -Items $completionShells -Word $wordToComplete
+            return
+        }
+        default {
+            if ($mainSlugCommands -contains $first) {
+                __ForgeCompletionResults -Items (__ForgeFeatureSlugs) -Word $wordToComplete
+                return
+            }
+        }
+    }
+}
+
+# Installation instructions:
+#   Option 1 - Add to $PROFILE:
+#     forge completion powershell | Out-String | Invoke-Expression
 `;
     }
 }
