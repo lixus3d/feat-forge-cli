@@ -2,8 +2,8 @@ import inquirer from 'inquirer';
 import { getBranches } from './git';
 
 export type PromptChoice = {
-    key: string;
-    label: string;
+    value: string;
+    name: string;
 };
 
 export type CheckboxChoice = {
@@ -15,16 +15,13 @@ export type CheckboxChoice = {
 /**
  * Prompt the user to pick a single choice by key.
  */
-export async function promptChoice(prompt: string, choices: PromptChoice[]): Promise<string> {
+export async function promptChoice(message: string, choices: PromptChoice[]): Promise<string> {
     const answer = await inquirer.prompt([
         {
             type: 'list',
             name: 'selected',
-            message: prompt,
-            choices: choices.map((choice) => ({
-                name: choice.label,
-                value: choice.key,
-            })),
+            message,
+            choices,
         },
     ]);
     return answer.selected;
@@ -33,12 +30,12 @@ export async function promptChoice(prompt: string, choices: PromptChoice[]): Pro
 /**
  * Prompt the user for free-form input.
  */
-export async function promptText(prompt: string): Promise<string> {
+export async function promptText(message: string): Promise<string> {
     const answer = await inquirer.prompt([
         {
             type: 'input',
             name: 'text',
-            message: prompt,
+            message,
         },
     ]);
     return answer.text.trim();
@@ -47,12 +44,12 @@ export async function promptText(prompt: string): Promise<string> {
 /**
  * Prompt the user for a yes/no confirmation.
  */
-export async function promptConfirm(prompt: string): Promise<boolean> {
+export async function promptConfirm(message: string): Promise<boolean> {
     const answer = await inquirer.prompt([
         {
             type: 'confirm',
             name: 'confirmed',
-            message: prompt,
+            message,
             default: false,
         },
     ]);
@@ -62,12 +59,12 @@ export async function promptConfirm(prompt: string): Promise<boolean> {
 /**
  * Prompt the user to select multiple items using checkboxes.
  */
-export async function promptCheckbox(prompt: string, choices: CheckboxChoice[]): Promise<string[]> {
+export async function promptCheckbox(message: string, choices: CheckboxChoice[]): Promise<string[]> {
     const answer = await inquirer.prompt([
         {
             type: 'checkbox',
             name: 'selected',
-            message: prompt,
+            message,
             choices: choices.map((choice) => ({
                 name: choice.name,
                 value: choice.value,
@@ -140,10 +137,7 @@ export async function promptForBranch(
                 type: 'list',
                 name: 'selected',
                 message: promptMessage,
-                choices: choices.map((c) => ({
-                    name: c.name,
-                    value: c.value,
-                })),
+                choices,
             },
         ]);
 
@@ -182,9 +176,9 @@ function isDirtyAction(value: string): value is DirtyAction {
 export async function promptDirtyActions(): Promise<{ action: DirtyAction; commitMessage?: string }> {
     while (true) {
         const answer = await promptChoice('Worktree contain uncommitted changes. Choose an action:', [
-            { key: DirtyAction.Commit, label: 'Commit work (you will be asked for a commit message)' },
-            { key: DirtyAction.Cancel, label: 'Stop here and do nothing' },
-            { key: DirtyAction.Discard, label: 'Discard work and remove worktrees' },
+            { value: DirtyAction.Commit, name: 'Commit work (you will be asked for a commit message)' },
+            { value: DirtyAction.Cancel, name: 'Stop here and do nothing' },
+            { value: DirtyAction.Discard, name: 'Discard work and remove worktrees' },
         ]);
 
         if (isDirtyAction(answer)) {

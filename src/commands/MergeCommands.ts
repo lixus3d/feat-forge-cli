@@ -86,13 +86,11 @@ export class MergeCommands extends AbstractCommands {
      * @param slug - The feature slug
      */
     private async proposeNextAction(slug: string): Promise<void> {
-        const choices = [
-            { key: '1', label: 'Archive feature (recommended)' },
-            { key: '2', label: 'Stop feature (keep branches)' },
-            { key: '3', label: 'Do nothing (keep feature active)' },
-        ];
-
-        const selection = await promptChoice('What would you like to do next?', choices);
+        const selection = await promptChoice('What would you like to do next?', [
+            { value: '1', name: 'Archive feature (recommended)' },
+            { value: '2', name: 'Stop feature (keep branches)' },
+            { value: '3', name: 'Do nothing (keep feature active)' },
+        ]);
 
         // Execute the selected action
         const featureCmd = new FeatureCommands(this.context);
