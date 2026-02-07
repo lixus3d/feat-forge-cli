@@ -1,50 +1,81 @@
-import readline from 'readline/promises';
+import inquirer from 'inquirer';
 import { getBranches } from './git';
 
-type PromptChoice = {
+export type PromptChoice = {
     key: string;
     label: string;
+};
+
+export type CheckboxChoice = {
+    name: string;
+    value: string;
+    checked?: boolean;
 };
 
 /**
  * Prompt the user to pick a single choice by key.
  */
 export async function promptChoice(prompt: string, choices: PromptChoice[]): Promise<string> {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try {
-        const optionText = choices.map((choice) => `${choice.key}. ${choice.label}`).join('\n');
-        const answer = await rl.question(`${prompt}\n${optionText}\n> `);
-        return answer.trim();
-    } finally {
-        rl.close();
-    }
+    const answer = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'selected',
+            message: prompt,
+            choices: choices.map((choice) => ({
+                name: choice.label,
+                value: choice.key,
+            })),
+        },
+    ]);
+    return answer.selected;
 }
 
 /**
  * Prompt the user for free-form input.
  */
 export async function promptText(prompt: string): Promise<string> {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try {
-        const answer = await rl.question(`${prompt}\n> `);
-        return answer.trim();
-    } finally {
-        rl.close();
-    }
+    const answer = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'text',
+            message: prompt,
+        },
+    ]);
+    return answer.text.trim();
 }
 
 /**
  * Prompt the user for a yes/no confirmation.
  */
 export async function promptConfirm(prompt: string): Promise<boolean> {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try {
-        const answer = await rl.question(`${prompt} (yes/no)\n> `);
-        const normalized = answer.trim().toLowerCase();
-        return normalized === 'y' || normalized === 'yes';
-    } finally {
-        rl.close();
-    }
+    const answer = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'confirmed',
+            message: prompt,
+            default: false,
+        },
+    ]);
+    return answer.confirmed;
+}
+
+/**
+ * Prompt the user to select multiple items using checkboxes.
+ */
+export async function promptCheckbox(prompt: string, choices: CheckboxChoice[]): Promise<string[]> {
+    const answer = await inquirer.prompt([
+        {
+            type: 'checkbox',
+            name: 'selected',
+            message: prompt,
+            choices: choices.map((choice) => ({
+                name: choice.name,
+                value: choice.value,
+                checked: choice.checked || false,
+            })),
+        },
+    ]);
+    return answer.selected;
 }
 
 /**
@@ -78,47 +109,54 @@ export async function promptForBranch(
     const otherBranches = allBranches.filter((b: string) => !commonBranches.includes(b) && !b.startsWith(featureBranchPrefix));
 
     // Build choices menu
-    const choices: Array<{ key: string; label: string }> = [];
-    let keyIndex = 1;
+    const choices: CheckboxChoice[] = [];
 
     // Add priority branches first
     for (const branch of priorityBranches) {
-        choices.push({ key: String(keyIndex++), label: branch });
+        choices.push({ name: branch, value: branch });
     }
 
     // Add feature branches if requested
     if (includeFeatureBranches && featureBranches.length > 0) {
         for (const branch of featureBranches) {
-            choices.push({ key: String(keyIndex++), label: branch });
+            choices.push({ name: branch, value: branch });
         }
     }
 
     // Add other branches
     for (const branch of otherBranches) {
-        choices.push({ key: String(keyIndex++), label: branch });
+        choices.push({ name: branch, value: branch });
     }
 
     // Add manual entry option
-    choices.push({ key: 'x', label: 'Other (enter branch name)' });
+    choices.push({ name: 'Other (enter branch name)', value: '__other__' });
 
     let branchName: string | null = null;
 
     // Expect a choice to be made until a valid branch name is obtained
     while (!branchName) {
-        const selection = await promptChoice(promptMessage, choices);
+        const answer = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'selected',
+                message: promptMessage,
+                choices: choices.map((c) => ({
+                    name: c.name,
+                    value: c.value,
+                })),
+            },
+        ]);
+
+        const selection = answer.selected;
 
         // Handle manual entry
-        if (selection === 'x') {
-            const branchNameInput = (await promptText('Enter branch name:')).trim();
+        if (selection === '__other__') {
+            const branchNameInput = await promptText('Enter branch name:');
             if (branchNameInput) {
                 branchName = branchNameInput;
             }
         } else {
-            // Find and return selected branch
-            const selectedChoice = choices.find((c) => c.key === selection);
-            if (selectedChoice) {
-                branchName = selectedChoice.label;
-            }
+            branchName = selection;
         }
     }
 
@@ -149,9 +187,8 @@ export async function promptDirtyActions(): Promise<{ action: DirtyAction; commi
             { key: DirtyAction.Discard, label: 'Discard work and remove worktrees' },
         ]);
 
-        const normalized = answer.trim().toUpperCase();
-        if (isDirtyAction(normalized)) {
-            if (normalized === DirtyAction.Commit) {
+        if (isDirtyAction(answer)) {
+            if (answer === DirtyAction.Commit) {
                 const commitMessage = await promptText('Enter commit message:');
                 if (!commitMessage) {
                     console.log('Commit message is required.');
@@ -159,7 +196,7 @@ export async function promptDirtyActions(): Promise<{ action: DirtyAction; commi
                 }
                 return { action: DirtyAction.Commit, commitMessage };
             }
-            return { action: normalized };
+            return { action: answer };
         }
     }
 }

@@ -21,7 +21,31 @@ import { ShellName } from './foundation/types/ShellName';
  */
 function registerInitCommands(program: Command): void {
     const handlers = new InitCommands();
-    program.command('init').description('Create a .feat-forge.json in the current folder').action(handlers.init.bind(handlers));
+    program
+        .command('init')
+        .description('Create a .feat-forge.json in the current folder')
+        .option('-y, --yes', 'Accept defaults and write configuration without prompting')
+        .option('-f, --force', 'Force overwrite existing config (creates timestamped backup)')
+        .option('--non-interactive', 'Require all values via flags, no interactive prompts')
+        .option('-q, --quiet', 'Minimize console output')
+        .option('--path <dir>', 'Target directory for config file (defaults to current directory)')
+        .option('--root-dir <dir>', 'Set explicit rootDir value in config')
+        .option('--repositories <paths>', 'Repository paths (comma-separated or JSON array)')
+        .option('--agents <names>', 'Agent names (comma-separated or JSON array)')
+        .option('--ides <names>', 'IDE names (comma-separated or JSON array)')
+        .action(async (options: any) => {
+            await handlers.init({
+                yes: options.yes,
+                force: options.force,
+                nonInteractive: options.nonInteractive,
+                quiet: options.quiet,
+                path: options.path,
+                rootDir: options.rootDir,
+                repositories: options.repositories,
+                agents: options.agents,
+                ides: options.ides,
+            });
+        });
 }
 
 /**
