@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'fs/promises';
+import { access, mkdir, readFile, writeFile, rename, unlink } from 'fs/promises';
 import path from 'path';
 
 export async function pathExists(targetPath: string): Promise<boolean> {
@@ -21,7 +21,7 @@ export async function ensureDir(targetPath: string): Promise<void> {
  * Read a UTF-8 text file.
  */
 export async function readTextFile(targetPath: string): Promise<string> {
-    return readFile(targetPath, 'utf8');
+    return readFile(targetPath, { encoding: 'utf8' });
 }
 
 /**
@@ -32,7 +32,40 @@ export async function writeTextFile(targetPath: string, contents: string, makePa
         const dir = path.dirname(targetPath);
         await ensureDir(dir);
     }
-    await writeFile(targetPath, contents, 'utf8');
+    await writeFile(targetPath, contents, { encoding: 'utf8' });
+}
+
+/**
+ * Write a config file atomically and create a timestamped backup if the file already exists.
+ * - If `targetPath` exists and `createBackup` is true, a backup named `${target}.bak.${iso}` is created.
+ * - Writes to a temporary file in the same directory, then renames into place.
+ */
+export async function writeConfigSafely(targetPath: string, contents: string, createBackup: boolean = true): Promise<void> {
+    const dir = path.dirname(targetPath);
+    await ensureDir(dir);
+
+    const exists = await pathExists(targetPath);
+    if (exists && createBackup) {
+        const iso = new Date().toISOString().replace(/[:]/g, '-');
+        const backupPath = `${targetPath}.bak.${iso}`;
+        await rename(targetPath, backupPath);
+    }
+
+    // write to temp file then rename
+    const tmpName = `.tmp.${path.basename(targetPath)}.${Date.now()}`;
+    const tmpPath = path.join(dir, tmpName);
+    try {
+        await writeFile(tmpPath, contents, { encoding: 'utf8' });
+        await rename(tmpPath, targetPath);
+    } catch (err) {
+        // cleanup temp file if something went wrong
+        try {
+            if (await pathExists(tmpPath)) await unlink(tmpPath);
+        } catch {
+            // ignore
+        }
+        throw err;
+    }
 }
 
 /**
