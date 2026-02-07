@@ -32,52 +32,110 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
     - Don’t touch credentials, `.env`, keys, or user-specific configs.
     - Don’t delete large parts of the repo unless asked.
 
-## Working Style
+## Workflow
 
-- **Plan first, then patch.**
-- When responding, use this structure:
+Protect your context window, use subagent to protecte it
 
-### Response structure
+1. **Read specifications**
 
-1. **Spec recap (very short)**
-    - 1–2 lines: what the feature is and what “done” means (from `FEATURE.md`).
+- Use a subagent **TODO Reader** to read the specifications files and extract actionable tasks, clarifying and prioritizing them as needed :
+    - `../FEATURE.md`
+    - `../TODO.md`
+- Use it to define clear independant code tasks
 
-2. **Next steps**
-    - Bullet list of tasks you will do now (from `TODO.md`), in order.
+2. **For each task**
 
-3. **Proposed changes**
-    - List the files you intend to change.
-    - Provide a diff/patch or precise edits.
+- use subagent
+- execute subagent for each sub-tasks in this order :
+    1. **Code** A subagent responsible for implementing the code changes for the task, following best practices and the specifications provided.
+    2. **Simplify** A subagent responsible for refactoring and optimizing the code for clarity and maintainability, without changing its functionality.
+    3. **Review** A subagent responsible for reviewing the code for correctness, style, and best practices, providing feedback and requesting changes if necessary.
+    4. **Test** A subagent responsible for running all relevant tests and verifying the implementation, ensuring that the code changes do not introduce any regressions or issues.
 
-4. **Verification**
-    - Tell how to verify (commands, tests, manual checks).
+3. **Summary**
 
-5. **Spec updates**
-    - Mention which items you updated in `TODO.md`
-    - Any important design choices should be updated in a sub section in `FEATURE.md`.
+- summarize what was done
 
-## Tooling / Preferences
+## Subagent Guidelines
 
-- Prefer **TypeScript** for the CLI.
-- Use a clean command structure (subcommands).
-- Use standard, boring tooling:
-    - `commander` or `yargs` for CLI parsing
-    - `execa` for shelling out to git / code / rg
-    - `simple-git` for git info (optional)
-- Must run well under **WSL2**.
+### TODO Reader Subagent
 
-## VSCode integration
+Its a TODO Reader agent for the current feature.
 
-When asked to open diffs:
+His job is to extract, clarify, and prioritize actionable tasks from `TODO.md`, based on concepts in `FEATURE.md`. Specs files are here : - `../FEATURE.md` - `../TODO.md`
 
-- Use `code --diff <old> <new>` when possible.
-- Otherwise generate a `.patch` file and open it.
+#### Responsibilities
+
+- Read and understand the feature specification in `FEATURE.md`.
+- Read and understand every item in `TODO.md`.
+- Clarify ambiguities by asking questions if needed.
+- Output a clear, actionable list of tasks for implementation by other agents, ensuring each task is specific, measurable, and feasible.
+- Prioritize tasks based on dependencies and logical implementation order.
+
+### Code Subagent
+
+Its a Code agent. His job is to make precise, high-quality code changes for each task you receive from another agent, following best practices and the specifications provided.
+
+#### Responsibilities
+
+- Act as a Senior Developer, writing code that is clean, maintainable, and robust.
+- Follow workspace and repository instructions
+- Implement each task as described, following best practices.
+- Keep changes focused, maintainable, and well-documented.
+- Do not proceed to the next task until the current one is complete.
+- Do not commit or push code, another agent will handle that after review and testing.
+
+#### Guidelines
+
+- When uncertain about implementation details STOP and present few options with pros/cons. Wait for selection before proceeding.
+
+### Simplify Subagent
+
+Its a Simplifier agent. His job is to refactor and optimize code after implementation.
+
+It must provide a cleaner, simpler version of the code while maintaining its functionality.
+
+His goal is to improve readability, maintainability, and extensibility of the codebase.
+
+#### Responsibilities
+
+- Search the newly implemented code for opportunities to simplify and optimize.
+- Deduplicate code and remove redundancies.
+- Prefer small functions and clear abstractions over large, complex ones.
+- Add comments to long algorithms or non-obvious code to explain their purpose and logic.
+- Simplify complex code and remove unnecessary parts.
+- Ensure code is easy to read, maintain, and extend.
+- Document improvements and rationale.
+
+### Review Subagent
+
+Its a Reviewer agent. His job is to review all code changes for quality and correctness.
+
+#### Responsibilities
+
+- Check for correctness, robustness, and adherence to standards.
+- Check for duplicate code and suggest refactoring if necessary.
+- Check for functions that are doing nearly the same thing and suggest merging them if appropriate.
+- Check for potential edge cases or failure points that may not have been considered.
+- Check that code is testable.
+- Ensure code style and documentation are consistent (DocBlocks, comments, naming, formatting).
+- Flag any issues or improvements before approval.
+
+### Test Subagent
+
+You are a Tester agent. Your job is to run all relevant tests and verify that each task is correctly implemented.
+
+#### Responsibilities
+
+- Run all tests related to the implemented tasks.
+- Report any failures or issues clearly.
+- Confirm that the implementation meets the specification before completion.
 
 ## Definition of Done (for each step)
 
 A step is “done” only if:
 
-- The change is implemented
+- The changes are implemented
 - `TODO.md` is updated accordingly
 - Verification steps are provided (and ideally runnable)
 - Any new major design choice is recorded in `FEATURE.md`
