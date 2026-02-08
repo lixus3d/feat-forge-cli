@@ -1,4 +1,4 @@
-import inquirer from 'inquirer';
+import { select, input, confirm, checkbox } from '@inquirer/prompts';
 import { getBranches } from './git';
 
 export type PromptChoice = {
@@ -16,63 +16,42 @@ export type CheckboxChoice = {
  * Prompt the user to pick a single choice by key.
  */
 export async function promptChoice(message: string, choices: PromptChoice[]): Promise<string> {
-    const answer = await inquirer.prompt([
-        {
-            type: 'list',
-            name: 'selected',
-            message,
-            choices,
-        },
-    ]);
-    return answer.selected;
+    return await select({
+        message,
+        choices,
+    });
 }
 
 /**
  * Prompt the user for free-form input.
  */
 export async function promptText(message: string): Promise<string> {
-    const answer = await inquirer.prompt([
-        {
-            type: 'input',
-            name: 'text',
-            message,
-        },
-    ]);
-    return answer.text.trim();
+    return await input({
+        message,
+    });
 }
 
 /**
  * Prompt the user for a yes/no confirmation.
  */
 export async function promptConfirm(message: string): Promise<boolean> {
-    const answer = await inquirer.prompt([
-        {
-            type: 'confirm',
-            name: 'confirmed',
-            message,
-            default: false,
-        },
-    ]);
-    return answer.confirmed;
+    return await confirm({
+        message,
+    });
 }
 
 /**
  * Prompt the user to select multiple items using checkboxes.
  */
 export async function promptCheckbox(message: string, choices: CheckboxChoice[]): Promise<string[]> {
-    const answer = await inquirer.prompt([
-        {
-            type: 'checkbox',
-            name: 'selected',
-            message,
-            choices: choices.map((choice) => ({
-                name: choice.name,
-                value: choice.value,
-                checked: choice.checked || false,
-            })),
-        },
-    ]);
-    return answer.selected;
+    return await checkbox({
+        message,
+        choices: choices.map((choice) => ({
+            name: choice.name,
+            value: choice.value,
+            checked: choice.checked || false,
+        })),
+    });
 }
 
 /**
@@ -83,14 +62,14 @@ export async function promptCheckbox(message: string, choices: CheckboxChoice[])
  * and allows manual entry via "Other" option.
  *
  * @param repoRoot - The repository root to query for branches
- * @param promptMessage - Custom message for the prompt
+ * @param message - Custom message for the prompt
  * @param includeFeatureBranches - Whether to include feature/ branches in the list
  * @returns The selected branch name
  * @throws Error if branch name is empty or selection is invalid
  */
 export async function promptForBranch(
     repoRoot: string,
-    promptMessage: string,
+    message: string,
     featureBranchPrefix: string,
     includeFeatureBranches: boolean = false,
 ): Promise<string> {
@@ -106,7 +85,7 @@ export async function promptForBranch(
     const otherBranches = allBranches.filter((b: string) => !commonBranches.includes(b) && !b.startsWith(featureBranchPrefix));
 
     // Build choices menu
-    const choices: CheckboxChoice[] = [];
+    const choices: PromptChoice[] = [];
 
     // Add priority branches first
     for (const branch of priorityBranches) {
@@ -131,26 +110,19 @@ export async function promptForBranch(
     let branchName: string | null = null;
 
     // Expect a choice to be made until a valid branch name is obtained
-    while (!branchName) {
-        const answer = await inquirer.prompt([
-            {
-                type: 'list',
-                name: 'selected',
-                message: promptMessage,
-                choices,
-            },
-        ]);
-
-        const selection = answer.selected;
+    while (true) {
+        const selection = await promptChoice(message, choices);
 
         // Handle manual entry
         if (selection === '__other__') {
             const branchNameInput = await promptText('Enter branch name:');
             if (branchNameInput) {
                 branchName = branchNameInput;
+                break;
             }
         } else {
             branchName = selection;
+            break;
         }
     }
 

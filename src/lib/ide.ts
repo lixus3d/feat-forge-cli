@@ -78,7 +78,8 @@ async function createVSCodeWorkspaceFile(
     const settings = { ...ide.settings };
 
     const workspace: VSCodeWorkspace = {
-        folders: repositories.map((repo) => ({ path: `./${repo.name}` })),
+        // folders: repositories.map((repo) => ({ path: `./${repo.name}` })),
+        folders: [{ path: '.' }], // allow visibility on .xxx folders, used by many agents
         settings,
     };
 
@@ -90,15 +91,15 @@ async function createVSCodeWorkspaceFile(
  * Update IDE settings in an existing workspace
  */
 export async function updateIDEWorkspace(
-    workspacePath: string,
+    workspaceFilePath: string,
     ideName: IDEName,
     newSettings: Record<string, unknown>,
 ): Promise<void> {
-    if (!(await pathExists(workspacePath))) {
-        throw new Error(`Workspace file not found: ${workspacePath}`);
+    if (!(await pathExists(workspaceFilePath))) {
+        throw new Error(`Workspace file not found: ${workspaceFilePath}`);
     }
 
-    const content = await import('fs/promises').then((m) => m.readFile(workspacePath, 'utf8'));
+    const content = await import('fs/promises').then((m) => m.readFile(workspaceFilePath, 'utf8'));
     const workspace = JSON.parse(content) as VSCodeWorkspace;
 
     workspace.settings = {
@@ -106,6 +107,6 @@ export async function updateIDEWorkspace(
         ...newSettings,
     };
 
-    await writeFile(workspacePath, JSON.stringify(workspace, null, 2), 'utf8');
-    console.log(`Updated ${ideName} workspace: ${path.basename(workspacePath)}`);
+    await writeFile(workspaceFilePath, JSON.stringify(workspace, null, 2), 'utf8');
+    console.log(`Updated ${ideName} workspace: ${path.basename(workspaceFilePath)}`);
 }
