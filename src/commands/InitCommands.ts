@@ -4,7 +4,7 @@ import { pathExists, writeConfigSafely } from '../lib/fs';
 import { FEAT_FORGE_CONFIG_FILE } from '../lib/constants';
 import { ForgeConfigFile, RepositoryConfigEntry, AgentConfigEntry, IDEConfigEntry } from '../foundation/ForgeConfig';
 import { scanGitRepos, findAncestorForgeConfig } from '../lib/scanner';
-import { promptConfirm, promptText, promptChoice, promptCheckbox, CheckboxChoice } from '../lib/prompt';
+import { promptConfirm, promptText, promptChoice, promptCheckbox, CheckboxChoice, PromptChoice } from '../lib/prompt';
 import { AIAgentName } from '../foundation/types/AIAgentName';
 import { IDEName } from '../foundation/types/IDEName';
 import { ForgeConfigError } from '../foundation/errors/ForgeConfigError';
@@ -24,7 +24,7 @@ export class InitCommands {
     /**
      * Create a .feat-forge.json in the current working directory.
      * Supports both interactive and non-interactive modes via options.
-     * 
+     *
      * @param options - Configuration options for init behavior
      */
     async init(options: InitOptions = {}): Promise<void> {
@@ -37,7 +37,13 @@ export class InitCommands {
         await this.validateInitEnvironment(targetPath, workingDir, options.force || false, isInteractive);
 
         // Gather repository paths
-        const repoPaths = await this.gatherRepositoryPaths(workingDir, options.repositories, isInteractive, options.nonInteractive || false, options.yes || false);
+        const repoPaths = await this.gatherRepositoryPaths(
+            workingDir,
+            options.repositories,
+            isInteractive,
+            options.nonInteractive || false,
+            options.yes || false,
+        );
 
         // Validate repository paths exist
         await this.validateRepositoryPaths(repoPaths, workingDir);
@@ -50,7 +56,7 @@ export class InitCommands {
             options.agents,
             options.ides,
             isInteractive,
-            options.yes || false
+            options.yes || false,
         );
 
         // Confirm and write configuration
@@ -73,7 +79,7 @@ export class InitCommands {
         targetPath: string,
         workingDir: string,
         force: boolean,
-        isInteractive: boolean
+        isInteractive: boolean,
     ): Promise<void> {
         // Check for ancestor configuration
         const ancestor = await findAncestorForgeConfig(workingDir);
@@ -89,9 +95,7 @@ export class InitCommands {
             }
 
             if (!isInteractive) {
-                throw new ForgeConfigError(
-                    `Configuration already exists at ${targetPath}. Use --force to overwrite.`
-                );
+                throw new ForgeConfigError(`Configuration already exists at ${targetPath}. Use --force to overwrite.`);
             }
 
             const overwrite = await promptConfirm(`Configuration already exists at ${targetPath}. Overwrite?`);
@@ -110,7 +114,7 @@ export class InitCommands {
         repositoriesFlag?: string,
         isInteractive: boolean = true,
         nonInteractive: boolean = false,
-        useDefaults: boolean = false
+        useDefaults: boolean = false,
     ): Promise<string[]> {
         // If repositories provided via flag, use those
         if (repositoriesFlag) {
@@ -120,8 +124,7 @@ export class InitCommands {
         // In non-interactive mode without repositories flag, must fail
         if (nonInteractive) {
             throw new ForgeConfigError(
-                'Missing required --repositories flag in non-interactive mode. ' +
-                'Provide as comma-separated list or JSON array.'
+                'Missing required --repositories flag in non-interactive mode. ' + 'Provide as comma-separated list or JSON array.',
             );
         }
 
@@ -201,7 +204,7 @@ export class InitCommands {
         agentsFlag?: string,
         idesFlag?: string,
         isInteractive: boolean = true,
-        useDefaults: boolean = false
+        useDefaults: boolean = false,
     ): Promise<ForgeConfigFile> {
         const repositories = await this.selectMainRepository(repoPaths, workingDir, isInteractive, useDefaults);
         const agents = await this.configureAgents(agentsFlag, isInteractive, useDefaults);
@@ -222,7 +225,7 @@ export class InitCommands {
         configFile: ForgeConfigFile,
         targetPath: string,
         isInteractive: boolean,
-        isQuiet: boolean
+        isQuiet: boolean,
     ): Promise<void> {
         if (!isQuiet) {
             console.log('\n=== Configuration Summary ===');
@@ -254,7 +257,10 @@ export class InitCommands {
      * Parse comma-separated input string into trimmed array.
      */
     private parseCommaSeparated(input: string): string[] {
-        return input.split(',').map((s) => s.trim()).filter(Boolean);
+        return input
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
     }
 
     /**
@@ -262,7 +268,7 @@ export class InitCommands {
      */
     private parseStringOrJSON(input: string): string[] {
         const trimmed = input.trim();
-        
+
         // Try to parse as JSON array first
         if (trimmed.startsWith('[')) {
             try {
@@ -274,7 +280,7 @@ export class InitCommands {
                 throw new ForgeConfigError(`Invalid JSON array: ${trimmed}`);
             }
         }
-        
+
         // Otherwise treat as comma-separated
         return this.parseCommaSeparated(trimmed);
     }
@@ -285,11 +291,11 @@ export class InitCommands {
     private async validateRepositoryPaths(repoPaths: string[], workingDir: string): Promise<void> {
         for (const repoPath of repoPaths) {
             const fullPath = path.join(workingDir, repoPath);
-            
+
             if (!(await pathExists(fullPath))) {
                 throw new ForgeConfigError(`Repository path does not exist: ${repoPath}`);
             }
-            
+
             try {
                 const stats = await stat(fullPath);
                 if (!stats.isDirectory()) {
@@ -309,7 +315,7 @@ export class InitCommands {
         repoPaths: string[],
         workingDir: string,
         isInteractive: boolean,
-        useDefaults: boolean
+        useDefaults: boolean,
     ): Promise<RepositoryConfigEntry[]> {
         // Handle empty or single repository cases
         if (repoPaths.length === 0) {
@@ -338,7 +344,7 @@ export class InitCommands {
         repoPaths: string[],
         workingDir: string,
         isInteractive: boolean,
-        useDefaults: boolean
+        useDefaults: boolean,
     ): Promise<string> {
         const reposWithFeatures = await this.findRepositoriesWithFeatures(repoPaths, workingDir);
 
@@ -388,16 +394,16 @@ export class InitCommands {
      * @param markFirstAsDefault - Whether to mark the first option as default
      */
     private async promptForMainRepository(repos: string[], markFirstAsDefault: boolean): Promise<string> {
-        const choices = repos.map((rp, idx) => ({
-            key: String(idx + 1),
-            label: `${rp}${markFirstAsDefault && idx === 0 ? DEFAULT_LABEL : ''}`,
+        const choices: PromptChoice[] = repos.map((rp, idx) => ({
+            value: String(idx + 1),
+            name: `${rp}${markFirstAsDefault && idx === 0 ? DEFAULT_LABEL : ''}`,
         }));
 
         const selection = await promptChoice('Choose main repository:', choices);
-        const selectedChoice = choices.find((c) => c.key === selection);
+        const selectedChoice = choices.find((c) => c.value === selection);
 
         if (selectedChoice) {
-            return selectedChoice.label.replace(DEFAULT_LABEL, '');
+            return selectedChoice.name.replace(DEFAULT_LABEL, '');
         }
 
         // Fallback to first repository if selection failed
@@ -411,7 +417,7 @@ export class InitCommands {
     private async configureAgents(
         agentsFlag?: string,
         isInteractive: boolean = true,
-        useDefaults: boolean = false
+        useDefaults: boolean = false,
     ): Promise<AgentConfigEntry[] | undefined> {
         // If agents provided via flag, use those
         if (agentsFlag) {
@@ -452,7 +458,7 @@ export class InitCommands {
         workingDir: string,
         idesFlag?: string,
         isInteractive: boolean = true,
-        useDefaults: boolean = false
+        useDefaults: boolean = false,
     ): Promise<IDEConfigEntry[] | undefined> {
         // If IDEs provided via flag, use those
         if (idesFlag) {
@@ -507,5 +513,4 @@ export class InitCommands {
 
         return detectedIDEs;
     }
-
 }

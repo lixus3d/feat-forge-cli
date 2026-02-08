@@ -3,7 +3,7 @@ import { RepositoryStatus, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
 import { pathExists } from '../lib/fs';
 import { checkoutBranch, gitBranchExists } from '../lib/git';
-import { promptConfirm } from '../lib/prompt';
+import { promptChoice, promptConfirm, promptForBranch } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
 import { OpenCommands } from './OpenCommands';

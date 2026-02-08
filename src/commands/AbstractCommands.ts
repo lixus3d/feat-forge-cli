@@ -1,8 +1,5 @@
-import { execa } from 'execa';
-import { getGitStatusPorcelain, gitBranchExists } from '../lib/git';
-import { promptChoice, promptText } from '../lib/prompt';
-import { ForgeContext } from '../foundation/ForgeContext';
 import { FeatureContext } from '../foundation/FeatureContext';
+import { ForgeContext } from '../foundation/ForgeContext';
 
 /**
  * Minimal worktree information for git operations
