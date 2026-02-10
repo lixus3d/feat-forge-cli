@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import { AgentCommands } from './commands/AgentCommands';
 import { MaintenanceCommands } from './commands/MaintenanceCommands';
 import { CompletionCommands } from './commands/CompletionCommands';
-import { FeatureCommands as BranchCommands, FeatureCommands } from './commands/FeatureCommands';
+import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
 import { ModeCommands } from './commands/ModeCommands';
 import { ForgeContext } from './foundation/ForgeContext';
@@ -16,6 +16,7 @@ import { ShellName } from './foundation/types/ShellName';
 import { SubBranchCommands } from './commands/SubBranchCommands';
 import { FixCommands } from './commands/FixCommands';
 import { ReleaseCommands } from './commands/ReleaseCommands';
+import { BranchCommands } from './commands/BranchCommands';
 
 /**
  * Register the init command on the main CLI program.
