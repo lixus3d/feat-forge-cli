@@ -268,7 +268,6 @@ export class RootRepository extends Repository {
     }
 
     async addWorktree(branchName: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
-        const featureBranchName = this.context.getFeatureBranchName(branchName);
         const worktreePath: string = temporary ? this.getTempWorktreePath(branchName, temporary) : this.getWorktreePath(branchName);
 
         // Check if worktree unexpectedly exists
@@ -279,10 +278,10 @@ export class RootRepository extends Repository {
             );
         }
 
-        if (await this.hasBranch(featureBranchName)) {
-            await runGit(this.path, ['worktree', 'add', worktreePath, featureBranchName]);
+        if (await this.hasBranch(branchName)) {
+            await runGit(this.path, ['worktree', 'add', worktreePath, branchName]);
         } else {
-            await runGit(this.path, ['worktree', 'add', '-b', featureBranchName, worktreePath]);
+            await runGit(this.path, ['worktree', 'add', '-b', branchName, worktreePath]);
         }
 
         return this.getWorktree(branchName, temporary);
