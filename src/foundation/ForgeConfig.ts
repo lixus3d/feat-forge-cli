@@ -9,6 +9,7 @@ import { RepoName, RepoPath, RepositoryInfos } from './types/RepositoryInfos';
 import { ForgeConfigError } from './errors/ForgeConfigError';
 import { ArrayNotEmpty, IsArray, IsNotEmpty, IsOptional, IsString, Validate, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DeepPartial } from './types/DeepPartial';
 
 export class ForgeFoldersOptions {
     /**
@@ -133,7 +134,7 @@ export class ForgeConfigFile {
 export type AgentConfigEntry = string | AgentConfig;
 
 export type AgentConfig = {
-    name?: AIAgentName;
+    name?: AIAgentName | string | null;
     agentFile?: string;
     settings?: Record<string, unknown>;
 };
@@ -169,7 +170,7 @@ export class ForgeConfig {
     public readonly options: ForgeOptions;
 
     constructor(configPath: string, configFile: ForgeConfigFile) {
-        this.rootDir = configFile.rootDir ? path.resolve(configFile.rootDir) : configPath;
+        this.rootDir = path.resolve(configFile.rootDir ? configFile.rootDir : configPath);
         // standardize config entries
         this.repositories = this.standardizeRepositories(configFile.repositories);
         this.ides = this.standardizeIDEs(configFile.ides);
@@ -178,7 +179,7 @@ export class ForgeConfig {
     }
 
     private getPath(...segments: string[]): string {
-        return path.join(this.rootDir, ...segments);
+        return path.resolve(this.rootDir, ...segments); // validate path segments
     }
 
     private standardizeRepositories(repos: RepositoryConfigEntry[]): RepositoryInfos[] {
@@ -255,7 +256,7 @@ export class ForgeConfig {
         }
 
         if (!Array.isArray(agents)) {
-            throw new Error(`Invalid ${FEAT_FORGE_CONFIG_FILE}: "agents" must be an array.`);
+            throw new ForgeConfigError(`Invalid ${FEAT_FORGE_CONFIG_FILE}: "agents" must be an array.`);
         }
 
         return agents
@@ -294,6 +295,9 @@ export class ForgeConfig {
     }
 
     private static checkMainRepo(repositories: RepositoryInfos[]): void {
+        if (repositories.filter((repo) => repo.main).length > 1) {
+            throw new ForgeConfigError('Multiple repositories cannot be marked as main in the configuration.');
+        }
         let mainRepo = repositories.find((repo) => repo.main);
         if (!mainRepo) {
             if (repositories.length > 0) {

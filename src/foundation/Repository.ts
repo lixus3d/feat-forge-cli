@@ -16,8 +16,9 @@ import { ForgeContext } from './ForgeContext';
 import { ForgeMode } from './types/ForgeMode';
 import { RepositoryInfos } from './types/RepositoryInfos';
 import { execa } from 'execa';
-import { DirtyAction, promptConfirm, promptDirtyActions, promptText } from '../lib/prompt';
+import { DirtyAction, promptConfirm, promptDirtyActions, promptText } from '@/lib/prompt';
 import { TemporaryFolderType } from '../lib/constants';
+import { ForgeExpectMainRepository } from './errors/ForgeExpectMainRepository';
 
 export type RepositoryStatus = { branch: string | null; dirty: boolean; onFeatureBranch: boolean };
 
@@ -25,47 +26,23 @@ export abstract class Repository {
     public readonly name: string;
     public readonly path: string;
     public readonly main: boolean;
-    public readonly rootRepository: RootRepository | null;
 
     protected context: ForgeContext;
 
-    constructor(context: ForgeContext, repoInfos: RepositoryInfos, rootRepository: RootRepository | null) {
+    constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
         this.context = context;
         this.name = repoInfos.name;
-        this.path = repoInfos.path;
+        this.path = path.resolve(repoInfos.path);
         this.main = repoInfos.main;
-        this.rootRepository = rootRepository;
-    }
-
-    public isRootRepository(): boolean {
-        return this.rootRepository === null;
-    }
-
-    public isWorktreeRepository(): boolean {
-        return this.rootRepository !== null;
     }
 
     public isMainRepository(): boolean {
         return this.main;
     }
 
-    public mustBeRootRepository(): this is RootRepository {
-        if (!this.isRootRepository()) {
-            throw new Error('This operation is only available for the root repository.');
-        }
-        return true;
-    }
-
-    public mustBeWorktreeRepository(): this is WorktreeRepository {
-        if (!this.isWorktreeRepository()) {
-            throw new Error('This operation is only available for worktree repositories.');
-        }
-        return true;
-    }
-
     public mustBeMainRepository() {
         if (!this.isMainRepository()) {
-            throw new Error('This operation is only available for the main repository.');
+            throw new ForgeExpectMainRepository('This operation is only available for the main repository.');
         }
     }
 
@@ -90,12 +67,12 @@ export abstract class Repository {
     }
 
     get activeFeaturePath(): string {
-        if (this.isRootRepository()) throw new Error('Active feature path is not available for the root repository.');
-
+        this.mustBeMainRepository();
         return path.join(this.path, this.folders.activeFeature);
     }
 
     get modeFilePath(): string {
+        this.mustBeMainRepository();
         return path.join(this.activeFeaturePath, this.files.forgeMode);
     }
 
@@ -180,22 +157,6 @@ export abstract class Repository {
         await runGit(this.path, ['branch', '-D', branchName]);
     }
 
-    async setActiveFeature(featureContext: FeatureContext): Promise<void> {
-        this.mustBeWorktreeRepository();
-        if (this.isMainRepository()) {
-            const featurePath = this.getFeaturePath(featureContext.slug);
-            const mainActivePath = this.activeFeaturePath;
-            await rm(mainActivePath, { force: true });
-            await symlink(path.relative(path.dirname(mainActivePath), featurePath), mainActivePath);
-        } else {
-            const mainActivePath = featureContext.mainRepo.activeFeaturePath;
-            const secondaryActivePath = this.activeFeaturePath;
-            await rm(secondaryActivePath, { force: true });
-            // Create relative path from secondary to main's .active-feature
-            await symlink(path.relative(path.dirname(secondaryActivePath), mainActivePath), secondaryActivePath);
-        }
-    }
-
     async getGitStatus(): Promise<string> {
         return getGitStatusPorcelain(this.path);
     }
@@ -247,11 +208,10 @@ export abstract class Repository {
 }
 
 export class RootRepository extends Repository {
-    public override readonly rootRepository!: RootRepository;
     public readonly _rootRepository = true;
 
     constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
-        super(context, repoInfos, null);
+        super(context, repoInfos);
     }
 
     getWorktreePath(featureSlug: string, temporary?: TemporaryFolderType): string {
@@ -358,8 +318,6 @@ export class RootRepository extends Repository {
     }
 
     async merge(sourceBranch: string, targetBranch: string): Promise<GitOperationResult> {
-        this.mustBeRootRepository(); // FIXME: should be allowed on any repository
-
         console.log(`\n=== Merging "${sourceBranch}" into "${targetBranch}" on repo "${this.name}" ===`);
 
         try {
@@ -393,12 +351,12 @@ export class RootRepository extends Repository {
 }
 
 export class WorktreeRepository extends Repository {
-    public override readonly rootRepository!: RootRepository;
+    public readonly rootRepository!: RootRepository;
     public readonly _worktreeRepository = true;
     public readonly temporary: boolean;
 
     constructor(context: ForgeContext, repoInfos: RepositoryInfos, rootRepository: RootRepository, temporary = false) {
-        super(context, repoInfos, rootRepository);
+        super(context, repoInfos);
         this.temporary = temporary;
     }
 
@@ -406,9 +364,22 @@ export class WorktreeRepository extends Repository {
         return this.rootRepository.removeWorktree(this);
     }
 
-    async rebase(featureBranch: string, baseBranch: string): Promise<GitOperationResult> {
-        this.mustBeWorktreeRepository(); // FIXME: should be allowed on any repository
+    async setActiveFeature(featureContext: FeatureContext): Promise<void> {
+        if (this.isMainRepository()) {
+            const featurePath = this.getFeaturePath(featureContext.slug);
+            const mainActivePath = this.activeFeaturePath;
+            await rm(mainActivePath, { force: true });
+            await symlink(path.relative(path.dirname(mainActivePath), featurePath), mainActivePath);
+        } else {
+            const mainActivePath = featureContext.mainRepo.activeFeaturePath;
+            const secondaryActivePath = this.activeFeaturePath;
+            await rm(secondaryActivePath, { force: true });
+            // Create relative path from secondary to main's .active-feature
+            await symlink(path.relative(path.dirname(secondaryActivePath), mainActivePath), secondaryActivePath);
+        }
+    }
 
+    async rebase(featureBranch: string, baseBranch: string): Promise<GitOperationResult> {
         try {
             if (await this.isDirty()) {
                 console.log(
