@@ -60,7 +60,7 @@ export class BranchCommands extends AbstractCommands {
         }
 
         // Display each branch with branch information
-        console.log(`Branch${branchContexts.length !== 1 ? 's' : ''}: (${branchContexts.length} found)`);
+        console.log(`Branch${branchContexts.length > 1 ? 'es' : ''}: (${branchContexts.length} found)`);
         for (const branchContext of branchContexts) {
             // Collect branch information for this branch
             const repositoriesStatus = await branchContext.collectRepositoriesStatus();
