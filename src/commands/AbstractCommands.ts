@@ -1,20 +1,5 @@
-import { FeatureContext } from '../foundation/FeatureContext';
-import { ForgeContext } from '../foundation/ForgeContext';
-
-/**
- * Minimal worktree information for git operations
- */
-export type WorktreeInfo = {
-    repoRoot: string;
-    worktreePath: string;
-};
-
-/**
- * Information about a feature worktree
- */
-export type FeatureWorktree = WorktreeInfo & {
-    featureBranch: string;
-};
+import { BranchContext } from '@/foundation/BranchContext';
+import { ForgeContext } from '@/foundation/ForgeContext';
 
 /**
  * Base class for command handlers with required configuration.
@@ -22,8 +7,8 @@ export type FeatureWorktree = WorktreeInfo & {
 export abstract class AbstractCommands {
     constructor(protected readonly context: ForgeContext) {}
 
-    protected async verifyCleanFeature(featureContext: FeatureContext): Promise<void> {
-        const dirtyRepos = await featureContext.getDirtyRepositories();
+    protected async verifyCleanBranch(branchContext: BranchContext): Promise<void> {
+        const dirtyRepos = await branchContext.getDirtyRepositories();
 
         if (dirtyRepos.length > 0) {
             const repoNames = dirtyRepos.map((repo) => repo.name).join(', ');

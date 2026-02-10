@@ -7,8 +7,8 @@ import { scanGitRepos, findAncestorForgeConfig } from '../lib/scanner';
 import { promptConfirm, promptText, promptChoice, promptCheckbox, CheckboxChoice, PromptChoice } from '../lib/prompt';
 import { AIAgentName } from '../foundation/types/AIAgentName';
 import { IDEName } from '../foundation/types/IDEName';
-import { ForgeConfigError } from '../foundation/errors/ForgeConfigError';
 import { InitOptions } from './types/InitOptions';
+import { ForgeConfigError } from '@/foundation/errors';
 
 // Constants for UI strings
 const DEFAULT_LABEL = ' (default)';

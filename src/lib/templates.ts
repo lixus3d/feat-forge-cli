@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export enum TemplateFile {
-    FEATURE = 'FEATURE.md',
+    SPEC = 'SPEC.md',
     TODO = 'TODO.md',
     CONTEXT_SPEC = 'CONTEXT.spec.md',
     CONTEXT_CODE = 'CONTEXT.code.md',
@@ -20,9 +20,9 @@ export const SOURCE_TEMPLATE_PATH = path.join(__dirname, '..', 'templates');
 export const SOURCE_TEMPLATE_AGENT_PATH = path.join(SOURCE_TEMPLATE_PATH, 'agent');
 
 /**
- * Templates for the main feature directory
+ * Templates for the main specs directory
  */
-export const FEATURE_FILES: TemplateFile[] = [TemplateFile.FEATURE, TemplateFile.TODO];
+export const SPEC_FILES: TemplateFile[] = [TemplateFile.SPEC, TemplateFile.TODO];
 
 export function getTemplatePath(templateFileName: TemplateFile): string {
     return path.join(
@@ -44,7 +44,7 @@ export function templateFor(name: TemplateFile): string {
     } catch (error) {
         // Fallback templates if files are not found for som reason... (shouldn't happen in normal usage since templates are bundled, but just in case)
         switch (name) {
-            case TemplateFile.FEATURE:
+            case TemplateFile.SPEC:
                 return `# Feature: [Feature Title]`;
             case TemplateFile.TODO:
                 return '# TODO\n\n* [ ] \n';

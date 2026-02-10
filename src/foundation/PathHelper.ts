@@ -8,6 +8,7 @@ import {
     TemporaryFolderType,
 } from '../lib/constants';
 import { ForgeOptions } from './ForgeConfig';
+import { branchNameAsPath } from '@/lib/branch';
 
 export class PathHelper {
     constructor(private context: ForgeContext) {}
@@ -36,12 +37,12 @@ export class PathHelper {
         return path.join(this.worktreesRoot, ...segments);
     }
 
-    getFeatureRootPath(featureSlug: string): string {
-        return this.getPathInFeatureRoot(featureSlug);
+    getBranchRootPath(branchName: string): string {
+        return this.getPathInBranchRoot(branchNameAsPath(branchName));
     }
 
-    getPathInFeatureRoot(featureSlug: string, ...segments: string[]): string {
-        return this.getPathInWorktrees(featureSlug, ...segments);
+    getPathInBranchRoot(branchName: string, ...segments: string[]): string {
+        return this.getPathInWorktrees(branchNameAsPath(branchName), ...segments);
     }
 
     /**
@@ -55,92 +56,14 @@ export class PathHelper {
     /**
      * Get the temporary worktree path for a specific repository and operation type.
      */
-    getTempWorktreePathForRepo(type: TemporaryFolderType, slug: string, repoName: string): string {
+    getTempWorktreePathForRepo(type: TemporaryFolderType, branchName: string, repoName: string): string {
         switch (type) {
-            case TemporaryFolderType.FEATURE_INIT:
-                return this.getPathInTemp(TEMP_FEATURE_INIT_FOLDER, slug, repoName);
-            case TemporaryFolderType.FEATURE_ARCHIVE:
-                return this.getPathInTemp(TEMP_FEATURE_ARCHIVE_FOLDER, slug, repoName);
+            case TemporaryFolderType.BRANCH_INIT:
+                return this.getPathInTemp(TEMP_FEATURE_INIT_FOLDER, branchNameAsPath(branchName), repoName);
+            case TemporaryFolderType.BRANCH_ARCHIVE:
+                return this.getPathInTemp(TEMP_FEATURE_ARCHIVE_FOLDER, branchNameAsPath(branchName), repoName);
             default:
                 throw new Error(`Unknown temporary type: ${type}`);
         }
     }
 }
-
-// export function specsFeaturesRoot(repoRoot: string): string {
-//     return path.join(repoRoot, SPECS_FEATURES_FOLDER);
-// }
-
-// /**
-//  * Path to a specific feature directory.
-//  */
-// export function specsFeatureDir(repoRoot: string, slug: string): string {
-//     return path.join(specsFeaturesRoot(repoRoot), slug);
-// }
-
-// /**
-//  * Path to the active feature pointer folder (a symlink pointing to the active feature directory).
-//  */
-// export function activeFeatureFolder(repoRoot: string): string {
-//     return path.join(repoRoot, ACTIVE_FEATURE_FOLDER);
-// }
-
-// /**
-//  * Get the root directory path for a feature (contains all repo worktrees).
-//  * Pattern: <worktreesRoot>/<slug>/
-//  *
-//  * @param worktreesRoot - The root directory where all feature worktrees are stored
-//  * @param slug - The feature slug
-//  * @returns The feature root directory path
-//  */
-// export function getFeatureRoot(worktreesRoot: string, slug: string, ...segments: string[]): string {
-//     return path.join(worktreesRoot, slug, ...segments);
-// }
-
-// /**
-//  * Get the relative path to a file within the feature archive directory.
-//  * Default Pattern: .features/.archives/<slug>/<file>
-//  *
-//  * @param segments - Additional path segments within the archive directory
-//  * @returns The relative path to the archive file
-//  */
-// export function getRelativeFeaturesArchivePath(...segments: string[]): string {
-//     return path.join(SPECS_FEATURES_FOLDER, ARCHIVES_FOLDER, ...segments);
-// }
-
-// /**
-//  * Get the relative path to a file within a specific feature specs directory, for use in agent contexts.
-//  * Default Pattern: .features/<slug>/<segments>
-//  *
-//  * @param slug - The feature slug
-//  * @param segments - Additional path segments within the feature directory
-//  * @returns The relative path to the feature file
-//  */
-// export function getRelativeFeatureSpecPath(slug: string, ...segments: string[]): string {
-//     return path.join(SPECS_FEATURES_FOLDER, slug, ...segments);
-// }
-
-// /**
-//  * Get the worktree path for a specific repository within a feature.
-//  * Pattern: <worktreesRoot>/<slug>/<repoName>/
-//  *
-//  * @param worktreesRoot - The root directory where all feature worktrees are stored
-//  * @param slug - The feature slug
-//  * @param repoName - The repository name
-//  * @returns The worktree path for the specific repo
-//  */
-// export function getRepoPathInFeature(worktreesRoot: string, slug: string, repoName: string): string {
-//     return path.join(worktreesRoot, slug, repoName);
-// }
-
-// /**
-//  * Get the relative path to a file within a specific feature specs directory, for use in agent contexts.
-//  * Default Pattern: .features/<slug>/agent/<segments>
-//  *
-//  * @param slug - The feature slug
-//  * @param segments - Additional path segments within the agent directory
-//  * @returns The relative path to the agent file
-//  */
-// export function getRelativeSpecsFeatureAgentPath(slug: string, ...segments: string[]): string {
-//     return path.join(SPECS_FEATURES_FOLDER, slug, AGENT_FOLDER, ...segments);
-// }

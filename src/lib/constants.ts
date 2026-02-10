@@ -5,6 +5,6 @@ export const TEMP_FEATURE_INIT_FOLDER = 'feature-init';
 export const TEMP_FEATURE_ARCHIVE_FOLDER = 'feature-archive';
 
 export enum TemporaryFolderType {
-    FEATURE_INIT = 'init',
-    FEATURE_ARCHIVE = 'archive',
+    BRANCH_INIT = 'init',
+    BRANCH_ARCHIVE = 'archive',
 }

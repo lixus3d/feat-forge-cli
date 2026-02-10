@@ -13,12 +13,12 @@ import { ForgeConfigError } from './errors';
 
 export class ForgeFoldersOptions {
     /**
-     * Folder for feature specs within each repo. Default: '.features'
+     * Folder for feature specs within each repo.
      */
     @IsOptional()
     @IsString()
     @IsNotEmpty()
-    specs: string = '.features';
+    specs: string = '.specs';
     /**
      * Folder for git worktrees. Default: 'worktrees'
      * Can be empty to put them in the root of the repo, but that can get messy so we default to a separate folder
@@ -27,12 +27,12 @@ export class ForgeFoldersOptions {
     @IsString()
     worktrees: string = 'worktrees';
     /**
-     * Folder for active feature tracking. Default: '.active-feature'
+     * Folder for active feature tracking. Default: '.active-spec'
      */
     @IsOptional()
     @IsString()
     @IsNotEmpty()
-    activeFeature: string = '.active-feature';
+    activeSpec: string = '.active-spec';
     /**
      * Folder for feature templates. Default: '.template'
      */
@@ -73,6 +73,19 @@ export class ForgeGitOptions {
     @IsOptional()
     @IsString()
     featureBranchPrefix: string = 'feature/';
+
+    @IsOptional()
+    @IsString()
+    fixBranchPrefix: string = 'fix/';
+
+    @IsOptional()
+    @IsString()
+    releaseBranchPrefix: string = 'release/';
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    protectedBranches: string[] = ['main', 'master', 'develop', 'dev'];
 }
 
 export class ForgeOptions {

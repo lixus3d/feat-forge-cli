@@ -105,8 +105,12 @@ export async function createBranch(repoRoot: string, branchName: string): Promis
  * Get all branches in a repo.
  */
 
-export async function getBranches(repoRoot: string): Promise<string[]> {
-    const result = await execa('git', ['branch', '--format=%(refname:short)'], { cwd: repoRoot });
+export async function getBranches(repoRoot: string, prefix?: string): Promise<string[]> {
+    const args = ['branch', '--format=%(refname:short)'];
+    if (prefix) {
+        args.push('--list', `${prefix}*`);
+    }
+    const result = await execa('git', args, { cwd: repoRoot });
     return result.stdout.split('\n').filter((b: string) => b.trim().length > 0);
 }
 
@@ -155,7 +159,14 @@ export async function getGitWorktrees(repoRoot: string): Promise<Array<GitWorktr
  * @param results - Array of operation results
  * @param operationType - Name of the operation (e.g., "merge", "rebase")
  */
-export function displayOperationSummary(results: GitOperationResult[], operationType: GitOperation): void {
+export function displayOperationSummary(
+    results: GitOperationResult[],
+    operationType: GitOperation,
+): {
+    successful: GitOperationResult[];
+    conflicts: GitOperationResult[];
+    failed: GitOperationResult[];
+} {
     console.log(`\n=== ${operationType.charAt(0).toUpperCase() + operationType.slice(1)} Summary ===`);
 
     const successful = results.filter((r) => r.success);
@@ -176,4 +187,18 @@ export function displayOperationSummary(results: GitOperationResult[], operation
         console.log(`\n❌ Failed ${operationType}s (${failed.length}):`);
         failed.forEach((r) => console.log(`   - ${r.repo}`));
     }
+
+    // Summary message
+    if (conflicts.length === 0 && failed.length === 0) {
+        console.log(`\n🎉 All ${operationType}s completed successfully!`);
+    } else {
+        console.log(`\n⚠️  Some ${operationType}s need attention. Please resolve conflicts or errors before continuing.`);
+        console.log(`After resolving conflicts, you can continue with: git ${operationType} --continue`);
+    }
+
+    return {
+        successful,
+        conflicts,
+        failed,
+    };
 }

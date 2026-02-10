@@ -62,7 +62,7 @@ describe('WorktreeRepository', () => {
         });
 
         it('should create a temporary worktree repository', () => {
-            const wtPath = rootMainRepository.getTempWorktreePath('my-feature', TemporaryFolderType.FEATURE_INIT);
+            const wtPath = rootMainRepository.getTempWorktreePath('my-feature', TemporaryFolderType.BRANCH_INIT);
             const wt = new WorktreeRepository(forgeContext, { name: 'repo1', path: wtPath, main: false }, rootMainRepository, true);
             expect(wt.temporary).toBe(true);
         });
@@ -119,10 +119,10 @@ describe('WorktreeRepository', () => {
             vi.mocked(rm).mockResolvedValue(undefined);
             vi.mocked(symlink).mockResolvedValue(undefined);
 
-            await mainWtRepository.setActiveFeature(featureContext);
+            await mainWtRepository.setActiveSpec(featureContext);
 
-            const featurePath = mainWtRepository.getFeaturePath('test-feature');
-            const mainActivePath = mainWtRepository.activeFeaturePath;
+            const featurePath = mainWtRepository.getSpecPath('test-feature');
+            const mainActivePath = mainWtRepository.activeSpecPath;
             const expectedRelativePath = path.relative(path.dirname(mainActivePath), featurePath);
 
             expect(rm).toHaveBeenCalledWith(mainActivePath, { force: true });
@@ -138,7 +138,7 @@ describe('WorktreeRepository', () => {
             vi.mocked(rm).mockResolvedValue(undefined);
             vi.mocked(symlink).mockResolvedValue(undefined);
 
-            await worktreeMainRepository.setActiveFeature(featureContext);
+            await worktreeMainRepository.setActiveSpec(featureContext);
 
             expect(rm).toHaveBeenCalled();
             expect(symlink).toHaveBeenCalled();
@@ -157,17 +157,17 @@ describe('WorktreeRepository', () => {
             vi.mocked(rm).mockResolvedValue(undefined);
             vi.mocked(symlink).mockResolvedValue(undefined);
 
-            await worktreeSecondaryRepository.setActiveFeature(featureContext);
+            await worktreeSecondaryRepository.setActiveSpec(featureContext);
 
             console.log({
                 mainPath: worktreeMainRepository.path,
                 secondaryPath: worktreeSecondaryRepository.path,
-                mainActivePath: worktreeMainRepository.activeFeaturePath,
-                secondaryActivePath: worktreeSecondaryRepository.activeFeaturePath,
+                mainActivePath: worktreeMainRepository.activeSpecPath,
+                secondaryActivePath: worktreeSecondaryRepository.activeSpecPath,
             });
 
-            const mainActivePath = worktreeMainRepository.activeFeaturePath;
-            const secondaryActivePath = worktreeSecondaryRepository.activeFeaturePath;
+            const mainActivePath = worktreeMainRepository.activeSpecPath;
+            const secondaryActivePath = worktreeSecondaryRepository.activeSpecPath;
             const expectedRelativePath = path.relative(path.dirname(secondaryActivePath), mainActivePath);
 
             expect(rm).toHaveBeenCalledWith(secondaryActivePath, { force: true });

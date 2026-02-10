@@ -1,12 +1,5 @@
-import { rm, symlink } from 'fs/promises';
-import path from 'path';
-import { FeatureContext } from '../foundation/FeatureContext';
-import { ensureDir, pathExists } from '../lib/fs';
-import { TemplateFile } from '../lib/templates';
+import { BranchContext } from '@/foundation/BranchContext';
 import { AbstractCommands } from './AbstractCommands';
-import { ForgeMode } from '../foundation/types/ForgeMode';
-import { AIAgentName } from '../foundation/types/AIAgentName';
-import { refreshCopilotAgentContextFiles } from '../lib/agents';
 
 export class AgentCommands extends AbstractCommands {
     // ============================================================================
@@ -14,11 +7,11 @@ export class AgentCommands extends AbstractCommands {
     // ============================================================================
 
     /**
-     * Refresh agent adapter files for the active feature using current mode.
+     * Refresh agent adapter files for the active branch using current mode.
      */
     async refresh(): Promise<void> {
-        const featureContext = await FeatureContext.findNearestFeatureContext(this.context);
-        await featureContext.refreshAgentContextFiles();
+        const branchContext = await BranchContext.findNearestBranchContext(this.context);
+        await branchContext.refreshAgentContextFiles();
     }
 
     // ============================================================================

@@ -12,47 +12,67 @@ import { RepositoryStatus, RootRepository, WorktreeRepository } from './Reposito
 import { AIAgentName } from './types/AIAgentName';
 import { ForgeMode } from './types/ForgeMode';
 import { RepoName } from './types/RepositoryInfos';
+import { branchNameAsPath } from '@/lib/branch';
 
-export type FeatureSlug = string; // must be sanitized for branch names and file paths
+export type BranchName = string; // must be sanitized for branch names and file paths
 
-export class FeatureContext {
+export class BranchContext {
     private context: ForgeContext;
-    slug: FeatureSlug;
+    branchName: BranchName;
     path: string;
     repositories: WorktreeRepository[];
     active: boolean;
 
-    constructor(context: ForgeContext, slug: FeatureSlug, path: string, repositories: WorktreeRepository[], active: boolean) {
+    constructor(context: ForgeContext, branchName: BranchName, path: string, repositories: WorktreeRepository[], active: boolean) {
         this.context = context;
-        this.slug = slug;
+        this.branchName = branchName;
         this.path = path;
         this.repositories = repositories;
         this.active = active;
     }
 
-    static async loadFromPath(context: ForgeContext, featureRootPath: string): Promise<FeatureContext> {
-        const slug = path.basename(featureRootPath);
-        // search folder in the featureRootPath that matches a context repository name
-        if ((await pathExists(featureRootPath)) === false) {
-            throw new Error(`Feature root path does not exist: ${featureRootPath}`);
-        }
-        const repositories = await FeatureContext.loadWorktreeRepositories(context, featureRootPath);
-        return new FeatureContext(context, slug, featureRootPath, repositories, true);
+    get branchNameAsPath(): string {
+        return branchNameAsPath(this.branchName);
     }
 
-    static async loadWorktreeRepositories(context: ForgeContext, featureRootPath: string): Promise<WorktreeRepository[]> {
-        const items = await readdir(featureRootPath, { withFileTypes: true });
+    isRootBranch(): boolean {
+        return !this.isFeatureBranch() && !this.isFixBranch() && !this.isReleaseBranch();
+    }
+
+    isFeatureBranch(): boolean {
+        return this.branchName.startsWith(this.context.options.git.featureBranchPrefix);
+    }
+
+    isFixBranch(): boolean {
+        return this.branchName.startsWith(this.context.options.git.fixBranchPrefix);
+    }
+
+    isReleaseBranch(): boolean {
+        return this.branchName.startsWith(this.context.options.git.releaseBranchPrefix);
+    }
+
+    static async loadFromPath(context: ForgeContext, branchName: string, branchRootPath: string): Promise<BranchContext> {
+        // search folder in the BranchRootPath that matches a context repository name
+        if ((await pathExists(branchRootPath)) === false) {
+            throw new Error(`Branch root path does not exist: ${branchRootPath}`);
+        }
+        const repositories = await BranchContext.loadWorktreeRepositories(context, branchRootPath);
+        return new BranchContext(context, branchName, branchRootPath, repositories, true);
+    }
+
+    static async loadWorktreeRepositories(context: ForgeContext, branchRootPath: string): Promise<WorktreeRepository[]> {
+        const items = await readdir(branchRootPath, { withFileTypes: true });
         const repoDirs = items.filter((item) => item.isDirectory() && context.repositories.some((repo) => repo.name === item.name));
 
         if (repoDirs.length === 0) {
-            throw new Error(`No repository folder found in feature path: ${featureRootPath}`);
+            throw new Error(`No repository folder found in Branch path: ${branchRootPath}`);
         }
 
         const repositories: WorktreeRepository[] = repoDirs.map((dir) => {
             const rootRepo = context.repositories.find((r) => r.name === dir.name)!;
             return new WorktreeRepository(
                 context,
-                { name: rootRepo.name, path: path.join(featureRootPath, dir.name), main: rootRepo.main },
+                { name: rootRepo.name, path: path.join(branchRootPath, dir.name), main: rootRepo.main },
                 rootRepo,
             );
         });
@@ -60,31 +80,31 @@ export class FeatureContext {
         return repositories;
     }
 
-    static async findNearestFeatureContext(context: ForgeContext, startDir: string = process.cwd()): Promise<FeatureContext> {
+    static async findNearestBranchContext(context: ForgeContext, startDir: string = process.cwd()): Promise<BranchContext> {
         const currentDir = path.resolve(startDir);
         const worktreesRoot = path.resolve(context.paths.worktreesRoot);
 
-        // Verify that the current directory is inside the worktrees root
-        if (!currentDir.startsWith(worktreesRoot + path.sep) && currentDir !== worktreesRoot) {
-            throw new Error(`Current directory ${currentDir} is not inside the worktrees root ${worktreesRoot}`);
+        const matchingBranch = (await context.mainRepo.getBranches()).find((branchName) => {
+            const branchNamePath = branchNameAsPath(branchName);
+            const branchWorktreePath = path.join(worktreesRoot, branchNamePath);
+            if (currentDir.startsWith(branchWorktreePath)) {
+                return true;
+            }
+            return false;
+        });
+
+        if (!matchingBranch) {
+            throw new Error(`No active Branch context found for current directory: ${currentDir}`);
         }
 
-        // Ensure we're not at the root of worktrees, which is not a feature directory
-        if (currentDir === worktreesRoot) {
-            throw new Error(`Current directory is the worktrees root, not a feature directory`);
-        }
-
-        // Extract the relative path and take the first segment (the feature folder)
-        const relativePath = path.relative(worktreesRoot, currentDir);
-        const featureName = relativePath.split(path.sep)[0];
-        const featurePath = path.join(worktreesRoot, featureName);
-
-        return FeatureContext.loadFromPath(context, featurePath);
+        // If we found a matching branch, we can directly load the Branch context from its worktree path
+        const branchRootPath = path.join(worktreesRoot, branchNameAsPath(matchingBranch));
+        return BranchContext.loadFromPath(context, matchingBranch, branchRootPath);
     }
 
     protected mustBeActive() {
         if (!this.active) {
-            throw new Error('This operation requires an active feature context.');
+            throw new Error('This operation requires an active Branch context.');
         }
     }
 
@@ -96,8 +116,8 @@ export class FeatureContext {
         return this.repositories.filter((repo) => !repo.main);
     }
 
-    get featureBranchName(): string {
-        return this.context.getFeatureBranchName(this.slug);
+    getInPath(...segments: string[]): string {
+        return this.context.paths.getPathInBranchRoot(this.branchName, ...segments);
     }
 
     hasRepo(repoName: string): boolean {
@@ -105,19 +125,19 @@ export class FeatureContext {
     }
 
     getRepo(repoName: string): WorktreeRepository {
-        if (!this.hasRepo(repoName)) throw new Error(`Repository ${repoName} is not part of the feature context`);
+        if (!this.hasRepo(repoName)) throw new Error(`Repository ${repoName} is not part of the Branch context`);
         return this.repositories.find((r) => r.name === repoName)!;
     }
 
     async getTemporaryRepo(repoName: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
         const rootRepo = this.context.getRepo(repoName);
-        const tempRepo = await rootRepo.getTemporaryWorktree(this.slug, type);
+        const tempRepo = await rootRepo.getTemporaryWorktree(this.branchName, type);
         this.repositories.push(tempRepo);
         return tempRepo;
     }
 
     getAgentPath(): string {
-        return this.mainRepo.getAgentPath(this.slug);
+        return this.mainRepo.getAgentPath(this.branchName);
     }
 
     getTemplatePath(...segments: string[]): string {
@@ -144,10 +164,14 @@ export class FeatureContext {
     }
 
     async deleteBranch(): Promise<void> {
-        // Must be done on all repositories, not only the one from the feature
+        // do not allow deletion of main,master,etc branches by forge
+        if (this.context.options.git.protectedBranches.includes(this.branchName)) {
+            throw new Error(`Branch ${this.branchName} is protected and cannot be deleted.`);
+        }
+        // Must be done on all repositories, not only the one from the Branch
         // It also makes more sense to execute this command on the "root" repositories
         // Note: This will not work if the branch is still used by a worktree
-        await Promise.all(this.context.repositories.map((repo) => repo.deleteBranch(this.featureBranchName)));
+        await Promise.all(this.context.repositories.map((repo) => repo.deleteBranch(this.branchName)));
     }
 
     async getDirtyRepositories(): Promise<WorktreeRepository[]> {
@@ -179,10 +203,10 @@ export class FeatureContext {
         let targetPath: string;
 
         if (await pathExists(overrideAgentContextFilePath)) {
-            // User has an override in this feature, use it directly
+            // User has an override in this Branch, use it directly
             targetPath = agentContextFileName;
         } else {
-            // Use the template from .features/.template/agent/
+            // Use the template from .Branchs/.template/agent/
             const agentContextFileTemplatePath = this.getAgentTemplatePath(agentContextFileName);
 
             if (!(await pathExists(agentContextFileTemplatePath))) {
@@ -223,13 +247,13 @@ export class FeatureContext {
     }
 
     async start(): Promise<void> {
-        const featureRoot = this.path;
-        await ensureDir(featureRoot);
+        const branchRoot = this.path;
+        await ensureDir(branchRoot);
 
         this.repositories = await this.ensureWorktrees();
 
-        // Set active feature pointer
-        await this.setActiveFeature();
+        // Set active Branch pointer
+        await this.setActiveSpec();
 
         // Set initial mode to spec if not defined
         await this.initMode(); // default to spec mode on start
@@ -237,7 +261,7 @@ export class FeatureContext {
         // Create IDE workspaces if configured
         if (this.context.ides.length > 0) {
             await createIDEWorkspaces(
-                this.slug,
+                this.branchName,
                 this.path,
                 this.mainRepo.name,
                 this.repositories,
@@ -257,21 +281,21 @@ export class FeatureContext {
     }
 
     async ensureWorktreeForRepo(repo: RootRepository): Promise<WorktreeRepository> {
-        if (await repo.hasWorktree(this.slug)) {
-            return repo.getWorktree(this.slug);
+        if (await repo.hasWorktree(this.branchName)) {
+            return repo.getWorktree(this.branchName);
         } else {
-            return repo.addWorktree(this.slug);
+            return repo.addWorktree(this.branchName);
         }
     }
 
-    async setActiveFeature(): Promise<void> {
-        await Promise.all(this.repositories.map((repo) => repo.setActiveFeature(this)));
+    async setActiveSpec(): Promise<void> {
+        await Promise.all(this.repositories.map((repo) => repo.setActiveSpec(this)));
     }
 
     async collectRepositoriesStatus(): Promise<Record<RepoName, RepositoryStatus>> {
         const status: Record<RepoName, RepositoryStatus> = {};
         for (const repo of this.repositories) {
-            status[repo.name] = await repo.getStatus(this.slug); // use the new getStatus method that includes onFeatureBranch information
+            status[repo.name] = await repo.getStatus(this);
         }
         return status;
     }
@@ -297,10 +321,10 @@ export class FeatureContext {
 
         if (await pathExists(this.path)) {
             if ((await readdir(this.path)).length !== 0) {
-                // Remove feature path if empty
-                const confirm = await promptConfirm(`Feature path ${this.path} is not empty. Do you want to remove it?`);
+                // Remove Branch path if empty
+                const confirm = await promptConfirm(`Branch path ${this.path} is not empty. Do you want to remove it?`);
                 if (!confirm) {
-                    console.log(`Please manually clean up the feature path: ${this.path}`);
+                    console.log(`Please manually clean up the Branch path: ${this.path}`);
                     return;
                 }
             }
@@ -312,28 +336,28 @@ export class FeatureContext {
     async archive(): Promise<void> {
         let worktreeRepo: WorktreeRepository;
         if (this.hasRepo(this.mainRepo.name)) {
-            // worktree already exists, we can use it to create the feature files without affecting the main branch
+            // worktree already exists, we can use it to create the Branch files without affecting the main branch
             worktreeRepo = this.getRepo(this.mainRepo.name);
         } else {
-            // create a temporary worktree to move the feature files without affecting the main branch
-            worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.FEATURE_ARCHIVE);
+            // create a temporary worktree to move the Branch files without affecting the main branch
+            worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.BRANCH_ARCHIVE);
         }
 
         // Create archives directory
         await ensureDir(worktreeRepo.specsArchivePath);
 
-        const archivePath = path.join(worktreeRepo.specsArchivePath, this.slug);
-        const featurePath = worktreeRepo.getFeaturePath(this.slug);
+        const archivePath = path.join(worktreeRepo.specsArchivePath, this.branchName);
+        const branchPath = worktreeRepo.getSpecPath(this.branchName);
 
-        // Move feature to archive using git mv
-        await runGit(worktreeRepo.path, ['mv', featurePath, archivePath]);
+        // Move Branch to archive using git mv
+        await runGit(worktreeRepo.path, ['mv', branchPath, archivePath]);
 
         // Commit the archive
-        await worktreeRepo.commit(`docs(${this.slug}): archive feature`, [archivePath]);
+        await worktreeRepo.commit(`docs(${this.branchName}): archive Branch`, [archivePath]);
 
-        console.log(`✓ Feature \"${this.slug}\" archived successfully.`);
+        console.log(`✓ Branch \"${this.branchName}\" archived successfully.`);
         console.log(
-            `  Moved: ${this.context.options.folders.specs}/${this.slug}/ → ${this.context.options.folders.specs}/${this.context.options.folders.archive}/${this.slug}/`,
+            `  Moved: ${this.context.options.folders.specs}/${this.branchName}/ → ${this.context.options.folders.specs}/${this.context.options.folders.archive}/${this.branchName}/`,
         );
 
         // Ask for merge
@@ -347,7 +371,7 @@ export class FeatureContext {
                 this.context.options.git.featureBranchPrefix,
                 false,
             );
-            await worktreeRepo.rootRepository.merge(this.featureBranchName, targetBranch);
+            await worktreeRepo.rootRepository.merge(this.branchName, targetBranch);
         }
     }
 }

@@ -11,7 +11,7 @@ describe('ForgeConfigFile', () => {
             agents: ['AgentA', { name: 'AgentB', settings: { key: 'value' } }],
             options: {
                 folders: {
-                    activeFeature: 'test-active-feature',
+                    activeSpec: 'test-active-feature',
                     worktrees: 'test-features',
                     agent: 'test-agents',
                     archive: 'test-archive',

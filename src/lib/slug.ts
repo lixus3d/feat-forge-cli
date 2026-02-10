@@ -11,7 +11,7 @@ export type SlugResult = {
 export function sanitizeSlug(input: string): SlugResult {
     const trimmed = input.trim();
     const lowered = trimmed.toLowerCase();
-    const replaced = lowered.replace(/[^a-z0-9-_]+/g, '-');
+    const replaced = lowered.replace(/[^a-z0-9/_-]+/g, '-');
     const collapsed = replaced.replace(/-+/g, '-');
     const cleaned = collapsed.replace(/^[.-]+/, '').replace(/[-.]+$/, '');
     const slug = cleaned;

@@ -1,4 +1,4 @@
-import { FeatureContext } from '../foundation/FeatureContext';
+import { BranchContext } from '@/foundation/BranchContext';
 import { ForgeMode } from '../foundation/types/ForgeMode';
 import { AbstractCommands } from './AbstractCommands';
 
@@ -11,7 +11,7 @@ export class ModeCommands extends AbstractCommands {
      * Set the current mode and refresh agent adapters for the active feature.
      */
     async setMode(mode: ForgeMode): Promise<void> {
-        const featureContext = await FeatureContext.findNearestFeatureContext(this.context);
-        await featureContext.setMode(mode);
+        const branchContext = await BranchContext.findNearestBranchContext(this.context);
+        await branchContext.setMode(mode);
     }
 }

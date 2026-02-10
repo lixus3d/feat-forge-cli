@@ -19,7 +19,7 @@ import * as gitLib from '@/lib/git';
 import { DirtyAction, promptDirtyActions, promptConfirm } from '@/lib/prompt';
 
 const customFolders: ForgeFoldersOptions = {
-    activeFeature: 'custom-active-feature',
+    activeSpec: 'custom-active-feature',
     worktrees: 'custom-worktrees',
     agent: 'custom-agents',
     archive: 'custom-archive',
@@ -130,14 +130,14 @@ describe('RootRepository', () => {
 
     describe('activeFeaturePath', () => {
         it('should return activeFeaturePath for main repository', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.activeFeature);
-            expect(customRepository.activeFeaturePath).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.activeSpec);
+            expect(customRepository.activeSpecPath).toBe(expectedPath);
         });
     });
 
     describe('modeFilePath', () => {
         it('should return modeFilePath for main repository', () => {
-            const expectedPath = path.join(customRepository.activeFeaturePath, customFiles.forgeMode);
+            const expectedPath = path.join(customRepository.activeSpecPath, customFiles.forgeMode);
             expect(customRepository.modeFilePath).toBe(expectedPath);
         });
 
@@ -149,12 +149,12 @@ describe('RootRepository', () => {
     describe('getFeaturePath()', () => {
         it('should return feature path with feature slug', () => {
             const expectedPath = path.join(customRepository.path, customFolders.specs, 'my-feature');
-            expect(customRepository.getFeaturePath('my-feature')).toBe(expectedPath);
+            expect(customRepository.getSpecPath('my-feature')).toBe(expectedPath);
         });
 
         it('should return feature path with segments', () => {
             const expectedPath = path.join(customRepository.path, customFolders.specs, 'my-feature', 'docs', 'spec.md');
-            expect(customRepository.getFeaturePath('my-feature', 'docs', 'spec.md')).toBe(expectedPath);
+            expect(customRepository.getSpecPath('my-feature', 'docs', 'spec.md')).toBe(expectedPath);
         });
     });
 
@@ -358,7 +358,7 @@ describe('RootRepository', () => {
             const status = await mainRepository.getStatus('my-feature');
             expect(status.branch).toBe('feature/my-feature');
             expect(status.dirty).toBe(false);
-            expect(status.onFeatureBranch).toBe(true);
+            expect(status.onExpectedBranch).toBe(true);
         });
 
         it('should detect when not on feature branch', async () => {
@@ -366,7 +366,7 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('');
 
             const status = await mainRepository.getStatus('my-feature');
-            expect(status.onFeatureBranch).toBe(false);
+            expect(status.onExpectedBranch).toBe(false);
         });
     });
 
@@ -397,18 +397,18 @@ describe('RootRepository', () => {
         });
 
         it('should get worktree path with temporary flag', () => {
-            const tempPath = mainRepository.getWorktreePath('my-feature', TemporaryFolderType.FEATURE_INIT);
+            const tempPath = mainRepository.getWorktreePath('my-feature', TemporaryFolderType.BRANCH_INIT);
             expect(tempPath).toBe(
-                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.FEATURE_INIT, 'my-feature', mainRepository.name),
+                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.BRANCH_INIT, 'my-feature', mainRepository.name),
             );
         });
     });
 
     describe('getTempWorktreePath()', () => {
         it('should get temporary worktree path', () => {
-            const tempPath = mainRepository.getTempWorktreePath('my-feature', TemporaryFolderType.FEATURE_ARCHIVE);
+            const tempPath = mainRepository.getTempWorktreePath('my-feature', TemporaryFolderType.BRANCH_ARCHIVE);
             expect(tempPath).toBe(
-                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.FEATURE_ARCHIVE, 'my-feature', mainRepository.name),
+                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.BRANCH_ARCHIVE, 'my-feature', mainRepository.name),
             );
         });
     });
@@ -422,7 +422,7 @@ describe('RootRepository', () => {
 
         it('should check if temporary worktree exists', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            const exists = await mainRepository.hasWorktree('my-feature', TemporaryFolderType.FEATURE_INIT);
+            const exists = await mainRepository.hasWorktree('my-feature', TemporaryFolderType.BRANCH_INIT);
             expect(exists).toBe(true);
         });
     });
@@ -488,7 +488,7 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const tempWorktreeRepository = await mainRepository.addWorktree('my-feature', TemporaryFolderType.FEATURE_INIT);
+            const tempWorktreeRepository = await mainRepository.addWorktree('my-feature', TemporaryFolderType.BRANCH_INIT);
 
             expect(gitLib.runGit).toHaveBeenCalled();
             expect(tempWorktreeRepository).toBeInstanceOf(WorktreeRepository);
@@ -506,7 +506,7 @@ describe('RootRepository', () => {
             });
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const tempWorktreeRepository = await mainRepository.getTemporaryWorktree('my-feature', TemporaryFolderType.FEATURE_INIT);
+            const tempWorktreeRepository = await mainRepository.getTemporaryWorktree('my-feature', TemporaryFolderType.BRANCH_INIT);
 
             expect(gitLib.gitBranchExists).toHaveBeenCalled();
             expect(tempWorktreeRepository).toBeInstanceOf(WorktreeRepository);
@@ -516,7 +516,7 @@ describe('RootRepository', () => {
         it('should throw error when getting temporary worktree if branch does not exist', async () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
 
-            await expect(mainRepository.getTemporaryWorktree('my-feature', TemporaryFolderType.FEATURE_INIT)).rejects.toThrow(
+            await expect(mainRepository.getTemporaryWorktree('my-feature', TemporaryFolderType.BRANCH_INIT)).rejects.toThrow(
                 'Feature branch',
             );
         });

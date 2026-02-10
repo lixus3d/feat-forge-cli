@@ -6,6 +6,7 @@ import { pathExists, readTextFile, writeTextFile } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
+    getBranches,
     getCurrentBranch,
     getGitStatusPorcelain,
     getGitWorktrees,
@@ -14,12 +15,13 @@ import {
     runGit,
 } from '../lib/git';
 import { ForgeExpectMainRepositoryError } from './errors';
-import { FeatureContext } from './FeatureContext';
 import { ForgeContext } from './ForgeContext';
 import { ForgeMode } from './types/ForgeMode';
 import { RepositoryInfos } from './types/RepositoryInfos';
+import { BranchContext } from './BranchContext';
+import { branchNameAsPath } from '@/lib/branch';
 
-export type RepositoryStatus = { branch: string | null; dirty: boolean; onFeatureBranch: boolean };
+export type RepositoryStatus = { branch: string | null; dirty: boolean; onExpectedBranch: boolean };
 
 export abstract class Repository {
     public readonly name: string;
@@ -65,21 +67,21 @@ export abstract class Repository {
         return path.join(this.specsPath, this.folders.template);
     }
 
-    get activeFeaturePath(): string {
-        return path.join(this.path, this.folders.activeFeature);
+    get activeSpecPath(): string {
+        return path.join(this.path, this.folders.activeSpec);
     }
 
     get modeFilePath(): string {
         this.mustBeMainRepository();
-        return path.join(this.activeFeaturePath, this.files.forgeMode);
+        return path.join(this.activeSpecPath, this.files.forgeMode);
     }
 
-    getFeaturePath(featureSlug: string, ...segments: string[]): string {
-        return path.join(this.specsPath, featureSlug, ...segments);
+    getSpecPath(branchName: string, ...segments: string[]): string {
+        return path.join(this.specsPath, branchNameAsPath(branchName), ...segments);
     }
 
-    getAgentPath(featureSlug: string, ...segments: string[]): string {
-        return this.getFeaturePath(featureSlug, this.folders.agent, ...segments);
+    getAgentPath(branchName: string, ...segments: string[]): string {
+        return this.getSpecPath(branchNameAsPath(branchName), this.folders.agent, ...segments);
     }
 
     getTemplatePath(...segments: string[]): string {
@@ -95,7 +97,7 @@ export abstract class Repository {
 
         const modeFile = this.modeFilePath;
         if (!(await pathExists(modeFile))) {
-            throw new Error(`Mode file not found for active feature in repository ${this.name}. Expected at: ${modeFile}`);
+            throw new Error(`Mode file not found for active spec in repository ${this.name}. Expected at: ${modeFile}`);
         }
 
         const raw = (await readTextFile(modeFile)).trim().toLowerCase();
@@ -124,18 +126,47 @@ export abstract class Repository {
         return gitBranchExists(this.path, branchName);
     }
 
+    async hasBranchWithPrefix(prefix: string): Promise<boolean> {
+        const branches = await getBranches(this.path, prefix);
+        return branches.length > 0;
+    }
+
     async hasFeatureBranch(featureSlug: string): Promise<boolean> {
         const featureBranchName = this.context.getFeatureBranchName(featureSlug);
         return this.hasBranch(featureBranchName);
     }
 
-    async createFeatureBranch(featureSlug: string): Promise<number> {
-        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
-        if (!(await this.hasBranch(featureBranchName))) {
-            await createBranch(this.path, featureBranchName);
+    async hasFixBranch(fixSlug: string): Promise<boolean> {
+        const fixBranchName = this.context.getFixBranchName(fixSlug);
+        return this.hasBranch(fixBranchName);
+    }
+
+    async hasReleaseBranch(releaseSlug: string): Promise<boolean> {
+        const releaseBranchName = this.context.getReleaseBranchName(releaseSlug);
+        return this.hasBranch(releaseBranchName);
+    }
+
+    async createBranch(branchName: string): Promise<number> {
+        if (!(await this.hasBranch(branchName))) {
+            await createBranch(this.path, branchName);
             return 1;
         }
         return 0;
+    }
+
+    async createFeatureBranch(featureSlug: string): Promise<number> {
+        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
+        return this.createBranch(featureBranchName);
+    }
+
+    async createFixBranch(fixSlug: string): Promise<number> {
+        const fixBranchName = this.context.getFixBranchName(fixSlug);
+        return this.createBranch(fixBranchName);
+    }
+
+    async createReleaseBranch(releaseSlug: string): Promise<number> {
+        const releaseBranchName = this.context.getReleaseBranchName(releaseSlug);
+        return this.createBranch(releaseBranchName);
     }
 
     async getCurrentBranch(): Promise<string | null> {
@@ -151,8 +182,22 @@ export abstract class Repository {
         await this.setBranch(featureBranchName);
     }
 
+    async setFixBranch(fixSlug: string): Promise<void> {
+        const fixBranchName = this.context.getFixBranchName(fixSlug);
+        await this.setBranch(fixBranchName);
+    }
+
+    async setReleaseBranch(releaseSlug: string): Promise<void> {
+        const releaseBranchName = this.context.getReleaseBranchName(releaseSlug);
+        await this.setBranch(releaseBranchName);
+    }
+
     async deleteBranch(branchName: string): Promise<void> {
         await runGit(this.path, ['branch', '-D', branchName]);
+    }
+
+    async getBranches(): Promise<string[]> {
+        return getBranches(this.path);
     }
 
     async getGitStatus(): Promise<string> {
@@ -164,11 +209,11 @@ export abstract class Repository {
         return status.length > 0;
     }
 
-    async getStatus(featureSlug: string): Promise<RepositoryStatus> {
+    async getStatus(branchContext: BranchContext): Promise<RepositoryStatus> {
         const branch = await this.getCurrentBranch()!;
         const dirty = await this.isDirty();
-        const onFeatureBranch = branch === this.context.getFeatureBranchName(featureSlug);
-        return { branch, dirty, onFeatureBranch };
+        const onExpectedBranch = branch === branchContext.branchName;
+        return { branch, dirty, onExpectedBranch };
     }
 
     async commit(message: string, files: string[] = ['.']): Promise<void> {
@@ -207,30 +252,30 @@ export class RootRepository extends Repository {
         super(context, repoInfos);
     }
 
-    getWorktreePath(featureSlug: string, temporary?: TemporaryFolderType): string {
+    getWorktreePath(branchName: string, temporary?: TemporaryFolderType): string {
         return temporary
-            ? this.getTempWorktreePath(featureSlug, temporary)
-            : this.context.paths.getPathInFeatureRoot(featureSlug, this.name);
+            ? this.getTempWorktreePath(branchName, temporary)
+            : this.context.paths.getPathInBranchRoot(branchName, this.name);
     }
 
-    getTempWorktreePath(featureSlug: string, type: TemporaryFolderType): string {
-        return this.context.paths.getTempWorktreePathForRepo(type, featureSlug, this.name);
+    getTempWorktreePath(branchName: string, type: TemporaryFolderType): string {
+        return this.context.paths.getTempWorktreePathForRepo(type, branchName, this.name);
     }
 
-    async hasWorktree(featureSlug: string, temporary?: TemporaryFolderType): Promise<boolean> {
-        const worktreePath = temporary ? this.getTempWorktreePath(featureSlug, temporary) : this.getWorktreePath(featureSlug);
+    async hasWorktree(branchName: string, temporary?: TemporaryFolderType): Promise<boolean> {
+        const worktreePath = temporary ? this.getTempWorktreePath(branchName, temporary) : this.getWorktreePath(branchName);
         return await pathExists(worktreePath);
     }
 
-    async addWorktree(featureSlug: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
-        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
-        const worktreePath: string = temporary ? this.getTempWorktreePath(featureSlug, temporary) : this.getWorktreePath(featureSlug);
+    async addWorktree(branchName: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
+        const featureBranchName = this.context.getFeatureBranchName(branchName);
+        const worktreePath: string = temporary ? this.getTempWorktreePath(branchName, temporary) : this.getWorktreePath(branchName);
 
         // Check if worktree unexpectedly exists
         if (await pathExists(worktreePath)) {
             throw new Error(
                 `Worktree already exists at ${worktreePath}.\\n` +
-                    `If you have manually deleted worktree folders, run 'forge feature stop ${featureSlug}' to clean up.`,
+                    `If you have manually deleted worktree folders, run 'forge feature stop ${branchName}' to clean up.`,
             );
         }
 
@@ -240,24 +285,23 @@ export class RootRepository extends Repository {
             await runGit(this.path, ['worktree', 'add', '-b', featureBranchName, worktreePath]);
         }
 
-        return this.getWorktree(featureSlug, temporary);
+        return this.getWorktree(branchName, temporary);
     }
 
-    async getTemporaryWorktree(featureSlug: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
-        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
-        if (!(await this.hasBranch(featureBranchName))) {
-            throw new Error(`Feature branch ${featureBranchName} does not exist in repository ${this.name}`);
+    async getTemporaryWorktree(branchName: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
+        if (!(await this.hasBranch(branchName))) {
+            throw new Error(`Feature branch ${branchName} does not exist in repository ${this.name}`);
         }
-        return this.addWorktree(featureSlug, type);
+        return this.addWorktree(branchName, type);
     }
 
-    async getWorktree(featureSlug: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
-        if (!(await this.hasWorktree(featureSlug, temporary))) {
-            throw new Error(`Worktree for feature ${featureSlug} does not exist in repository ${this.name}`);
+    async getWorktree(branchName: string, temporary?: TemporaryFolderType): Promise<WorktreeRepository> {
+        if (!(await this.hasWorktree(branchName, temporary))) {
+            throw new Error(`Worktree for feature ${branchName} does not exist in repository ${this.name}`);
         }
         return new WorktreeRepository(
             this.context,
-            { name: this.name, path: this.getWorktreePath(featureSlug, temporary), main: this.main },
+            { name: this.name, path: this.getWorktreePath(branchName, temporary), main: this.main },
             this,
             !!temporary,
         );
@@ -290,22 +334,19 @@ export class RootRepository extends Repository {
         return worktrees;
     }
 
-    async cleanOrphanedWorktree(featureSlug: string): Promise<void> {
+    async cleanOrphanedWorktree(branchName: string): Promise<void> {
         const repoAllWorktrees = await this.listGitWorktrees();
-        const featureBranchName = this.context.getFeatureBranchName(featureSlug);
         for (const wt of repoAllWorktrees) {
             if (!(await pathExists(wt.path))) {
-                if ((await wt.getCurrentBranch()) === featureBranchName) {
-                    console.log(`Try cleaning up orphaned worktree at ${wt.path} for feature ${featureSlug}`);
+                if ((await wt.getCurrentBranch()) === branchName) {
+                    console.log(`Try cleaning up orphaned worktree at ${wt.path} for branch ${branchName}`);
                     try {
                         await this.removeWorktree(wt, { forceOnEmpty: true });
                     } catch (error) {
-                        console.warn(`Could not remove orphaned worktree: ${error}`);
+                        console.warn(`  Could not remove orphaned worktree: ${error}`);
                     }
                 } else {
-                    console.log(
-                        `  Skipping orphaned worktree at ${wt.path} since it's not on the feature branch ${featureBranchName}`,
-                    );
+                    console.log(`  Skipping orphaned worktree at ${wt.path} since it's not on the feature branch ${branchName}`);
                 }
             }
         }
@@ -358,22 +399,25 @@ export class WorktreeRepository extends Repository {
         return this.rootRepository.removeWorktree(this);
     }
 
-    async setActiveFeature(featureContext: FeatureContext): Promise<void> {
+    async setActiveSpec(branchContext: BranchContext): Promise<void> {
         if (this.isMainRepository()) {
-            const featurePath = this.getFeaturePath(featureContext.slug);
-            const mainActivePath = this.activeFeaturePath;
+            const specPath = this.getSpecPath(branchContext.branchName);
+            const mainActivePath = this.activeSpecPath;
             await rm(mainActivePath, { force: true });
-            await symlink(path.relative(path.dirname(mainActivePath), featurePath), mainActivePath);
+            await symlink(path.relative(path.dirname(mainActivePath), specPath), mainActivePath);
         } else {
-            const mainActivePath = featureContext.mainRepo.activeFeaturePath;
-            const secondaryActivePath = this.activeFeaturePath;
+            const mainActivePath = branchContext.mainRepo.activeSpecPath;
+            const secondaryActivePath = this.activeSpecPath;
             await rm(secondaryActivePath, { force: true });
-            // Create relative path from secondary to main's .active-feature
+            // Create relative path from secondary to main's .active-spec
             await symlink(path.relative(path.dirname(secondaryActivePath), mainActivePath), secondaryActivePath);
         }
     }
 
-    async rebase(featureBranch: string, baseBranch: string): Promise<GitOperationResult> {
+    /**
+     * Rebase the worktree's current branch (which should be the feature branch) onto the specified base branch.
+     */
+    async rebase(specsBranch: string, baseBranch: string): Promise<GitOperationResult> {
         try {
             if (await this.isDirty()) {
                 console.log(
@@ -383,13 +427,13 @@ export class WorktreeRepository extends Repository {
             }
             // Make sure we're on the feature branch in the worktree
             const currentBranch = await this.getCurrentBranch();
-            if (currentBranch !== featureBranch) {
-                console.log(`Checking out ${featureBranch}...`);
-                await checkoutBranch(this.path, featureBranch);
+            if (currentBranch !== specsBranch) {
+                console.log(`Checking out ${specsBranch}...`);
+                await checkoutBranch(this.path, specsBranch);
             }
 
             // Perform rebase
-            console.log(`Rebasing ${featureBranch} onto ${baseBranch}...`);
+            console.log(`Rebasing ${specsBranch} onto ${baseBranch}...`);
             try {
                 await runGit(this.path, ['rebase', baseBranch]);
                 console.log(`✅ Rebase successful for ${this.name}`);

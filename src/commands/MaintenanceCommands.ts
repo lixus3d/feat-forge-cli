@@ -8,14 +8,14 @@ export class MaintenanceCommands extends AbstractCommands {
      */
     async rewriteAgentFiles(rawSlug: string, options: { dryRun?: boolean; commit?: boolean } = {}): Promise<void> {
         const slug = await confirmSlugOrThrow(rawSlug);
-        const featureContext = await this.context.getFeatureContext(slug);
+        const branchContext = await this.context.getBranchContext(slug);
 
         const dryRun = Boolean(options.dryRun);
         const doCommit = Boolean(options.commit);
 
         console.log(`Rewriting agent templates for feature '${slug}' (dryRun=${dryRun}, commit=${doCommit})...`);
 
-        const changed = await this.context.ensureAgentTemplates(featureContext.mainRepo, true, dryRun, doCommit);
+        const changed = await this.context.ensureAgentTemplates(branchContext.mainRepo, true, dryRun, doCommit);
 
         if (changed.length === 0) {
             console.log('No agent template files were modified.');

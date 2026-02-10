@@ -1,25 +1,25 @@
 import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
-import { FeatureContext } from '../foundation/FeatureContext';
+import { BranchContext } from '../foundation/BranchContext';
 import { AIAgent } from '../foundation/types/AIAgent';
 import { AIAgentName } from '../foundation/types/AIAgentName';
 import { ForgeMode } from '../foundation/types/ForgeMode';
 import { ensureDir, pathExists } from './fs';
 
-export async function refreshCopilotAgentContextFiles(featureContext: FeatureContext, agent: AIAgent, mode: ForgeMode): Promise<void> {
+export async function refreshCopilotAgentContextFiles(branchContext: BranchContext, agent: AIAgent, mode: ForgeMode): Promise<void> {
     // Need to create a .github/agents folder in the featureRoot workspace
-    const githubAgentsPath = path.join(featureContext.path, '.github', 'agents');
+    const githubAgentsPath = path.join(branchContext.path, '.github', 'agents');
     await ensureDir(githubAgentsPath);
 
     // For Copilot, we basically create a symlink for each .agent.md file in :
     // - the .features/.template/agent/Copilot/ folder (if user doesn't have custom ones in their feature branch)
     // - the .features/<slug>/agent/Copilot/ folder
     // into the .github/agents folder of the feature workspace, so that they can be picked up by Copilot
-    const templateCopilotAgentDir = path.join(featureContext.mainRepo.getAgentTemplatePath(AIAgentName.COPILOT));
-    const featureCopilotAgentDir = path.join(featureContext.mainRepo.getAgentPath(AIAgentName.COPILOT));
+    const templateCopilotAgentDir = path.join(branchContext.mainRepo.getAgentTemplatePath(AIAgentName.COPILOT));
+    const branchCopilotAgentDir = path.join(branchContext.mainRepo.getAgentPath(branchContext.branchName, AIAgentName.COPILOT));
 
     let templateAgentFiles: string[] = [];
-    let featureAgentFiles: string[] = [];
+    let branchAgentFiles: string[] = [];
     let allAgentFiles: Map<string, string> = new Map();
 
     const matchRegex = /\.agent\.md$/;
@@ -32,11 +32,11 @@ export async function refreshCopilotAgentContextFiles(featureContext: FeatureCon
             }
         });
     }
-    if (await pathExists(featureCopilotAgentDir)) {
-        featureAgentFiles = await readdir(featureCopilotAgentDir);
-        featureAgentFiles.forEach((file) => {
+    if (await pathExists(branchCopilotAgentDir)) {
+        branchAgentFiles = await readdir(branchCopilotAgentDir);
+        branchAgentFiles.forEach((file) => {
             if (file.match(matchRegex)) {
-                allAgentFiles.set(file, path.join(featureCopilotAgentDir, file));
+                allAgentFiles.set(file, path.join(branchCopilotAgentDir, file));
             }
         });
     }
