@@ -2,3 +2,4 @@ dist
 node_modules
 
 .active-feature
+.active-spec
