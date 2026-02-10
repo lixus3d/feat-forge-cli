@@ -146,9 +146,9 @@ export abstract class Repository {
         return this.hasBranch(releaseBranchName);
     }
 
-    async createBranch(branchName: string): Promise<number> {
+    async createBranch(branchName: string, baseBranch?: string): Promise<number> {
         if (!(await this.hasBranch(branchName))) {
-            await createBranch(this.path, branchName);
+            await createBranch(this.path, branchName, baseBranch);
             return 1;
         }
         return 0;

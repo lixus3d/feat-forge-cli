@@ -78,6 +78,7 @@ function genericBranchTypeCommands(
 
     baseCommand
         .command('list')
+        .argument(`[prefix]`, 'Optional prefix to filter branches (e.g. "feat/")')
         .description(`List all active ${subType ? subType + ' ' : ''}branches worktrees`)
         .action(handlers.list.bind(handlers));
 

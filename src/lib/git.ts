@@ -97,8 +97,12 @@ export async function checkoutBranch(repoRoot: string, branchName: string): Prom
 /**
  * Create a new branch in a repo.
  */
-export async function createBranch(repoRoot: string, branchName: string): Promise<void> {
-    await runGit(repoRoot, ['branch', branchName]);
+export async function createBranch(repoRoot: string, branchName: string, baseBranch?: string): Promise<void> {
+    const args = ['branch', branchName];
+    if (baseBranch) {
+        args.push(baseBranch);
+    }
+    await runGit(repoRoot, args);
 }
 
 /**

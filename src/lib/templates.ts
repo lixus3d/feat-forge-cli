@@ -1,10 +1,11 @@
 import { readFileSync } from 'fs';
 import { readFile } from 'fs/promises';
+import { fileURLToPath } from 'node:url';
 import os from 'os';
 import path from 'path';
 import { ForgeContext } from '../foundation/ForgeContext';
+import { FEAT_FORGE_CONFIG_FOLDER } from './constants';
 import { pathExists } from './fs';
-import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,20 +63,25 @@ export function templateFor(name: TemplateFile): string {
  * Resolve a template file from repo or user overrides.
  * Order: repo .features/.template -> ~/.feat-forge/template -> built-in.
  */
-export async function resolveCustomTemplate(rootDir: string, repoRoot: string, name: TemplateFile): Promise<string | null> {
+export async function resolveCustomTemplate(
+    forgeContext: ForgeContext,
+    rootDir: string,
+    repoRoot: string,
+    name: TemplateFile,
+): Promise<string | null> {
     const subdir = [TemplateFile.CONTEXT_SPEC, TemplateFile.CONTEXT_CODE].includes(name) ? 'agent' : '';
 
-    const repoTemplate = path.join(repoRoot, '.features', '.template', subdir, name);
+    const repoTemplate = path.join(repoRoot, forgeContext.options.folders.specs, forgeContext.options.folders.template, subdir, name);
     if (await pathExists(repoTemplate)) {
         return readFile(repoTemplate, 'utf8');
     }
 
-    const projectTemplate = path.join(rootDir, '.feat-forge', 'templates', subdir, name);
+    const projectTemplate = path.join(rootDir, FEAT_FORGE_CONFIG_FOLDER, 'templates', subdir, name);
     if (await pathExists(projectTemplate)) {
         return readFile(projectTemplate, 'utf8');
     }
 
-    const userTemplate = path.join(os.homedir(), '.feat-forge', 'templates', subdir, name);
+    const userTemplate = path.join(os.homedir(), FEAT_FORGE_CONFIG_FOLDER, 'templates', subdir, name);
     if (await pathExists(userTemplate)) {
         return readFile(userTemplate, 'utf8');
     }
@@ -91,15 +97,16 @@ export async function replaceTemplateMarkers(templateContent: string, forgeConte
 
     let match;
     let result = templateContent;
+    const activeSpecFolder = forgeContext.options.folders.activeSpec;
 
     while ((match = regex.exec(templateContent)) !== null) {
         const marker = match[1];
         switch (marker) {
             case 'COPILOT_FILE_MARKER_FEATURE':
-                result = result.replace(match[0], `#file:../../${mainRepoName}/.active-feature/FEATURE.md`);
+                result = result.replace(match[0], `#file:../../${mainRepoName}/${activeSpecFolder}/FEATURE.md`);
                 break;
             case 'COPILOT_FILE_MARKER_TODO':
-                result = result.replace(match[0], `#file:../../${mainRepoName}/.active-feature/TODO.md`);
+                result = result.replace(match[0], `#file:../../${mainRepoName}/${activeSpecFolder}/TODO.md`);
                 break;
         }
     }

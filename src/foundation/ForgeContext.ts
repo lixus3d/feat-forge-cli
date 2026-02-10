@@ -67,7 +67,7 @@ export class ForgeContext {
         const branchContexts: BranchContext[] = [];
         const mainRepoBranches = await this.mainRepo.getBranches();
         // Test logic
-        Promise.all(
+        await Promise.all(
             mainRepoBranches.map(async (branchName) => {
                 if (await this.branchRootExists(branchName)) {
                     branchContexts.push(await this.loadBranchContext(branchName));
@@ -207,10 +207,10 @@ export class ForgeContext {
         return totalChanges;
     }
 
-    async ensureBranch(branchName: string): Promise<number> {
+    async ensureBranch(branchName: string, baseBranch?: string): Promise<number> {
         let totalChanges = 0;
         for (const repo of this.repositories) {
-            totalChanges += await repo.createBranch(branchName);
+            totalChanges += await repo.createBranch(branchName, baseBranch);
         }
         return totalChanges;
     }
@@ -274,7 +274,7 @@ export class ForgeContext {
             if (await pathExists(filePath)) {
                 continue;
             }
-            const resolved = await resolveCustomTemplate(this.rootDir, repo.path, fileName);
+            const resolved = await resolveCustomTemplate(this, this.rootDir, repo.path, fileName);
             await writeTextFile(filePath, resolved ?? templateFor(fileName));
         }
 

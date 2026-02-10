@@ -23,7 +23,14 @@ export class BranchCommands extends AbstractCommands {
      */
     async create(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
-        await this.prepareBranch(branchName, true);
+        const baseBranch = await promptForBranch(
+            this.context.mainRepo.path,
+            'Select base branch for the new branch (showing branches of main repo, the branch must exist in all repos):',
+            this.context.options.git.featureBranchPrefix,
+            true,
+        );
+        // Prepare branch: validate branchName, ensure branch and spec exist, merge spec files to main branch if needed
+        await this.prepareBranch(branchName, true, baseBranch);
         console.log(
             `Branch "${branchName}" created and spec files initialized. You can find them in the current branch of the main repository. Use 'forge start ${branchName}' to start working on it using git worktrees.`,
         );
@@ -37,8 +44,14 @@ export class BranchCommands extends AbstractCommands {
      */
     async start(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
+        const baseBranch = await promptForBranch(
+            this.context.mainRepo.path,
+            'Select base branch for the new branch (showing branches of main repo, the branch must exist in all repos):',
+            this.context.options.git.featureBranchPrefix,
+            true,
+        );
         // Prepare branch: validate branchName, ensure branch and spec exist
-        await (await this.prepareBranch(branchName, false)).start();
+        await (await this.prepareBranch(branchName, false, baseBranch)).start();
 
         // Propose to open the branch in the configured IDE
         if (this.context.ides.length > 0) {
@@ -60,7 +73,9 @@ export class BranchCommands extends AbstractCommands {
         }
 
         // Display each branch with branch information
-        console.log(`Branch${branchContexts.length > 1 ? 'es' : ''}: (${branchContexts.length} found)`);
+        console.log(
+            `Active branch${branchContexts.length > 1 ? 'es' : ''}${prefix ? ` with prefix "${prefix}"` : ''}: (${branchContexts.length} found)`,
+        );
         for (const branchContext of branchContexts) {
             // Collect branch information for this branch
             const repositoriesStatus = await branchContext.collectRepositoriesStatus();
@@ -75,10 +90,10 @@ export class BranchCommands extends AbstractCommands {
             // Use red color for inconsistent branches
             // Use orange color for branches that are not on the expected branch, but consistent across repos (e.g. all on "main" instead of the branch branch)
             // Use green color for branches that are on the expected branch
-            const RED = '\\x1b[31m';
-            const ORANGE = '\\x1b[33m';
-            const GREEN = '\\x1b[32m';
-            const RESET = '\\x1b[0m';
+            const RED = '\x1b[31m';
+            const ORANGE = '\x1b[33m';
+            const GREEN = '\x1b[32m';
+            const RESET = '\x1b[0m';
             const COLOR = isInconsistent ? RED : !onExpectedBranch ? ORANGE : GREEN;
             const output = `  - ${branchContext.branchName}${COLOR}${branchInfo}${RESET}`;
 
@@ -289,7 +304,7 @@ export class BranchCommands extends AbstractCommands {
     /**
      * Prepare branch + spec initialization shared by create/start.
      */
-    private async prepareBranch(branchName: string, mergeToRoot: boolean = false): Promise<BranchContext> {
+    private async prepareBranch(branchName: string, mergeToRoot: boolean, baseBranch: string): Promise<BranchContext> {
         let rootRepoChanges = 0;
         let worktreeRepoChanges = 0;
         // Ensure agent templates exist in .branchs/.template/agent/
@@ -299,7 +314,7 @@ export class BranchCommands extends AbstractCommands {
         rootRepoChanges += await this.context.ensureGitIgnore();
 
         // Ensure branch exists in all repos (creates branch if missing, but does not check it out)
-        await this.context.ensureBranch(branchName); // doesn't realy count as changes
+        await this.context.ensureBranch(branchName, baseBranch); // doesn't realy count as changes
 
         let branchContext: BranchContext;
         if (await this.context.isBranchActive(branchName)) {
