@@ -13,7 +13,7 @@ import {
     GitOperationResult,
     runGit,
 } from '../lib/git';
-import { ForgeExpectMainRepository } from './errors';
+import { ForgeExpectMainRepositoryError } from './errors';
 import { FeatureContext } from './FeatureContext';
 import { ForgeContext } from './ForgeContext';
 import { ForgeMode } from './types/ForgeMode';
@@ -31,7 +31,7 @@ export abstract class Repository {
     constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
         this.context = context;
         this.name = repoInfos.name;
-        this.path = path.resolve(repoInfos.path);
+        this.path = path.resolve(this.context.rootDir, repoInfos.path);
         this.main = repoInfos.main;
     }
 
@@ -41,7 +41,7 @@ export abstract class Repository {
 
     public mustBeMainRepository() {
         if (!this.isMainRepository()) {
-            throw new ForgeExpectMainRepository('This operation is only available for the main repository.');
+            throw new ForgeExpectMainRepositoryError('This operation is only available for the main repository.');
         }
     }
 
@@ -66,7 +66,6 @@ export abstract class Repository {
     }
 
     get activeFeaturePath(): string {
-        this.mustBeMainRepository();
         return path.join(this.path, this.folders.activeFeature);
     }
 
@@ -410,7 +409,7 @@ export class WorktreeRepository extends Repository {
                 }
             }
         } catch (error) {
-            console.error(`❌ Error rebasing ${this.name}:`, error instanceof Error ? error.message : error);
+            console.error(`❌ Error rebasing ${this.name}:`, error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }

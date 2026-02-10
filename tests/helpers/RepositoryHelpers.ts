@@ -7,11 +7,14 @@ export class RepositoryHelpers {
         this.forgeContext = forgeContext;
     }
 
-    getRepository(options: Partial<RepositoryInfos> = {}): RootRepository {
+    getRootRepository(options: Partial<RepositoryInfos> = {}): RootRepository {
+        const name = options.name || 'repo1';
+        const path = options.path || '/path/to/' + name;
+        const main = options.main || false;
         return new RootRepository(this.forgeContext, {
-            name: options.name || 'repo1',
-            path: options.path || '/path/to/repo1',
-            main: options.main || false,
+            name,
+            path,
+            main,
         });
     }
 }

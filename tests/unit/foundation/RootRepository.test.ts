@@ -11,7 +11,7 @@ vi.mock('@/lib/git');
 vi.mock('@/lib/fs');
 vi.mock('@/lib/prompt');
 
-import { ForgeExpectMainRepository } from '@/foundation/errors';
+import { ForgeExpectMainRepositoryError } from '@/foundation/errors';
 import { ForgeFilesOptions, ForgeFoldersOptions, ForgeGitOptions } from '@/foundation/ForgeConfig';
 import { TemporaryFolderType } from '@/lib/constants';
 import * as fsLib from '@/lib/fs';
@@ -43,7 +43,7 @@ const createCustomRepository = (): RootRepository => {
             git: customGit,
         },
     }).extract();
-    return new RepositoryHelpers(forgeContext).getRepository({ main: true });
+    return new RepositoryHelpers(forgeContext).getRootRepository({ main: true });
 };
 
 describe('RootRepository', () => {
@@ -57,8 +57,8 @@ describe('RootRepository', () => {
         vi.clearAllMocks();
         ({ forgeContext } = ContextHelper.default().extract());
         repositoryHelpers = new RepositoryHelpers(forgeContext);
-        mainRepository = repositoryHelpers.getRepository({ main: true });
-        secondaryRepository = repositoryHelpers.getRepository({ main: false });
+        mainRepository = repositoryHelpers.getRootRepository({ main: true });
+        secondaryRepository = repositoryHelpers.getRootRepository({ main: false });
         customRepository = createCustomRepository();
     });
 
@@ -103,7 +103,7 @@ describe('RootRepository', () => {
         });
 
         it('should throw if the repository is not the main repository', () => {
-            expect(() => secondaryRepository.mustBeMainRepository()).toThrow(ForgeExpectMainRepository);
+            expect(() => secondaryRepository.mustBeMainRepository()).toThrow(ForgeExpectMainRepositoryError);
         });
     });
 
@@ -133,10 +133,6 @@ describe('RootRepository', () => {
             const expectedPath = path.join(customRepository.path, customFolders.activeFeature);
             expect(customRepository.activeFeaturePath).toBe(expectedPath);
         });
-
-        it('should throw when accessing activeFeaturePath on non-main repository', () => {
-            expect(() => secondaryRepository.activeFeaturePath).toThrow(ForgeExpectMainRepository);
-        });
     });
 
     describe('modeFilePath', () => {
@@ -146,7 +142,7 @@ describe('RootRepository', () => {
         });
 
         it('should throw when accessing modeFilePath on non-main repository', () => {
-            expect(() => secondaryRepository.modeFilePath).toThrow(ForgeExpectMainRepository);
+            expect(() => secondaryRepository.modeFilePath).toThrow(ForgeExpectMainRepositoryError);
         });
     });
 
@@ -235,7 +231,7 @@ describe('RootRepository', () => {
         });
 
         it('should throw when getting mode on non-main repository', async () => {
-            await expect(secondaryRepository.getMode()).rejects.toThrow(ForgeExpectMainRepository);
+            await expect(secondaryRepository.getMode()).rejects.toThrow(ForgeExpectMainRepositoryError);
         });
     });
 
@@ -246,7 +242,7 @@ describe('RootRepository', () => {
         });
 
         it('should throw when setting mode on non-main repository', async () => {
-            await expect(secondaryRepository.setMode(ForgeMode.CODE)).rejects.toThrow(ForgeExpectMainRepository);
+            await expect(secondaryRepository.setMode(ForgeMode.CODE)).rejects.toThrow(ForgeExpectMainRepositoryError);
         });
     });
 
@@ -617,6 +613,7 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
             const consoleLogSpy = vi.spyOn(console, 'log');
+            const consoleWarnSpy = vi.spyOn(console, 'warn');
             const removeWorktreeSpy = vi.spyOn(mainRepository, 'removeWorktree');
 
             await mainRepository.cleanOrphanedWorktree('my-feature');
@@ -624,7 +621,7 @@ describe('RootRepository', () => {
             expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Try cleaning up orphaned worktree'));
             expect(removeWorktreeSpy).toHaveBeenCalledWith(expect.anything(), { forceOnEmpty: true });
             expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('Skipping orphaned worktree'));
-            expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('Could not remove orphaned'));
+            expect(consoleWarnSpy).not.toHaveBeenCalledWith(expect.stringContaining('Could not remove orphaned'));
         });
 
         it('should skip orphaned worktree on different feature branch', async () => {
@@ -652,6 +649,27 @@ describe('RootRepository', () => {
             await mainRepository.cleanOrphanedWorktree('my-feature');
 
             expect(gitLib.runGit).not.toHaveBeenCalled();
+        });
+
+        it('should not throw, just warn if removing orphaned worktree fails', async () => {
+            const mockWorktrees: gitLib.GitWorktreeInfo[] = [
+                { path: '/orphaned/path', branch: `${forgeContext.options.git.featureBranchPrefix}my-feature` },
+            ];
+            vi.mocked(gitLib.getGitWorktrees).mockResolvedValue(mockWorktrees as any);
+            vi.mocked(fsLib.pathExists).mockResolvedValue(false);
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(`${forgeContext.options.git.featureBranchPrefix}my-feature`);
+            vi.mocked(gitLib.runGit).mockRejectedValue(new Error('Failed to remove worktree'));
+
+            const consoleLogSpy = vi.spyOn(console, 'log');
+            const consoleWarnSpy = vi.spyOn(console, 'warn');
+            const removeWorktreeSpy = vi.spyOn(mainRepository, 'removeWorktree');
+
+            await mainRepository.cleanOrphanedWorktree('my-feature');
+
+            expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Try cleaning up orphaned worktree'));
+            expect(removeWorktreeSpy).toHaveBeenCalledWith(expect.anything(), { forceOnEmpty: true });
+            expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('Skipping orphaned worktree'));
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Could not remove orphaned'));
         });
     });
 

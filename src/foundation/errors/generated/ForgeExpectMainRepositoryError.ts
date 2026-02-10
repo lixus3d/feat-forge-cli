@@ -4,9 +4,9 @@
 import { ForgeError } from '../ForgeError';
 import { FORGE_ERRORS } from '../_error.config';
 
-export class ForgeExpectMainRepository extends ForgeError {
+export class ForgeExpectMainRepositoryError extends ForgeError {
     constructor(message?: string) {
-        super(message || FORGE_ERRORS.ForgeExpectMainRepository);
-        this.name = 'ForgeExpectMainRepository';
+        super(message || FORGE_ERRORS.ForgeExpectMainRepositoryError);
+        this.name = 'ForgeExpectMainRepositoryError';
     }
 }
