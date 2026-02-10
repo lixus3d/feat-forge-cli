@@ -16,6 +16,11 @@ export enum GitOperation {
     Rebase = 'rebase',
 }
 
+export type GitWorktreeInfo = {
+    path: string;
+    branch: string;
+};
+
 export async function findGitRoot(startDir: string = process.cwd()): Promise<string> {
     let current = path.resolve(startDir);
     while (true) {
@@ -108,11 +113,11 @@ export async function getBranches(repoRoot: string): Promise<string[]> {
 /**
  * Get all worktrees for a repo with their paths and branches.
  */
-export async function getGitWorktrees(repoRoot: string): Promise<Array<{ path: string; branch: string }>> {
+export async function getGitWorktrees(repoRoot: string): Promise<Array<GitWorktreeInfo>> {
     try {
         const result = await execa('git', ['worktree', 'list', '--porcelain'], { cwd: repoRoot });
         const lines = result.stdout.split('\n');
-        const worktrees: Array<{ path: string; branch: string }> = [];
+        const worktrees: Array<GitWorktreeInfo> = [];
 
         let currentPath = '';
         let currentBranch = '';

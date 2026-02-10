@@ -1,4 +1,4 @@
-import { ForgeConfigError } from '@/foundation/errors/ForgeConfigError';
+import { ForgeConfigError } from '@/foundation/errors';
 import { ForgeConfig, ForgeFoldersOptions } from '@/foundation/ForgeConfig';
 import { IDEName } from '@/foundation/types/IDEName';
 import path from 'path';

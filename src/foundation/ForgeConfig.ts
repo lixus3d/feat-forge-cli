@@ -6,10 +6,10 @@ import { AIAgentName } from './types/AIAgentName';
 import { IDE } from './types/IDE';
 import { IDEName } from './types/IDEName';
 import { RepoName, RepoPath, RepositoryInfos } from './types/RepositoryInfos';
-import { ForgeConfigError } from './errors/ForgeConfigError';
 import { ArrayNotEmpty, IsArray, IsNotEmpty, IsOptional, IsString, Validate, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DeepPartial } from './types/DeepPartial';
+import { ForgeConfigError } from './errors';
 
 export class ForgeFoldersOptions {
     /**

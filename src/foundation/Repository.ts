@@ -1,6 +1,8 @@
+import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
-import { ensureDir, pathExists, readTextFile, writeTextFile } from '../lib/fs';
+import { TemporaryFolderType } from '../lib/constants';
+import { pathExists, readTextFile, writeTextFile } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
@@ -11,14 +13,11 @@ import {
     GitOperationResult,
     runGit,
 } from '../lib/git';
+import { ForgeExpectMainRepository } from './errors';
 import { FeatureContext } from './FeatureContext';
 import { ForgeContext } from './ForgeContext';
 import { ForgeMode } from './types/ForgeMode';
 import { RepositoryInfos } from './types/RepositoryInfos';
-import { execa } from 'execa';
-import { DirtyAction, promptConfirm, promptDirtyActions, promptText } from '@/lib/prompt';
-import { TemporaryFolderType } from '../lib/constants';
-import { ForgeExpectMainRepository } from './errors/ForgeExpectMainRepository';
 
 export type RepositoryStatus = { branch: string | null; dirty: boolean; onFeatureBranch: boolean };
 
@@ -200,16 +199,11 @@ export abstract class Repository {
                 return false;
             case DirtyAction.Discard:
                 return await promptConfirm('This will discard local changes. Proceed?');
-            default:
-                // Should never reach here due to prompt validation, but return false just in case
-                return false;
         }
     }
 }
 
 export class RootRepository extends Repository {
-    public readonly _rootRepository = true;
-
     constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
         super(context, repoInfos);
     }
@@ -270,11 +264,12 @@ export class RootRepository extends Repository {
         );
     }
 
-    async removeWorktree(worktreeRepository: WorktreeRepository): Promise<void> {
+    async removeWorktree(worktreeRepository: WorktreeRepository, options?: { forceOnEmpty?: boolean }): Promise<void> {
         const worktreePath = worktreeRepository.path;
-        if (await pathExists(worktreePath)) {
+        const worktreePathExists = await pathExists(worktreePath);
+        if (worktreePathExists || options?.forceOnEmpty) {
             await runGit(this.path, ['worktree', 'remove', '--force', worktreePath]);
-            await rm(worktreePath, { recursive: true, force: true });
+            if (worktreePathExists) await rm(worktreePath, { recursive: true, force: true });
         } else {
             console.log(`Worktree path does not exist, skipping removal: ${worktreePath}`);
         }
@@ -304,9 +299,9 @@ export class RootRepository extends Repository {
                 if ((await wt.getCurrentBranch()) === featureBranchName) {
                     console.log(`Try cleaning up orphaned worktree at ${wt.path} for feature ${featureSlug}`);
                     try {
-                        await execa('git', ['worktree', 'remove', '--force', wt.path], { cwd: this.path });
+                        await this.removeWorktree(wt, { forceOnEmpty: true });
                     } catch (error) {
-                        console.log(`  Warning: Could not remove orphaned worktree: ${error}`);
+                        console.warn(`Could not remove orphaned worktree: ${error}`);
                     }
                 } else {
                     console.log(
@@ -344,7 +339,7 @@ export class RootRepository extends Repository {
                 }
             }
         } catch (error) {
-            console.error(`❌ Error merging ${this.name}:`, error instanceof Error ? error.message : error);
+            console.error(`❌ Error merging ${this.name}:`, error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }
@@ -352,11 +347,11 @@ export class RootRepository extends Repository {
 
 export class WorktreeRepository extends Repository {
     public readonly rootRepository!: RootRepository;
-    public readonly _worktreeRepository = true;
     public readonly temporary: boolean;
 
     constructor(context: ForgeContext, repoInfos: RepositoryInfos, rootRepository: RootRepository, temporary = false) {
         super(context, repoInfos);
+        this.rootRepository = rootRepository;
         this.temporary = temporary;
     }
 

@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "outDir": "dist",
     "rootDir": ".",
+    "baseUrl": ".",
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -16,7 +17,7 @@
     },
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "tests"],
+  "include": ["src", "tests", "scripts"],
   "exclude": ["node_modules"],
   "tsc-alias": {
     "resolveFullPaths": true,
