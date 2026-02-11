@@ -405,7 +405,7 @@ export class BranchCommands extends AbstractCommands {
             console.log(`  ⚠ ${repository.name}: worktree not found, skipping`);
             return false;
         }
-        const { branch, dirty, onExpectedBranch } = await repository.getStatus(branchContext);
+        const { branch, dirty, onExpectedBranch } = await repository.getStatus(branchContext.branchName);
         const expectedBranch = branchContext.branchName;
 
         // Check current branch

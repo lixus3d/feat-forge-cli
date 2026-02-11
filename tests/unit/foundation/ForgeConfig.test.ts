@@ -14,13 +14,13 @@ describe('ForgeConfig', () => {
         ...minimumConfig,
         options: {
             folders: {
-                activeFeature: 'test-active-feature',
+                activeSpec: 'test-active-spec',
                 worktrees: 'test-features',
                 agent: 'test-agents',
                 archive: 'test-archive',
                 specs: 'test-specs',
                 template: 'test-templates',
-            },
+            } as ForgeFoldersOptions,
         },
     };
 

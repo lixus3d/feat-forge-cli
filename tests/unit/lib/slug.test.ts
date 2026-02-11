@@ -37,8 +37,8 @@ describe('sanitizeSlug', () => {
         expect(result.changed).toBe(true);
     });
 
-    it('should allow slashes and underscores', () => {
-        const result = sanitizeSlug('valid/slug_with-underscores');
+    it('should allow slashes if allowSlash is true', () => {
+        const result = sanitizeSlug('valid/slug_with-underscores', true);
         expect(result.slug).toBe('valid/slug_with-underscores');
         expect(result.changed).toBe(false);
     });

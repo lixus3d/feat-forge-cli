@@ -29,6 +29,9 @@ const customFolders: ForgeFoldersOptions = {
 
 const customGit: ForgeGitOptions = {
     featureBranchPrefix: 'custom-feature-prefix',
+    fixBranchPrefix: 'custom-fix-prefix',
+    releaseBranchPrefix: 'custom-release-prefix',
+    protectedBranches: ['custom-main', 'custom-develop'],
 };
 
 const customFiles: ForgeFilesOptions = {
@@ -148,25 +151,25 @@ describe('RootRepository', () => {
 
     describe('getFeaturePath()', () => {
         it('should return feature path with feature slug', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, 'my-feature');
-            expect(customRepository.getSpecPath('my-feature')).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch');
+            expect(customRepository.getSpecPath('test/branch')).toBe(expectedPath);
         });
 
         it('should return feature path with segments', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, 'my-feature', 'docs', 'spec.md');
-            expect(customRepository.getSpecPath('my-feature', 'docs', 'spec.md')).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch', 'docs', 'spec.md');
+            expect(customRepository.getSpecPath('test/branch', 'docs', 'spec.md')).toBe(expectedPath);
         });
     });
 
     describe('getAgentPath()', () => {
         it('should return agent path', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, 'my-feature', customFolders.agent);
-            expect(customRepository.getAgentPath('my-feature')).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch', customFolders.agent);
+            expect(customRepository.getAgentPath('test/branch')).toBe(expectedPath);
         });
 
         it('should return agent path with segments', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, 'my-feature', customFolders.agent, 'notes.md');
-            expect(customRepository.getAgentPath('my-feature', 'notes.md')).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch', customFolders.agent, 'notes.md');
+            expect(customRepository.getAgentPath('test/branch', 'notes.md')).toBe(expectedPath);
         });
     });
 
@@ -266,29 +269,34 @@ describe('RootRepository', () => {
     describe('hasFeatureBranch()', () => {
         it('should check if feature branch exists', async () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(true);
-            const exists = await customRepository.hasFeatureBranch('my-feature');
+            const exists = await customRepository.hasFeatureBranch('test/branch');
             expect(exists).toBe(true);
             expect(gitLib.gitBranchExists).toHaveBeenCalledWith(
                 customRepository.path,
-                `${customGit.featureBranchPrefix}${'my-feature'}`,
+                `${customGit.featureBranchPrefix}${'test/branch'}`,
             );
         });
     });
 
     describe('createFeatureBranch()', () => {
-        it('should create feature branch if it does not exist', async () => {
+        (it('should create feature branch if it does not exist', async () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
             vi.mocked(gitLib.createBranch).mockResolvedValue(undefined);
 
-            const created = await customRepository.createFeatureBranch('my-feature');
+            const created = await customRepository.createFeatureBranch('test-feature');
             expect(created).toBe(1);
-            expect(gitLib.createBranch).toHaveBeenCalledWith(customRepository.path, `${customGit.featureBranchPrefix}my-feature`);
-        });
+            expect(gitLib.createBranch).toHaveBeenCalledWith(
+                customRepository.path,
+                `${customGit.featureBranchPrefix}test-feature`,
+                undefined,
+            );
+        }),
+            undefined);
 
         it('should not create feature branch if it already exists', async () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(true);
 
-            const created = await mainRepository.createFeatureBranch('my-feature');
+            const created = await mainRepository.createFeatureBranch('test/branch');
             expect(created).toBe(0);
             expect(gitLib.createBranch).not.toHaveBeenCalled();
         });
@@ -314,7 +322,7 @@ describe('RootRepository', () => {
     describe('setFeatureBranch()', () => {
         it('should set feature branch', async () => {
             vi.mocked(gitLib.checkoutBranch).mockResolvedValue(undefined);
-            await mainRepository.setFeatureBranch('my-feature');
+            await mainRepository.setFeatureBranch('test/branch');
             expect(gitLib.checkoutBranch).toHaveBeenCalled();
         });
     });
@@ -352,11 +360,11 @@ describe('RootRepository', () => {
 
     describe('getStatus()', () => {
         it('should get repository status', async () => {
-            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('feature/my-feature');
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('test/branch');
             vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('');
 
-            const status = await mainRepository.getStatus('my-feature');
-            expect(status.branch).toBe('feature/my-feature');
+            const status = await mainRepository.getStatus('test/branch');
+            expect(status.branch).toBe('test/branch');
             expect(status.dirty).toBe(false);
             expect(status.onExpectedBranch).toBe(true);
         });
@@ -365,7 +373,7 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('main');
             vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('');
 
-            const status = await mainRepository.getStatus('my-feature');
+            const status = await mainRepository.getStatus('test/branch');
             expect(status.onExpectedBranch).toBe(false);
         });
     });
@@ -392,23 +400,23 @@ describe('RootRepository', () => {
 
     describe('getWorktreePath()', () => {
         it('should get worktree path without temporary flag', () => {
-            const worktreePath = mainRepository.getWorktreePath('my-feature');
-            expect(worktreePath).toBe(forgeContext.paths.getPathInFeatureRoot('my-feature', mainRepository.name));
+            const worktreePath = mainRepository.getWorktreePath('test/branch');
+            expect(worktreePath).toBe(forgeContext.paths.getPathInBranchRoot('test/branch', mainRepository.name));
         });
 
         it('should get worktree path with temporary flag', () => {
-            const tempPath = mainRepository.getWorktreePath('my-feature', TemporaryFolderType.BRANCH_INIT);
+            const tempPath = mainRepository.getWorktreePath('test/branch', TemporaryFolderType.BRANCH_INIT);
             expect(tempPath).toBe(
-                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.BRANCH_INIT, 'my-feature', mainRepository.name),
+                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.BRANCH_INIT, 'test/branch', mainRepository.name),
             );
         });
     });
 
     describe('getTempWorktreePath()', () => {
         it('should get temporary worktree path', () => {
-            const tempPath = mainRepository.getTempWorktreePath('my-feature', TemporaryFolderType.BRANCH_ARCHIVE);
+            const tempPath = mainRepository.getTempWorktreePath('test/branch', TemporaryFolderType.BRANCH_ARCHIVE);
             expect(tempPath).toBe(
-                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.BRANCH_ARCHIVE, 'my-feature', mainRepository.name),
+                forgeContext.paths.getTempWorktreePathForRepo(TemporaryFolderType.BRANCH_ARCHIVE, 'test/branch', mainRepository.name),
             );
         });
     });
@@ -416,13 +424,13 @@ describe('RootRepository', () => {
     describe('hasWorktree()', () => {
         it('should check if worktree exists', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            const exists = await mainRepository.hasWorktree('my-feature');
+            const exists = await mainRepository.hasWorktree('test/branch');
             expect(exists).toBe(true);
         });
 
         it('should check if temporary worktree exists', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            const exists = await mainRepository.hasWorktree('my-feature', TemporaryFolderType.BRANCH_INIT);
+            const exists = await mainRepository.hasWorktree('test/branch', TemporaryFolderType.BRANCH_INIT);
             expect(exists).toBe(true);
         });
     });
@@ -439,14 +447,14 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(true);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const worktreeRepository = await mainRepository.addWorktree('my-feature');
+            const worktreeRepository = await mainRepository.addWorktree('test/branch');
 
             expect(gitLib.gitBranchExists).toHaveBeenCalled();
             expect(gitLib.runGit).toHaveBeenCalledWith(mainRepository.path, [
                 'worktree',
                 'add',
                 worktreeRepository.path,
-                `${forgeContext.options.git.featureBranchPrefix}my-feature`,
+                `test/branch`,
             ]);
             expect(worktreeRepository).toBeInstanceOf(WorktreeRepository);
         });
@@ -462,13 +470,13 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const worktreeRepository = await mainRepository.addWorktree('my-feature');
+            const worktreeRepository = await mainRepository.addWorktree('test/branch');
 
             expect(gitLib.runGit).toHaveBeenCalledWith(mainRepository.path, [
                 'worktree',
                 'add',
                 '-b',
-                `${forgeContext.options.git.featureBranchPrefix}my-feature`,
+                `test/branch`,
                 worktreeRepository.path,
             ]);
         });
@@ -476,7 +484,7 @@ describe('RootRepository', () => {
         it('should throw error if worktree already exists', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
 
-            await expect(mainRepository.addWorktree('my-feature')).rejects.toThrow('Worktree already exists');
+            await expect(mainRepository.addWorktree('test/branch')).rejects.toThrow('Worktree already exists');
         });
 
         it('should add temporary worktree', async () => {
@@ -488,7 +496,7 @@ describe('RootRepository', () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const tempWorktreeRepository = await mainRepository.addWorktree('my-feature', TemporaryFolderType.BRANCH_INIT);
+            const tempWorktreeRepository = await mainRepository.addWorktree('test/branch', TemporaryFolderType.BRANCH_INIT);
 
             expect(gitLib.runGit).toHaveBeenCalled();
             expect(tempWorktreeRepository).toBeInstanceOf(WorktreeRepository);
@@ -506,7 +514,7 @@ describe('RootRepository', () => {
             });
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const tempWorktreeRepository = await mainRepository.getTemporaryWorktree('my-feature', TemporaryFolderType.BRANCH_INIT);
+            const tempWorktreeRepository = await mainRepository.getTemporaryWorktree('test/branch', TemporaryFolderType.BRANCH_INIT);
 
             expect(gitLib.gitBranchExists).toHaveBeenCalled();
             expect(tempWorktreeRepository).toBeInstanceOf(WorktreeRepository);
@@ -516,7 +524,7 @@ describe('RootRepository', () => {
         it('should throw error when getting temporary worktree if branch does not exist', async () => {
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
 
-            await expect(mainRepository.getTemporaryWorktree('my-feature', TemporaryFolderType.BRANCH_INIT)).rejects.toThrow(
+            await expect(mainRepository.getTemporaryWorktree('test/branch', TemporaryFolderType.BRANCH_INIT)).rejects.toThrow(
                 'Feature branch',
             );
         });
@@ -526,7 +534,7 @@ describe('RootRepository', () => {
         it('should get existing worktree', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
 
-            const worktreeRepository = await mainRepository.getWorktree('my-feature');
+            const worktreeRepository = await mainRepository.getWorktree('test/branch');
 
             expect(fsLib.pathExists).toHaveBeenCalled();
             expect(worktreeRepository).toBeInstanceOf(WorktreeRepository);
@@ -535,7 +543,7 @@ describe('RootRepository', () => {
         it('should throw error when getting non-existent worktree', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(false);
 
-            await expect(mainRepository.getWorktree('my-feature')).rejects.toThrow('Worktree for feature');
+            await expect(mainRepository.getWorktree('test/branch')).rejects.toThrow('Worktree for feature');
         });
     });
 
@@ -544,7 +552,7 @@ describe('RootRepository', () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const wtPath = mainRepository.getWorktreePath('my-feature');
+            const wtPath = mainRepository.getWorktreePath('test/branch');
             const wtRepo = new WorktreeRepository(
                 forgeContext,
                 { name: mainRepository.name, path: wtPath, main: mainRepository.main },
@@ -560,7 +568,7 @@ describe('RootRepository', () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(false);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            const wtPath = mainRepository.getWorktreePath('my-feature');
+            const wtPath = mainRepository.getWorktreePath('test/branch');
             const wtRepo = new WorktreeRepository(
                 forgeContext,
                 { name: mainRepository.name, path: wtPath, main: mainRepository.main },
@@ -605,18 +613,18 @@ describe('RootRepository', () => {
     describe('cleanOrphanedWorktree()', () => {
         it('should clean orphaned worktree on feature branch', async () => {
             const mockWorktrees: gitLib.GitWorktreeInfo[] = [
-                { path: '/orphaned/path', branch: `${forgeContext.options.git.featureBranchPrefix}my-feature` },
+                { path: '/orphaned/path', branch: `${forgeContext.options.git.featureBranchPrefix}test/branch` },
             ];
             vi.mocked(gitLib.getGitWorktrees).mockResolvedValue(mockWorktrees as any);
             vi.mocked(fsLib.pathExists).mockResolvedValue(false);
-            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(`${forgeContext.options.git.featureBranchPrefix}my-feature`);
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(`${forgeContext.options.git.featureBranchPrefix}test/branch`);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
             const consoleLogSpy = vi.spyOn(console, 'log');
             const consoleWarnSpy = vi.spyOn(console, 'warn');
             const removeWorktreeSpy = vi.spyOn(mainRepository, 'removeWorktree');
 
-            await mainRepository.cleanOrphanedWorktree('my-feature');
+            await mainRepository.cleanOrphanedWorktree(`${forgeContext.options.git.featureBranchPrefix}test/branch`);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Try cleaning up orphaned worktree'));
             expect(removeWorktreeSpy).toHaveBeenCalledWith(expect.anything(), { forceOnEmpty: true });
@@ -635,7 +643,7 @@ describe('RootRepository', () => {
 
             const consoleLogSpy = vi.spyOn(console, 'log');
 
-            await mainRepository.cleanOrphanedWorktree('my-feature');
+            await mainRepository.cleanOrphanedWorktree(`${forgeContext.options.git.featureBranchPrefix}test/branch`);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping orphaned worktree'));
         });
@@ -646,25 +654,24 @@ describe('RootRepository', () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
-            await mainRepository.cleanOrphanedWorktree('my-feature');
-
+            await mainRepository.cleanOrphanedWorktree(`${forgeContext.options.git.featureBranchPrefix}test/branch`);
             expect(gitLib.runGit).not.toHaveBeenCalled();
         });
 
         it('should not throw, just warn if removing orphaned worktree fails', async () => {
             const mockWorktrees: gitLib.GitWorktreeInfo[] = [
-                { path: '/orphaned/path', branch: `${forgeContext.options.git.featureBranchPrefix}my-feature` },
+                { path: '/orphaned/path', branch: `${forgeContext.options.git.featureBranchPrefix}test/branch` },
             ];
             vi.mocked(gitLib.getGitWorktrees).mockResolvedValue(mockWorktrees as any);
             vi.mocked(fsLib.pathExists).mockResolvedValue(false);
-            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(`${forgeContext.options.git.featureBranchPrefix}my-feature`);
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(`${forgeContext.options.git.featureBranchPrefix}test/branch`);
             vi.mocked(gitLib.runGit).mockRejectedValue(new Error('Failed to remove worktree'));
 
             const consoleLogSpy = vi.spyOn(console, 'log');
             const consoleWarnSpy = vi.spyOn(console, 'warn');
             const removeWorktreeSpy = vi.spyOn(mainRepository, 'removeWorktree');
 
-            await mainRepository.cleanOrphanedWorktree('my-feature');
+            await mainRepository.cleanOrphanedWorktree(`${forgeContext.options.git.featureBranchPrefix}test/branch`);
 
             expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Try cleaning up orphaned worktree'));
             expect(removeWorktreeSpy).toHaveBeenCalledWith(expect.anything(), { forceOnEmpty: true });

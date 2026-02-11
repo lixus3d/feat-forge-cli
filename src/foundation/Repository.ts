@@ -209,10 +209,10 @@ export abstract class Repository {
         return status.length > 0;
     }
 
-    async getStatus(branchContext: BranchContext): Promise<RepositoryStatus> {
+    async getStatus(branchName: string): Promise<RepositoryStatus> {
         const branch = await this.getCurrentBranch()!;
         const dirty = await this.isDirty();
-        const onExpectedBranch = branch === branchContext.branchName;
+        const onExpectedBranch = branch === branchName;
         return { branch, dirty, onExpectedBranch };
     }
 

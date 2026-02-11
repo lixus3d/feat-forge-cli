@@ -14,6 +14,7 @@ vi.mock('@/lib/fs');
 vi.mock('fs/promises');
 
 import { rm, symlink } from 'fs/promises';
+import { BranchContext } from '@/foundation/BranchContext';
 
 describe('WorktreeRepository', () => {
     let forgeContext: ForgeContext;
@@ -104,25 +105,15 @@ describe('WorktreeRepository', () => {
 
     describe('setActiveFeature()', () => {
         it('should set active feature symlink for main repository', async () => {
-            const mainWtRepository = new WorktreeRepository(
-                forgeContext,
-                { name: rootMainRepository.name, path: rootMainRepository.getWorktreePath('test-feature'), main: true },
-                rootMainRepository,
-                false,
-            );
-
-            const featureContext = {
-                slug: 'test-feature',
-                mainRepo: rootMainRepository,
-            } as any;
+            const branchContext = new BranchContext(forgeContext, 'test-feature', '', [worktreeMainRepository], true);
 
             vi.mocked(rm).mockResolvedValue(undefined);
             vi.mocked(symlink).mockResolvedValue(undefined);
 
-            await mainWtRepository.setActiveSpec(featureContext);
+            await worktreeMainRepository.setActiveSpec(branchContext);
 
-            const featurePath = mainWtRepository.getSpecPath('test-feature');
-            const mainActivePath = mainWtRepository.activeSpecPath;
+            const featurePath = worktreeMainRepository.getSpecPath('test-feature');
+            const mainActivePath = worktreeMainRepository.activeSpecPath;
             const expectedRelativePath = path.relative(path.dirname(mainActivePath), featurePath);
 
             expect(rm).toHaveBeenCalledWith(mainActivePath, { force: true });
@@ -130,15 +121,12 @@ describe('WorktreeRepository', () => {
         });
 
         it('should remove existing symlink before creating new one', async () => {
-            const featureContext = {
-                slug: 'test-feature',
-                mainRepo: rootMainRepository,
-            } as any;
+            const branchContext = new BranchContext(forgeContext, 'test-feature', '', [worktreeMainRepository], true);
 
             vi.mocked(rm).mockResolvedValue(undefined);
             vi.mocked(symlink).mockResolvedValue(undefined);
 
-            await worktreeMainRepository.setActiveSpec(featureContext);
+            await worktreeMainRepository.setActiveSpec(branchContext);
 
             expect(rm).toHaveBeenCalled();
             expect(symlink).toHaveBeenCalled();
@@ -149,15 +137,18 @@ describe('WorktreeRepository', () => {
         });
 
         it('should symlink secondary repository active feature to main repository active feature', async () => {
-            const featureContext = {
-                slug: 'test-feature',
-                mainRepo: worktreeMainRepository,
-            } as any;
+            const branchContext = new BranchContext(
+                forgeContext,
+                'test-feature',
+                '',
+                [worktreeMainRepository, worktreeSecondaryRepository],
+                true,
+            );
 
             vi.mocked(rm).mockResolvedValue(undefined);
             vi.mocked(symlink).mockResolvedValue(undefined);
 
-            await worktreeSecondaryRepository.setActiveSpec(featureContext);
+            await worktreeSecondaryRepository.setActiveSpec(branchContext);
 
             console.log({
                 mainPath: worktreeMainRepository.path,

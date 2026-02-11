@@ -295,7 +295,7 @@ export class BranchContext {
     async collectRepositoriesStatus(): Promise<Record<RepoName, RepositoryStatus>> {
         const status: Record<RepoName, RepositoryStatus> = {};
         for (const repo of this.repositories) {
-            status[repo.name] = await repo.getStatus(this);
+            status[repo.name] = await repo.getStatus(this.branchName);
         }
         return status;
     }
