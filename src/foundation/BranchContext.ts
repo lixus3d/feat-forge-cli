@@ -31,10 +31,6 @@ export class BranchContext {
         this.active = active;
     }
 
-    get branchNameAsPath(): string {
-        return branchNameAsPath(this.branchName);
-    }
-
     isRootBranch(): boolean {
         return !this.isFeatureBranch() && !this.isFixBranch() && !this.isReleaseBranch();
     }
@@ -108,6 +104,18 @@ export class BranchContext {
         }
     }
 
+    protected get folders() {
+        return this.context.options.folders;
+    }
+
+    protected get files() {
+        return this.context.options.files;
+    }
+
+    get branchNameAsPath(): string {
+        return branchNameAsPath(this.branchName);
+    }
+
     get mainRepo() {
         return this.repositories.find((repo) => repo.main)!;
     }
@@ -120,8 +128,12 @@ export class BranchContext {
         return path.join(this.path, this.context.options.files.forgeMode);
     }
 
+    get activeSpecPath(): string {
+        return path.join(this.path, this.folders.activeSpec);
+    }
+
     getInPath(...segments: string[]): string {
-        return this.context.paths.getPathInBranchRoot(this.branchName, ...segments);
+        return path.join(this.path, ...segments);
     }
 
     hasRepo(repoName: string): boolean {
@@ -175,7 +187,6 @@ export class BranchContext {
     async setMode(mode: ForgeMode): Promise<void> {
         const modeFile = this.modeFilePath;
         await writeTextFile(modeFile, `${mode}\n`);
-        await this.refreshAgentContextFiles(mode);
     }
 
     async initMode(mode: ForgeMode = ForgeMode.SPEC): Promise<void> {
@@ -279,6 +290,9 @@ export class BranchContext {
         // Set initial mode to spec if not defined
         await this.initMode(); // default to spec mode on start
 
+        // Refresh agent context files based on mode (will create symlinks to template files or user overrides)
+        await this.refreshAgentContextFiles();
+
         // Create IDE workspaces if configured
         if (this.context.ides.length > 0) {
             await createIDEWorkspaces(
@@ -310,7 +324,16 @@ export class BranchContext {
     }
 
     async setActiveSpec(): Promise<void> {
-        await Promise.all(this.repositories.map((repo) => repo.setActiveSpec(this)));
+        // Create .active-spec symlink in the Branch root pointing to the current spec file in the main repository worktree
+        const specRealPath = this.mainRepo.getSpecPath(this.branchName);
+        const activeSpecPath = this.activeSpecPath;
+        await rm(activeSpecPath, { force: true });
+        await symlink(path.relative(path.dirname(activeSpecPath), specRealPath), activeSpecPath);
+
+        // If activeSpecInEachRepo is true, also create/update .active-spec symlink in each repository worktree pointing to the same spec file in the main repository worktree
+        if (this.context.options.process.activeSpecInEachRepo) {
+            await Promise.all(this.repositories.map((repo) => repo.setActiveSpec(this)));
+        }
     }
 
     async collectRepositoriesStatus(): Promise<Record<RepoName, RepositoryStatus>> {

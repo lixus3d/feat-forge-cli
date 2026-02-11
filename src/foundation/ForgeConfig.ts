@@ -1,5 +1,3 @@
-import { Type } from 'class-transformer';
-import { ArrayNotEmpty, IsArray, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import path from 'path';
 import { FEAT_FORGE_CONFIG_FILE } from '../lib/constants';
 import { merge } from '../lib/merger';
@@ -9,171 +7,17 @@ import { AIAgentName } from './types/AIAgentName';
 import { DeepPartial } from './types/DeepPartial';
 import { IDE } from './types/IDE';
 import { IDEName } from './types/IDEName';
-import { RepoName, RepoPath, RepositoryInfos } from './types/RepositoryInfos';
-
-export class ForgeFoldersOptions {
-    /**
-     * Folder for feature specs within each repo.
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    specs: string = '.specs';
-    /**
-     * Folder for git worktrees. Default: 'worktrees'
-     * Can be empty to put them in the root of the repo, but that can get messy so we default to a separate folder
-     */
-    @IsOptional()
-    @IsString()
-    worktrees: string = 'worktrees';
-    /**
-     * Folder for active feature tracking. Default: '.active-spec'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    activeSpec: string = '.active-spec';
-    /**
-     * Folder for feature templates. Default: '.template'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    template: string = '.template';
-    /**
-     * Folder for agent instructions. Default: 'agent'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    agent: string = 'agent';
-    /**
-     * Folder for archived feature specs within each repo. Default: '.archives'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    archive: string = '.archives';
-}
-
-export class ForgeFilesOptions {
-    /**
-     * File name for storing the current mode of a feature. Default: '.forge-mode'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    forgeMode: string = '.forge-mode';
-}
-
-export class ForgeGitOptions {
-    /**
-     * Prefix for feature branches. Default: 'feature/'
-     */
-    @IsOptional()
-    @IsString()
-    featureBranchPrefix: string = 'feature/';
-
-    @IsOptional()
-    @IsString()
-    fixBranchPrefix: string = 'fix/';
-
-    @IsOptional()
-    @IsString()
-    releaseBranchPrefix: string = 'release/';
-
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    protectedBranches: string[] = ['main', 'master', 'develop', 'dev'];
-}
-
-export class ForgeOptions {
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeFoldersOptions)
-    folders: ForgeFoldersOptions = new ForgeFoldersOptions();
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeFilesOptions)
-    files: ForgeFilesOptions = new ForgeFilesOptions();
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeGitOptions)
-    git: ForgeGitOptions = new ForgeGitOptions();
-}
-
-/**
- * Type for the .feat-forge.json configuration file
- */
-export class ForgeConfigFile {
-    /**
-     * Optional root directory for all repositories. If not set, repos paths are relative to the config file location. Can be absolute or relative.
-     * Useful for monorepos or when you want to keep the config file in a separate folder.
-     */
-    @IsOptional()
-    @IsString()
-    rootDir?: string;
-
-    /**
-     * List of repositories to manage. Can be a simple string (repo path) or an object with more options.
-     * If multiple repos are defined, one must be marked as "main" (or it will take the first one) -> this is the repo where the feature branches will be created and where the active feature will be tracked.
-     * If only one repo is defined, it will be considered the main repo by default.
-     */
-    @IsArray()
-    @ArrayNotEmpty()
-    repositories!: RepositoryConfigEntry[];
-
-    @IsOptional()
-    @IsArray()
-    agents?: AgentConfigEntry[];
-
-    @IsOptional()
-    @IsArray()
-    ides?: IDEConfigEntry[];
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeOptions)
-    options?: DeepPartial<ForgeOptions>;
-}
-
-/**
- * Agent configuration - can be a simple string (agent name or custom file)
- * or a full config object for more control
- */
-export type AgentConfigEntry = string | AgentConfig;
-
-export type AgentConfig = {
-    name?: AIAgentName | string | null;
-    agentFile?: string;
-    settings?: Record<string, unknown>;
-};
-
-/**
- * IDE configuration - can be a simple string (IDE name) or a config object
- */
-export type IDEConfigEntry = string | IDEConfig;
-
-export type IDEConfig = {
-    name: IDEName;
-    createWorkspace?: boolean;
-    settings?: Record<string, unknown>;
-    openCommand?: string;
-};
-
-/**
- * Repository configuration - can be a simple string (repo root path) or a full config object
- */
-export type RepositoryConfigEntry = RepoPath | RepositoryConfig;
-
-export type RepositoryConfig = {
-    name?: RepoName;
-    path: RepoPath;
-    main?: boolean;
-};
+import { RepositoryInfos } from './types/RepositoryInfos';
+import {
+    ForgeOptions,
+    ForgeConfigFile,
+    RepositoryConfigEntry,
+    RepositoryConfig,
+    IDEConfigEntry,
+    IDEConfig,
+    AgentConfigEntry,
+    AgentConfig,
+} from './ForgeConfigFile';
 
 export class ForgeConfig {
     public readonly rootDir: string;

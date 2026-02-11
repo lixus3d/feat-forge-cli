@@ -13,5 +13,6 @@ export class ModeCommands extends AbstractCommands {
     async setMode(mode: ForgeMode): Promise<void> {
         const branchContext = await BranchContext.findNearestBranchContext(this.context);
         await branchContext.setMode(mode);
+        await branchContext.refreshAgentContextFiles(mode);
     }
 }

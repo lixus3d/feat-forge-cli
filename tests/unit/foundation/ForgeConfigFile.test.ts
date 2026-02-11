@@ -1,4 +1,4 @@
-import { ForgeConfigFile } from '@/foundation/ForgeConfig';
+import { ForgeConfigFile } from '@/foundation/ForgeConfigFile';
 import { IDEName } from '@/foundation/types/IDEName';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';

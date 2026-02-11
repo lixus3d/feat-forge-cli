@@ -1,5 +1,6 @@
 import { ForgeConfigError } from '@/foundation/errors';
-import { ForgeConfig, ForgeFoldersOptions } from '@/foundation/ForgeConfig';
+import { ForgeConfig } from '@/foundation/ForgeConfig';
+import { ForgeFoldersOptions } from '@/foundation/ForgeConfigFile';
 import { IDEName } from '@/foundation/types/IDEName';
 import path from 'path';
 
