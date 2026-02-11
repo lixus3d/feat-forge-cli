@@ -1,1 +1,0 @@
-../../.template/agent/CONTEXT.spec.md
