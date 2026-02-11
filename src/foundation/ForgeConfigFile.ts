@@ -48,6 +48,13 @@ export class ForgeFoldersOptions {
     @IsString()
     @IsNotEmpty()
     archive: string = '.archives';
+    /**
+     * Folder for repository configuration, bootstrap and hook scripts. Default: '.forge'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    repoConfig: string = '.forge';
 }
 
 export class ForgeFilesOptions {

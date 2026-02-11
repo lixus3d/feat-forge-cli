@@ -1,4 +1,5 @@
 import { branchNameAsPath } from '@/lib/branch';
+import { executeBootstrapScript } from '@/lib/bootstrap';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -423,5 +424,16 @@ export class WorktreeRepository extends Repository {
             console.error(`❌ Error rebasing ${this.name}:`, error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
+    }
+
+    /**
+     * Execute the bootstrap script in this repository.
+     * Can be extended in the future to handle other types of scripts (npm scripts, hooks, etc.)
+     *
+     * @throws Error if the bootstrap script fails
+     */
+    async executeBootstrapScript(): Promise<void> {
+        const repoConfigFolderPath = this.folders.repoConfig;
+        await executeBootstrapScript(this.path, repoConfigFolderPath);
     }
 }

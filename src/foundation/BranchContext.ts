@@ -363,6 +363,17 @@ export class BranchContext {
                 this.context.agents,
             );
         }
+
+        // Execute bootstrap scripts in each repository
+        for (const repository of this.repositories) {
+            try {
+                await repository.executeBootstrapScript();
+            } catch (error) {
+                console.error(`Failed to execute bootstrap script in ${repository.name}`);
+                throw error;
+            }
+        }
+
         this.active = true;
     }
 
