@@ -104,6 +104,8 @@ export class ForgeProcessOptions {
      * Do we ensure that .gitignore includes the .active-spec folder in all repos to avoid accidentally committing active branch pointers? Default: true
      * You might want to set this to false if you want to commit the active spec pointers for some reason, but be careful not to accidentally commit them.
      */
+    @IsOptional()
+    @IsBoolean()
     manageGitIgnore: boolean = true;
     /**
      * Do we put an .active-spec folder in each repo on branch start.
@@ -130,6 +132,15 @@ export class ForgeProcessOptions {
     @IsOptional()
     @IsBoolean()
     agentsInEachRepo: boolean = true;
+
+    /**
+     * Prefix for npm scripts in package.json. Default: 'feat-forge'
+     * Example: with prefix 'feat-forge', scripts would be 'feat-forge:bootstrap', 'feat-forge:hooks:postBranchStart'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    npmScriptPrefix: string = 'feat-forge';
 }
 
 export class ForgeOptions {

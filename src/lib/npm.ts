@@ -1,7 +1,10 @@
 import { execa } from 'execa';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { ForgeContext } from '../foundation/ForgeContext';
+import { Repository } from '../foundation/Repository';
 import { pathExists } from './fs';
+import { paramsToEnv } from './env';
 
 interface PackageJson {
     scripts?: Record<string, string>;
@@ -9,170 +12,137 @@ interface PackageJson {
 }
 
 /**
- * Check if a repository is a Node.js project (has package.json)
+ * Helper class to manage npm scripts for forge repositories
+ * Provides methods for discovering and executing npm scripts with the configured prefix
  */
-export async function isNodeProject(repositoryPath: string): Promise<boolean> {
-    const packageJsonPath = path.join(repositoryPath, 'package.json');
-    return pathExists(packageJsonPath);
-}
+export class NpmHelper {
+    private forgeContext: ForgeContext;
+    private repository: Repository;
+    private packageManager!: string;
 
-/**
- * Read and parse package.json from a repository
- */
-export async function readPackageJson(repositoryPath: string): Promise<PackageJson | null> {
-    const packageJsonPath = path.join(repositoryPath, 'package.json');
-
-    if (!(await pathExists(packageJsonPath))) {
-        return null;
+    constructor(forgeContext: ForgeContext, repository: Repository) {
+        this.forgeContext = forgeContext;
+        this.repository = repository;
     }
 
-    try {
-        const content = await readFile(packageJsonPath, 'utf-8');
-        return JSON.parse(content) as PackageJson;
-    } catch (error) {
-        console.error(`Failed to read package.json at ${packageJsonPath}:`, error);
-        return null;
-    }
-}
-
-/**
- * Discover feat-forge npm scripts in a package.json
- * Returns script names like 'feat-forge:bootstrap', 'feat-forge:hooks:postBranchStart', etc.
- */
-export async function discoverNpmScripts(repositoryPath: string): Promise<string[]> {
-    const packageJson = await readPackageJson(repositoryPath);
-
-    if (!packageJson || !packageJson.scripts) {
-        return [];
-    }
-
-    return Object.keys(packageJson.scripts)
-        .filter((scriptName) => scriptName.startsWith('feat-forge:'))
-        .sort();
-}
-
-/**
- * Discover npm scripts for a specific event (e.g., 'postBranchStart')
- * Returns full script names like 'feat-forge:hooks:postBranchStart'
- */
-export async function discoverNpmScriptsForEvent(repositoryPath: string, eventType: string): Promise<string[]> {
-    const allScripts = await discoverNpmScripts(repositoryPath);
-
-    // Match patterns like 'feat-forge:hooks:postBranchStart' or 'feat-forge:hooks:postBranchStart_01'
-    const eventPrefix = `feat-forge:hooks:${eventType}`;
-    return allScripts.filter((scriptName) => scriptName === eventPrefix || scriptName.startsWith(`${eventPrefix}_`));
-}
-
-/**
- * Discover npm bootstrap script
- * Returns 'feat-forge:bootstrap' if it exists
- */
-export async function discoverNpmBootstrapScript(repositoryPath: string): Promise<string | null> {
-    const allScripts = await discoverNpmScripts(repositoryPath);
-    return allScripts.find((name) => name === 'feat-forge:bootstrap') || null;
-}
-
-/**
- * Execute an npm script in a repository
- * Automatically detects npm or yarn
- */
-export async function executeNpmScript(
-    repositoryPath: string,
-    scriptName: string,
-    params?: Record<string, unknown>,
-): Promise<boolean> {
-    const packageJson = await readPackageJson(repositoryPath);
-
-    if (!packageJson || !packageJson.scripts || !packageJson.scripts[scriptName]) {
-        return false;
-    }
-
-    console.log(`🔄 Executing npm script: ${scriptName}`);
-
-    try {
-        // Determine which package manager to use
-        const packageManager = (await pathExists(path.join(repositoryPath, 'yarn.lock'))) ? 'yarn' : 'npm';
-
-        // Build environment with hook params
-        const env: Record<string, string> = {};
-        // Copy process.env, filtering out undefined values
-        for (const [key, value] of Object.entries(process.env)) {
-            if (value !== undefined) {
-                env[key] = value;
-            }
+    /**
+     * Initialize the package manager detection
+     * Must be called before executing any scripts
+     */
+    async initialize(): Promise<void> {
+        if(this.packageManager) return;
+        if (await pathExists(path.join(this.repository.path, 'pnpm-lock.yaml'))) {
+            this.packageManager = 'pnpm';
+        } else if (await pathExists(path.join(this.repository.path, 'yarn.lock'))) {
+            this.packageManager = 'yarn';
+        } else {
+            this.packageManager = 'npm';
         }
-        // Add hook params
-        if (params) {
-            for (const [key, value] of Object.entries(params)) {
-                if (value !== null && value !== undefined) {
-                    const slugKey = key.replace(/[^a-zA-Z0-9_]/g, '_');
-                    const envKey = `FORGE_HOOK_${slugKey.toUpperCase()}`;
-                    env[envKey] = String(value);
-                }
-            }
+    }
+
+    /**
+     * Read and parse package.json from the repository
+     */
+    private async readPackageJson(): Promise<PackageJson | null> {
+        const packageJsonPath = path.join(this.repository.path, 'package.json');
+
+        if (!(await pathExists(packageJsonPath))) {
+            return null;
         }
 
-        await execa(packageManager, ['run', scriptName], {
-            cwd: repositoryPath,
-            stdio: 'inherit',
-            env,
-        });
-
-        console.log(`✅ npm script ${scriptName} completed successfully`);
-        return true;
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`❌ npm script ${scriptName} failed: ${message}`);
-        throw error;
-    }
-}
-
-/**
- * Execute npm scripts for a specific event
- * Returns list of executed script names
- */
-export async function executeNpmScriptsForEvent(
-    repositoryPath: string,
-    eventType: string,
-    params?: Record<string, unknown>,
-): Promise<string[]> {
-    const scriptNames = await discoverNpmScriptsForEvent(repositoryPath, eventType);
-
-    if (scriptNames.length === 0) {
-        return [];
-    }
-
-    const executedScripts: string[] = [];
-
-    for (const scriptName of scriptNames) {
         try {
-            await executeNpmScript(repositoryPath, scriptName, params);
-            executedScripts.push(scriptName);
+            const content = await readFile(packageJsonPath, 'utf-8');
+            return JSON.parse(content) as PackageJson;
         } catch (error) {
-            throw new Error(`npm script ${scriptName} failed in ${repositoryPath}`);
+            console.error(`Failed to read package.json at ${packageJsonPath}:`, error);
+            return null;
         }
     }
 
-    return executedScripts;
-}
+    /**
+     * Discover npm scripts matching the configured prefix
+     * Returns script names like 'feat-forge:bootstrap', 'feat-forge:hooks:postBranchStart', etc.
+     */
+    private async discoverNpmScripts(subPart?: string, allowMany: boolean = false): Promise<string[]> {
+        const packageJson = await this.readPackageJson();
 
-/**
- * Execute the npm bootstrap script if it exists
- */
-export async function executeNpmBootstrapScript(
-    repositoryPath: string,
-    params?: Record<string, unknown>,
-): Promise<boolean> {
-    const scriptName = await discoverNpmBootstrapScript(repositoryPath);
+        if (!packageJson || !packageJson.scripts) {
+            return [];
+        }
 
-    if (!scriptName) {
-        return false;
+        const prefix = this.forgeContext.options.process.npmScriptPrefix;
+        const search = `${prefix}:${subPart ? subPart : ''}`;
+        return Object.keys(packageJson.scripts)
+            .filter((scriptName) => scriptName === search || (allowMany && scriptName.startsWith(search + '_')))
+            .sort();
     }
 
-    try {
-        await executeNpmScript(repositoryPath, scriptName, params);
-        return true;
-    } catch (error) {
-        throw new Error(`npm bootstrap script failed in ${repositoryPath}`);
+    /**
+     * Execute an npm script in the repository
+     * Uses the package manager detected during initialization
+     */
+    private async executeNpmScript(scriptName: string, params?: Record<string, unknown>): Promise<boolean> {
+        const packageJson = await this.readPackageJson();
+
+        if (!packageJson || !packageJson.scripts || !packageJson.scripts[scriptName]) {
+            return false;
+        }
+
+        console.log(`🔄 Executing npm script: ${scriptName}`);
+        await this.initialize();
+
+        try {
+            const hookEnv = paramsToEnv(params);
+            await execa(this.packageManager, ['run', scriptName], {
+                cwd: this.repository.path,
+                stdio: 'inherit',
+                env: {
+                    ...process.env,
+                    ...hookEnv,
+                },
+            });
+
+            console.log(`✅ npm script ${scriptName} completed successfully`);
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error(`❌ npm script ${scriptName} failed: ${message}`);
+            throw error;
+        }
+    }
+
+    async executeNpmScripts(scriptNames: string[], params?: Record<string, unknown>): Promise<string[]> {
+        if (scriptNames.length === 0) {
+            return [];
+        }
+        const executedScripts: string[] = [];
+
+        for (const scriptName of scriptNames) {
+            try {
+                await this.executeNpmScript(scriptName, params);
+                executedScripts.push(scriptName);
+            } catch (error) {
+                throw new Error(`npm script ${scriptName} failed in ${this.repository.name}`);
+            }
+        }
+
+        return executedScripts;
+    }
+
+    /**
+     * Execute the npm bootstrap script if it exists
+     * Looks for a script named prefix:bootstrap (e.g., 'feat-forge:bootstrap')
+     */
+    async executeNpmBootstrapScript(params?: Record<string, unknown>): Promise<string[]> {
+        return this.executeNpmScripts(await this.discoverNpmScripts('bootstrap', false), params);
+    }
+
+    /**
+     * Execute npm scripts for a specific event
+     * Discovers and executes scripts matching the pattern prefix:hooks:eventType
+     * (e.g., 'feat-forge:hooks:postBranchStart')
+     */
+    async executeNpmScriptsForEvent(eventType: string, params?: Record<string, unknown>): Promise<string[]> {
+        return this.executeNpmScripts(await this.discoverNpmScripts('hooks:' + eventType, true), params);
     }
 }

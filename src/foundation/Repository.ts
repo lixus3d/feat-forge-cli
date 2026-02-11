@@ -1,7 +1,7 @@
 import { branchNameAsPath } from '@/lib/branch';
-import { executeBootstrapScript, executeHooksForEvent } from '@/lib/bootstrap';
-import { HookEvent } from '@/lib/hooks';
-import { executeNpmBootstrapScript, executeNpmScriptsForEvent } from '@/lib/npm';
+import { executeBootstrapScript } from '@/lib/bootstrap';
+import { HookEvent, executeHooksForEvent } from '@/lib/hooks';
+import { NpmHelper } from '@/lib/npm';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -436,17 +436,13 @@ export class WorktreeRepository extends Repository {
      */
     async executeBootstrapScript(): Promise<void> {
         const repoConfigFolderPath = this.folders.repoConfig;
+        const npmHelper = new NpmHelper(this.context, this);
 
         // Try npm bootstrap script first
-        const npmExecuted = await executeNpmBootstrapScript(this.path);
+        await npmHelper.executeNpmBootstrapScript();
 
         // Try shell bootstrap script after npm
         await executeBootstrapScript(this.path, repoConfigFolderPath);
-
-        // If neither was found, that's fine (graceful fallback)
-        if (!npmExecuted && false) {
-            // This block will never execute, but it documents that not having any bootstrap script is OK
-        }
     }
 
     /**
@@ -465,11 +461,12 @@ export class WorktreeRepository extends Repository {
      */
     async executeHooksForEvent(eventType: HookEvent, params?: Record<string, unknown>): Promise<string[]> {
         const repoConfigFolderPath = this.folders.repoConfig;
+        const npmHelper = new NpmHelper(this.context, this);
 
         const executedHooks: string[] = [];
 
         // Execute npm scripts for this event
-        const npmScripts = await executeNpmScriptsForEvent(this.path, eventType, params);
+        const npmScripts = await npmHelper.executeNpmScriptsForEvent(eventType, params);
         executedHooks.push(...npmScripts);
 
         // Execute shell scripts for this event
