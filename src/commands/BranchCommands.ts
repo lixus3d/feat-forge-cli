@@ -17,9 +17,7 @@ export class BranchCommands extends AbstractCommands {
     /**
      * Create a new branch folder and initialize missing spec files.
      * - Does not create worktrees or set active branch - use `start` for that.
-     * - But it merges spec files to main branch to ensure they are available for users who don't use worktrees and for the branch context.
-     * This is useful if you want to prepare branchs in the current branch of the main repo.
-     * If you have an idea of a branch but don't want to start working on it yet, you can create it to have the spec files ready and then start it when you want to work on it.
+     * - But branch is ready for `start` after this command, since spec files are initialized
      */
     async create(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
@@ -29,18 +27,25 @@ export class BranchCommands extends AbstractCommands {
             this.context.options.git.featureBranchPrefix,
             true,
         );
-        // Prepare branch: validate branchName, ensure branch and spec exist, merge spec files to main branch if needed
-        await this.prepareBranch(branchName, true, baseBranch);
+        // Prepare branch: validate branchName, ensure branch and spec exist
+        await this.prepareBranch(branchName, baseBranch);
         console.log(
-            `Branch "${branchName}" created and spec files initialized. You can find them in the current branch of the main repository. Use 'forge start ${branchName}' to start working on it using git worktrees.`,
+            `Branch "${branchName}" created and spec files initialized. Use 'forge start ${branchName}' to start working on it using git worktrees.`,
         );
+        const mergeBack = await promptConfirm(
+            `Do you want to merge the new branch "${branchName}" to another branch now?\n
+            (if you want to keep track of its spec, but not start to work on it yet)`,
+        );
+        if (mergeBack) {
+            await this.merge(rawSlug);
+        }
     }
 
     /**
      * Start the development of a branch by creating worktrees (if not already created) and setting the active branch pointer.
      * - Does create worktrees and set active branch
      * - But it doesn't merge spec files to main branch if they were not already created
-     * This is useful when you want to start working instantly on a Branch and merge it when finished, without needing the spec files to be in the main branch.
+     * This is useful when you want to start working instantly on a Branch and merge it when finished.
      */
     async start(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
@@ -51,7 +56,7 @@ export class BranchCommands extends AbstractCommands {
             true,
         );
         // Prepare branch: validate branchName, ensure branch and spec exist
-        await (await this.prepareBranch(branchName, false, baseBranch)).start();
+        await (await this.prepareBranch(branchName, baseBranch)).start();
 
         // Propose to open the branch in the configured IDE
         if (this.context.ides.length > 0) {
@@ -304,49 +309,23 @@ export class BranchCommands extends AbstractCommands {
     /**
      * Prepare branch + spec initialization shared by create/start.
      */
-    private async prepareBranch(branchName: string, mergeToRoot: boolean, baseBranch: string): Promise<BranchContext> {
-        let rootRepoChanges = 0;
-        let worktreeRepoChanges = 0;
-        // Ensure agent templates exist in .branchs/.template/agent/
-        rootRepoChanges += (await this.context.ensureAgentTemplates(this.context.mainRepo)).length;
-
-        // Ensure .gitignore includes .active-branch in all repos to avoid accidentally committing active branch pointers
-        rootRepoChanges += await this.context.ensureGitIgnore();
+    private async prepareBranch(branchName: string, baseBranch: string): Promise<BranchContext> {
+        let invisibleRepoChanges = 0;
 
         // Ensure branch exists in all repos (creates branch if missing, but does not check it out)
         await this.context.ensureBranch(branchName, baseBranch); // doesn't realy count as changes
 
         let branchContext: BranchContext;
         if (await this.context.isBranchActive(branchName)) {
-            // The branch is already active
+            // The branch is already active, load the real context
             branchContext = await this.context.loadBranchContext(branchName);
-            // We have made changes to the main repository
-            // We need to rebase the branch branch in the worktree repositories to include these changes, to avoid issues with missing templates or missing .gitignore rules in the branch branches
-            if (rootRepoChanges > 0) {
-                // we need to rebase the branch branch to include the new commits that we have added to the main branch (agent templates, .gitignore)
-                console.log('Rebasing worktree repository to include new commits on root repository...');
-                const mainRepo = branchContext.mainRepo;
-                const currentRootBranch = (await mainRepo.getCurrentBranch())!;
-                const result = await mainRepo.rebase(branchContext.branchName, currentRootBranch);
-                if (!result.success) {
-                    console.log(`⚠️  Rebase failed while preparing branch '${branchName}'. You will need to do it manually.`);
-                }
-            }
         } else {
-            // The branch is not active yet
+            // The branch is not active yet, create an empty context to prepare the branch (this will create the spec files in a temporary location and merge them to the main branch, but won't create the worktrees yet)
             branchContext = this.context.makeBranchContext(branchName);
         }
 
         // Ensure branch spec files exist in the main repo branch, creating them in a temporary worktree if needed
-        worktreeRepoChanges += await this.context.initBranchSpecFiles(branchContext);
-
-        if (worktreeRepoChanges > 0 && mergeToRoot) {
-            // We have made changes to the worktree repo, but they are not visible
-            // We need to merge the branch branch back to the main branch to include these changes in the main repo, to ensure they are available for users who don't use worktrees and for the branch context
-            const mainRepo = this.context.mainRepo;
-            // If the branch files were initialized in a worktree, we need to merge them back to the main branch to ensure they are available in the main repo for the branch context and for users who don't use worktrees
-            await mainRepo.merge((await mainRepo.getCurrentBranch())!, branchContext.branchName);
-        }
+        invisibleRepoChanges += await branchContext.initBranch();
 
         return branchContext;
     }

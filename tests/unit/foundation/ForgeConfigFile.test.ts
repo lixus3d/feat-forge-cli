@@ -13,7 +13,7 @@ describe('ForgeConfigFile', () => {
                 folders: {
                     activeSpec: 'test-active-feature',
                     worktrees: 'test-features',
-                    agent: 'test-agents',
+                    repoAgents: 'test-agents',
                     archive: 'test-archive',
                     specs: 'test-specs',
                     template: 'test-templates',

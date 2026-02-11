@@ -17,7 +17,7 @@ describe('ForgeConfig', () => {
             folders: {
                 activeSpec: 'test-active-spec',
                 worktrees: 'test-features',
-                agent: 'test-agents',
+                repoAgents: 'test-agents',
                 archive: 'test-archive',
                 specs: 'test-specs',
                 template: 'test-templates',
@@ -68,7 +68,7 @@ describe('ForgeConfig', () => {
             });
             expect(forgeConfig.options.folders.activeSpec).toEqual('my-active-feature');
             expect(forgeConfig.options.folders.worktrees).toEqual(defaultFolderOptions.worktrees);
-            expect(forgeConfig.options.folders.agent).toEqual(defaultFolderOptions.agent);
+            expect(forgeConfig.options.folders.repoAgents).toEqual(defaultFolderOptions.repoAgents);
             expect(forgeConfig.options.folders.archive).toEqual(defaultFolderOptions.archive);
             expect(forgeConfig.options.folders.specs).toEqual(defaultFolderOptions.specs);
         });

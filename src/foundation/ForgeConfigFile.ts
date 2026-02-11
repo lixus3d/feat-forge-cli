@@ -21,26 +21,26 @@ export class ForgeFoldersOptions {
     @IsString()
     worktrees: string = 'worktrees';
     /**
-     * Folder for active feature tracking. Default: '.active-spec'
+     * Folder for active spec/branch tracking. Default: '.active-spec'
      */
     @IsOptional()
     @IsString()
     @IsNotEmpty()
     activeSpec: string = '.active-spec';
     /**
-     * Folder for feature templates. Default: '.template'
+     * Folder for spec files templates. Default: '.template'
      */
     @IsOptional()
     @IsString()
     @IsNotEmpty()
     template: string = '.template';
     /**
-     * Folder for agent instructions. Default: '.forge-agents'
+     * Folder for repo's agents when agentsInEachRepo is active. Default: '.forge-agents'
      */
     @IsOptional()
     @IsString()
     @IsNotEmpty()
-    agent: string = '.forge-agents';
+    repoAgents: string = '.forge-agents';
     /**
      * Folder for archived feature specs within each repo. Default: '.archives'
      */
@@ -58,6 +58,22 @@ export class ForgeFilesOptions {
     @IsString()
     @IsNotEmpty()
     forgeMode: string = '.forge-mode';
+
+    /**
+     * File name for the spec file in each feature branch. Default: 'SPEC.md'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    specFile: string = 'SPEC.md';
+
+    /**
+     * File name for the TODO file in each feature branch. Default: 'TODO.md'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    todoFile: string = 'TODO.md';
 }
 
 export class ForgeGitOptions {
@@ -93,6 +109,11 @@ export class ForgeGitOptions {
 }
 
 export class ForgeProcessOptions {
+    /**
+     * Do we ensure that .gitignore includes the .active-spec folder in all repos to avoid accidentally committing active branch pointers? Default: true
+     * You might want to set this to false if you want to commit the active spec pointers for some reason, but be careful not to accidentally commit them.
+     */
+    manageGitIgnore: boolean = true;
     /**
      * Do we put an .active-spec folder in each repo on branch start.
      *
@@ -163,6 +184,29 @@ export class ForgeConfigFile {
     @ArrayNotEmpty()
     repositories!: RepositoryConfigEntry[];
 
+    /**
+     * List of spec files to create in each spec folder for a branch. Default: ['SPEC.md', 'TODO.md']
+     *
+     * Important: Template file must be named accordingly (e.g. .specs/.template/FOOBAR.md for FOOBAR.md) if you want to use custom templates for these files.
+     * Note: You can specificy any type of file here (txt, json, etc.)
+     */
+    @IsOptional()
+    @IsArray()
+    @IsNotEmpty({ each: true })
+    @IsString({ each: true })
+    specFiles?: string[];
+
+    /**
+     * List of modes for the forge.
+     *
+     * Each mode can have a specific agent template file and description.
+     * The first one (or the one mode marked as default) will be the default mode for new branches.
+     */
+    @IsOptional()
+    @IsArray()
+    @Type(() => ModeConfigEntry)
+    modes?: ModeConfigEntry[];
+
     @IsOptional()
     @IsArray()
     agents?: AgentConfigEntry[];
@@ -211,3 +255,22 @@ export type RepositoryConfig = {
     path: RepoPath;
     main?: boolean;
 };
+
+export class ModeConfigEntry {
+    @IsOptional()
+    @IsNotEmpty()
+    @IsString()
+    name?: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsNotEmpty()
+    @IsString()
+    agentFile!: string;
+
+    @IsOptional()
+    @IsBoolean()
+    default?: boolean = false;
+}

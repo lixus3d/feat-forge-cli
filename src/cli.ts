@@ -9,7 +9,6 @@ import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
 import { ModeCommands } from './commands/ModeCommands';
 import { ForgeContext } from './foundation/ForgeContext';
-import { ForgeMode } from './foundation/types/ForgeMode';
 import { loadForgeContext } from './lib/config';
 import { ForgeConfig } from './foundation/ForgeConfig';
 import { ShellName } from './foundation/types/ShellName';
@@ -17,6 +16,8 @@ import { SubBranchCommands } from './commands/SubBranchCommands';
 import { FixCommands } from './commands/FixCommands';
 import { ReleaseCommands } from './commands/ReleaseCommands';
 import { BranchCommands } from './commands/BranchCommands';
+import { ForgeConfigFile } from './foundation/ForgeConfigFile';
+import { plainToInstance } from 'class-transformer';
 
 /**
  * Register the init command on the main CLI program.
@@ -164,14 +165,11 @@ function registerFeatureCommands(program: Command, context: ForgeContext): void 
  */
 function registerModeCommands(program: Command, context: ForgeContext): void {
     const handlers = new ModeCommands(context);
-    const mode = program.command('mode').description('Switch the active feature mode');
-
-    mode.command('spec')
-        .description('Switch to spec mode')
-        .action(() => handlers.setMode(ForgeMode.SPEC));
-    mode.command('code')
-        .description('Switch to code mode')
-        .action(() => handlers.setMode(ForgeMode.CODE));
+    program
+        .command('mode')
+        .argument('<mode>', 'Mode to switch to (as defined in the config)')
+        .description('Switch agents to this mode (updates agent files with the templates for this mode)')
+        .action(handlers.setMode.bind(handlers));
 }
 
 /**
@@ -181,7 +179,7 @@ function registerAgentCommands(program: Command, context: ForgeContext): void {
     const handlers = new AgentCommands(context);
     const agent = program.command('agent').description('Manage agent adapters');
 
-    agent.command('refresh').description('Refresh agent adapter files for the active feature').action(handlers.refresh.bind(handlers));
+    agent.command('refresh').description('Refresh agent adapter files for the nearest branch').action(handlers.refresh.bind(handlers));
 }
 
 /**
@@ -197,7 +195,7 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
         .option('--dry-run', 'Simulate changes without writing files')
         .option('--commit', 'Commit changes if files are written')
         .action(async (slug: string, opts: any) => {
-            await handlers.rewriteAgentFiles(slug, { dryRun: opts.dryRun, commit: opts.commit });
+            await handlers.installAgentTemplateLocally({ dryRun: opts.dryRun, commit: opts.commit });
         });
 }
 
@@ -229,7 +227,8 @@ function registerCompletionCommands(program: Command, context?: ForgeContext): v
             // If no config, we'll use a fallback implementation
             if (!handlers) {
                 const cwd = process.cwd();
-                const fallbackContext = new ForgeContext(cwd, new ForgeConfig(cwd, { repositories: ['dummy'] }));
+                const fallbackConfigFile = plainToInstance(ForgeConfigFile, { repositories: ['dummy'] });
+                const fallbackContext = new ForgeContext(cwd, new ForgeConfig(cwd, fallbackConfigFile));
                 const fallbackHandlers = new CompletionCommands(fallbackContext, program);
                 await fallbackHandlers.generate(shell);
             } else {

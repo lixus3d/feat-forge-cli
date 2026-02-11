@@ -1,9 +1,10 @@
 import { ForgeConfigError } from '@/foundation/errors';
+import { ForgeConfigFile } from '@/foundation/ForgeConfigFile';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { readFile } from 'fs/promises';
 import path from 'path';
-import { ForgeConfig, ForgeConfigFile } from '../foundation/ForgeConfig';
+import { ForgeConfig } from '../foundation/ForgeConfig';
 import { ForgeContext } from '../foundation/ForgeContext';
 import { FEAT_FORGE_CONFIG_FILE } from './constants';
 import { pathExists } from './fs';

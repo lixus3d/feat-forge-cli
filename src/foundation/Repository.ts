@@ -1,8 +1,9 @@
+import { branchNameAsPath } from '@/lib/branch';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
 import { TemporaryFolderType } from '../lib/constants';
-import { pathExists, readTextFile, writeTextFile } from '../lib/fs';
+import { pathExists } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
@@ -14,12 +15,10 @@ import {
     GitOperationResult,
     runGit,
 } from '../lib/git';
+import { BranchContext } from './BranchContext';
 import { ForgeExpectMainRepositoryError } from './errors';
 import { ForgeContext } from './ForgeContext';
-import { ForgeMode } from './types/ForgeMode';
 import { RepositoryInfos } from './types/RepositoryInfos';
-import { BranchContext } from './BranchContext';
-import { branchNameAsPath } from '@/lib/branch';
 
 export type RepositoryStatus = { branch: string | null; dirty: boolean; onExpectedBranch: boolean };
 
@@ -71,12 +70,16 @@ export abstract class Repository {
         return path.join(this.path, this.folders.activeSpec);
     }
 
+    get agentsPath(): string {
+        return path.join(this.path, this.folders.repoAgents);
+    }
+
     getSpecPath(branchName: string, ...segments: string[]): string {
         return path.join(this.specsPath, branchNameAsPath(branchName), ...segments);
     }
 
-    getAgentPath(branchName: string, ...segments: string[]): string {
-        return this.getSpecPath(branchNameAsPath(branchName), this.folders.agent, ...segments);
+    getAgentPath(...segments: string[]): string {
+        return path.join(this.agentsPath, ...segments);
     }
 
     getTemplatePath(...segments: string[]): string {
@@ -84,7 +87,7 @@ export abstract class Repository {
     }
 
     getAgentTemplatePath(...segments: string[]): string {
-        return this.getTemplatePath(this.folders.agent, ...segments);
+        return this.getTemplatePath(this.folders.repoAgents, ...segments);
     }
 
     async hasBranch(branchName: string): Promise<boolean> {

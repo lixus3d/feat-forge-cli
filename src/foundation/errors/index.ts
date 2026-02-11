@@ -4,3 +4,4 @@
 export { ForgeExpectMainRepositoryError } from './generated/ForgeExpectMainRepositoryError';
 export { ForgeConfigError } from './generated/ForgeConfigError';
 export { ForgeBadStateError } from './generated/ForgeBadStateError';
+export { ForgeModeNotDefinedError } from './generated/ForgeModeNotDefinedError';

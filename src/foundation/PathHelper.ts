@@ -7,13 +7,13 @@ import {
     TEMP_FOLDER,
     TemporaryFolderType,
 } from '../lib/constants';
-import { ForgeOptions } from './ForgeConfig';
 import { branchNameAsPath } from '@/lib/branch';
+import { ForgeFoldersOptions } from './ForgeConfigFile';
 
 export class PathHelper {
     constructor(private context: ForgeContext) {}
 
-    get folders(): ForgeOptions['folders'] {
+    get folders(): ForgeFoldersOptions {
         return this.context.options.folders;
     }
 

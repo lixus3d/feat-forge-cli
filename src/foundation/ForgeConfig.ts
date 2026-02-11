@@ -17,7 +17,69 @@ import {
     IDEConfig,
     AgentConfigEntry,
     AgentConfig,
+    ModeConfigEntry,
 } from './ForgeConfigFile';
+import { ModeConfig } from './types/ModeConfig';
+
+export const DEFAULT_SPEC_FILES = ['SPEC.md', 'TODO.md'];
+export const DEFAULT_MODES: ModeConfigEntry[] = [
+    {
+        name: 'general',
+        agentFile: '001.general.Omnibus.agent.md',
+        description: 'Default mode with no special behavior',
+    },
+    {
+        name: 'discovery',
+        agentFile: '002.discovery.Inventorius.agent.md',
+        description: 'Help to define a functional perimeter for a feature',
+        default: true,
+    },
+    {
+        name: 'design',
+        agentFile: '003.design.Architecturius.agent.md',
+        description: 'Help to define an architecture for a feature',
+    },
+    {
+        name: 'plan',
+        agentFile: '004.plan.Strategos.agent.md',
+        description: 'Generate a plan for a feature, in SPEC.md & TODO.md by default',
+    },
+    {
+        name: 'tdd',
+        agentFile: '005.tdd.TestDrivenCodificius.agent.md',
+        description: 'Test Driven Development agent to implement the feature',
+    },
+    {
+        name: 'code',
+        agentFile: '006.code.Codificius.agent.md',
+        description: 'Code agent to implement the feature',
+    },
+    {
+        name: 'simplify',
+        agentFile: '007.simplify.Consolidarius.agent.md',
+        description: 'Simplify and consolidate the feature',
+    },
+    {
+        name: 'review',
+        agentFile: '008.review.Auditorix.agent.md',
+        description: 'Review the feature and ensure code guidelines',
+    },
+    {
+        name: 'test-writer',
+        agentFile: '009.testwriter.TestScriptor.agent.md',
+        description: 'Write unit/functional tests',
+    },
+    {
+        name: 'test-executor',
+        agentFile: '010.testexecutor.TestExecutor.agent.md',
+        description: 'Execute unit/functional tests',
+    },
+    {
+        name: 'commit',
+        agentFile: '011.commit.Scribus.agent.md',
+        description: 'Propose commit message based changes related to the feature and then commit',
+    },
+];
 
 export class ForgeConfig {
     public readonly rootDir: string;
@@ -25,10 +87,14 @@ export class ForgeConfig {
     public readonly agents: AIAgent[];
     public readonly ides: IDE[];
     public readonly options: ForgeOptions;
+    public readonly specFiles: string[];
+    public readonly modes: ModeConfig[];
 
     constructor(configPath: string, configFile: ForgeConfigFile) {
         this.rootDir = path.resolve(configFile.rootDir ? configFile.rootDir : configPath);
+        this.specFiles = configFile.specFiles || DEFAULT_SPEC_FILES;
         // standardize config entries
+        this.modes = this.standardizeModes(configFile.modes || DEFAULT_MODES);
         this.repositories = this.standardizeRepositories(configFile.repositories);
         this.ides = this.standardizeIDEs(configFile.ides);
         this.agents = this.standardizeAgents(configFile.agents);
@@ -37,6 +103,41 @@ export class ForgeConfig {
 
     private getPath(...segments: string[]): string {
         return path.resolve(this.rootDir, ...segments); // validate path segments
+    }
+
+    private standardizeModes(rawModes: ModeConfigEntry[]): ModeConfig[] {
+        if (!Array.isArray(rawModes)) {
+            throw new ForgeConfigError(`Invalid ${FEAT_FORGE_CONFIG_FILE}: "modes" must be an array.`);
+        }
+
+        if (rawModes.length === 0) {
+            throw new ForgeConfigError(`Invalid ${FEAT_FORGE_CONFIG_FILE}: At least one mode must be defined in the "modes" array.`);
+        }
+
+        const modes = rawModes.map((entry) => {
+            const agentFile = entry.agentFile?.trim();
+            if (!agentFile) {
+                throw new ForgeConfigError(
+                    `Invalid ${FEAT_FORGE_CONFIG_FILE}: Each mode entry must have a non-empty "agentFile" property.`,
+                );
+            }
+            const name = entry.name?.trim() || agentFile.replace(/\.[^/.]+$/, ''); // default name from agentFile if not provided
+            if (!name) {
+                throw new ForgeConfigError(
+                    `Invalid ${FEAT_FORGE_CONFIG_FILE}: Each mode entry must have a non-empty "name" or valid "agentFile" property.`,
+                );
+            }
+            return {
+                name,
+                agentFile,
+                description: entry.description?.trim(),
+                default: !!entry.default,
+            } as ModeConfig;
+        });
+
+        ForgeConfig.checkDefaultMode(modes);
+
+        return modes;
     }
 
     private standardizeRepositories(repos: RepositoryConfigEntry[]): RepositoryInfos[] {
@@ -151,6 +252,16 @@ export class ForgeConfig {
         return merge(new ForgeOptions(), options || {});
     }
 
+    private static checkDefaultMode(modes: ModeConfig[]): void {
+        const defaultModes = modes.filter((mode) => mode.default);
+        if (defaultModes.length > 1) {
+            throw new ForgeConfigError('Multiple modes cannot be marked as default in the configuration.');
+        }
+        if (defaultModes.length === 0) {
+            modes[0].default = true; // set first mode as default if none marked
+        }
+    }
+
     private static checkMainRepo(repositories: RepositoryInfos[]): void {
         if (repositories.filter((repo) => repo.main).length > 1) {
             throw new ForgeConfigError('Multiple repositories cannot be marked as main in the configuration.');
@@ -171,7 +282,7 @@ export class ForgeConfig {
     private static getAgentFile(agentName?: AIAgentName | string | null): string {
         const agentFiles: { [key in AIAgentName]: string } = {
             [AIAgentName.CLAUDE]: 'CLAUDE.md',
-            [AIAgentName.COPILOT]: 'COPILOT.instructions.md',
+            [AIAgentName.COPILOT]: 'AGENTS.md',
             [AIAgentName.GEMINI]: 'GEMINI.md',
             [AIAgentName.CODEX]: 'AGENTS.md',
             [AIAgentName.CURSOR]: 'AGENTS.md',
