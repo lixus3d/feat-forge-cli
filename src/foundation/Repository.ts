@@ -1,5 +1,6 @@
 import { branchNameAsPath } from '@/lib/branch';
-import { executeBootstrapScript } from '@/lib/bootstrap';
+import { executeBootstrapScript, executeHooksForEvent } from '@/lib/bootstrap';
+import { HookEvent } from '@/lib/hooks';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -435,5 +436,22 @@ export class WorktreeRepository extends Repository {
     async executeBootstrapScript(): Promise<void> {
         const repoConfigFolderPath = this.folders.repoConfig;
         await executeBootstrapScript(this.path, repoConfigFolderPath);
+    }
+
+    /**
+     * Execute hooks for a specific event type in this repository.
+     * Hooks are discovered from the hooks directory and executed in alphabetical order
+     * for predictable and consistent execution.
+     *
+     * Supports hooks like: postBranchStart.sh, postBranchStart_01.sh, postBranchStart_02.sh
+     *
+     * @param eventType - Type of event (HookEvent enum value)
+     * @param params - Optional parameters to pass to hooks as environment variables (FORGE_HOOK_PARAM_NAME)
+     * @returns Array of hook names that were executed
+     * @throws Error if any hook fails
+     */
+    async executeHooksForEvent(eventType: HookEvent, params?: Record<string, unknown>): Promise<string[]> {
+        const repoConfigFolderPath = this.folders.repoConfig;
+        return executeHooksForEvent(this.path, repoConfigFolderPath, eventType, params);
     }
 }

@@ -1,4 +1,5 @@
 import { branchNameAsPath } from '@/lib/branch';
+import { HookEvent } from '@/lib/hooks';
 import { replaceTemplateMarkers, resolveAgentFileCustomTemplate, resolveSpecFileCustomTemplate } from '@/lib/templates';
 import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -369,12 +370,39 @@ export class BranchContext {
             try {
                 await repository.executeBootstrapScript();
             } catch (error) {
-                console.error(`Failed to execute bootstrap script in ${repository.name}`);
-                throw error;
+                // Soft error here, so that the Branch can still be started even if a bootstrap script fails, which can be useful for debugging or if the bootstrap script is not critical
+                console.error(`❌ Failed to execute bootstrap script in ${repository.name}`, error);
             }
         }
 
+        // Execute postBranchStart hooks in each repository
+        await this.executeHook(HookEvent.POST_BRANCH_START, { branch: this.branchName });
+
         this.active = true;
+    }
+
+    /**
+     * Execute hooks for a specific event across all repositories in this branch.
+     * Soft errors are used so that the branch operation can continue even if a hook fails.
+     *
+     * Hook parameters are passed to scripts as environment variables with FORGE_HOOK_ prefix.
+     * Example: params { sourceBranch: 'feature/xyz' } becomes FORGE_HOOK_SOURCEBRANCH
+     *
+     * @param eventType - Type of hook event to execute
+     * @param params - Optional parameters to pass to hooks as environment variables
+     */
+    private async executeHook(eventType: HookEvent, params?: Record<string, unknown>): Promise<void> {
+        for (const repository of this.repositories) {
+            try {
+                const executedHooks = await repository.executeHooksForEvent(eventType, params);
+                if (executedHooks.length > 0) {
+                    console.log(`📌 Executed ${executedHooks.length} ${eventType} hook(s) in ${repository.name}: ${executedHooks.join(', ')}`);
+                }
+            } catch (error) {
+                // Soft error: allow the branch operation to continue even if a hook fails
+                console.error(`❌ Failed to execute ${eventType} hooks in ${repository.name}`, error);
+            }
+        }
     }
 
     async ensureWorktrees(): Promise<WorktreeRepository[]> {
