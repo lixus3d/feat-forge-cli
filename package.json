@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Feature-first CLI workflow tool",
   "license": "AGPL-3.0-only",
+  "type": "module",
   "bin": {
     "forge": "dist/cli.js"
   },
@@ -11,11 +12,17 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp -r src/templates dist/",
-    "start": "node dist/cli.js",
-    "dev": "node dist/cli.js --help",
+    "build": "pnpm run build:clean && pnpm run build:transpile && pnpm run build:copy && pnpm run build:permissions",
+    "build:clean": "rm -rf dist",
+    "build:transpile": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "build:copy": "cp -r src/templates dist/",
+    "build:permissions": "chmod +x dist/cli.js",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "generate:errors": "tsx scripts/generate-errors.ts"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.2.0",
@@ -26,8 +33,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@vitest/coverage-v8": "^4.0.18",
     "prettier": "^3.8.1",
     "reflect-metadata": "^0.2.2",
-    "typescript": "^5.6.3"
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite-tsconfig-paths": "^6.1.0",
+    "vitest": "^4.0.18"
   }
 }

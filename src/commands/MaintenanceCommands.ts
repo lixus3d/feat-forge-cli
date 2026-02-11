@@ -1,21 +1,26 @@
 import { AbstractCommands } from './AbstractCommands';
 import { confirmSlugOrThrow } from '../lib/slug';
+import { promptConfirm } from '@/lib/prompt';
+import { BranchContext } from '@/foundation/BranchContext';
 
 export class MaintenanceCommands extends AbstractCommands {
     /**
-     * Rewrite agent template files in the .features/.template/agent/ directory of the main repository.
-     * This is useful if you have customized templates and want to reset them to the built-in versions, or if you want to get new templates added in a newer version of feat-forge.
+     * (Re)Write agent template files in the .specs/.template/.forge-agents/ directory of the main repository.
+     * This is useful if you want to fix the agent's files in the project.
      */
-    async rewriteAgentFiles(rawSlug: string, options: { dryRun?: boolean; commit?: boolean } = {}): Promise<void> {
-        const slug = await confirmSlugOrThrow(rawSlug);
-        const featureContext = await this.context.getFeatureContext(slug);
-
+    async installAgentTemplateLocally(
+        options: { deleteExisting?: boolean; dryRun?: boolean; commit?: boolean; overwrite?: boolean } = {},
+    ): Promise<void> {
+        const deleteExisting = Boolean(options.deleteExisting);
         const dryRun = Boolean(options.dryRun);
-        const doCommit = Boolean(options.commit);
+        const commit = options.commit === undefined ? undefined : Boolean(options.commit);
+        const overwrite = Boolean(options.overwrite);
 
-        console.log(`Rewriting agent templates for feature '${slug}' (dryRun=${dryRun}, commit=${doCommit})...`);
+        console.log(
+            `Install agent templates locally (deleteExisting=${deleteExisting}, dryRun=${dryRun}, commit=${commit}, overwrite=${overwrite})...`,
+        );
 
-        const changed = await this.context.ensureAgentTemplates(featureContext.mainRepo, true, dryRun, doCommit);
+        const changed = await this.context.installAgentTemplateLocally(this.context.mainRepo, { deleteExisting, dryRun, overwrite });
 
         if (changed.length === 0) {
             console.log('No agent template files were modified.');
@@ -29,10 +34,20 @@ export class MaintenanceCommands extends AbstractCommands {
 
         if (dryRun) {
             console.log('\nDry run: no files were written.');
-        } else if (!doCommit) {
-            console.log('\nFiles were written but not committed (use --commit to commit).');
         } else {
-            console.log('\nFiles were written and committed.');
+            const doCommit =
+                commit === undefined ? await promptConfirm('Do you want to commit the changes to the repository?') : commit;
+            if (doCommit) {
+                if (changed.length > 0 && !dryRun && doCommit) {
+                    await this.context.mainRepo.commit(
+                        `chore: add feat-forge agent templates ${overwrite ? ' (overwriting existing templates)' : ''}`,
+                        changed,
+                    );
+                }
+                console.log('\nFiles were written and committed.');
+            } else {
+                console.log('\nFiles were written but not committed (use --commit to commit).');
+            }
         }
     }
 }

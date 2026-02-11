@@ -16,6 +16,11 @@ export enum GitOperation {
     Rebase = 'rebase',
 }
 
+export type GitWorktreeInfo = {
+    path: string;
+    branch: string;
+};
+
 export async function findGitRoot(startDir: string = process.cwd()): Promise<string> {
     let current = path.resolve(startDir);
     while (true) {
@@ -92,27 +97,35 @@ export async function checkoutBranch(repoRoot: string, branchName: string): Prom
 /**
  * Create a new branch in a repo.
  */
-export async function createBranch(repoRoot: string, branchName: string): Promise<void> {
-    await runGit(repoRoot, ['branch', branchName]);
+export async function createBranch(repoRoot: string, branchName: string, baseBranch?: string): Promise<void> {
+    const args = ['branch', branchName];
+    if (baseBranch) {
+        args.push(baseBranch);
+    }
+    await runGit(repoRoot, args);
 }
 
 /**
  * Get all branches in a repo.
  */
 
-export async function getBranches(repoRoot: string): Promise<string[]> {
-    const result = await execa('git', ['branch', '--format=%(refname:short)'], { cwd: repoRoot });
+export async function getBranches(repoRoot: string, prefix?: string): Promise<string[]> {
+    const args = ['branch', '--format=%(refname:short)'];
+    if (prefix) {
+        args.push('--list', `${prefix}*`);
+    }
+    const result = await execa('git', args, { cwd: repoRoot });
     return result.stdout.split('\n').filter((b: string) => b.trim().length > 0);
 }
 
 /**
  * Get all worktrees for a repo with their paths and branches.
  */
-export async function getGitWorktrees(repoRoot: string): Promise<Array<{ path: string; branch: string }>> {
+export async function getGitWorktrees(repoRoot: string): Promise<Array<GitWorktreeInfo>> {
     try {
         const result = await execa('git', ['worktree', 'list', '--porcelain'], { cwd: repoRoot });
         const lines = result.stdout.split('\n');
-        const worktrees: Array<{ path: string; branch: string }> = [];
+        const worktrees: Array<GitWorktreeInfo> = [];
 
         let currentPath = '';
         let currentBranch = '';
@@ -150,7 +163,14 @@ export async function getGitWorktrees(repoRoot: string): Promise<Array<{ path: s
  * @param results - Array of operation results
  * @param operationType - Name of the operation (e.g., "merge", "rebase")
  */
-export function displayOperationSummary(results: GitOperationResult[], operationType: GitOperation): void {
+export function displayOperationSummary(
+    results: GitOperationResult[],
+    operationType: GitOperation,
+): {
+    successful: GitOperationResult[];
+    conflicts: GitOperationResult[];
+    failed: GitOperationResult[];
+} {
     console.log(`\n=== ${operationType.charAt(0).toUpperCase() + operationType.slice(1)} Summary ===`);
 
     const successful = results.filter((r) => r.success);
@@ -171,4 +191,18 @@ export function displayOperationSummary(results: GitOperationResult[], operation
         console.log(`\n❌ Failed ${operationType}s (${failed.length}):`);
         failed.forEach((r) => console.log(`   - ${r.repo}`));
     }
+
+    // Summary message
+    if (conflicts.length === 0 && failed.length === 0) {
+        console.log(`\n🎉 All ${operationType}s completed successfully!`);
+    } else {
+        console.log(`\n⚠️  Some ${operationType}s need attention. Please resolve conflicts or errors before continuing.`);
+        console.log(`After resolving conflicts, you can continue with: git ${operationType} --continue`);
+    }
+
+    return {
+        successful,
+        conflicts,
+        failed,
+    };
 }

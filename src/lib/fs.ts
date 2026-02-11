@@ -1,5 +1,9 @@
-import { access, mkdir, readFile, writeFile, rename, unlink } from 'fs/promises';
+import { ForgeContext } from '@/foundation/ForgeContext';
+import { Repository } from '@/foundation/Repository';
+import { access, mkdir, readFile, writeFile, rename, unlink, readdir } from 'fs/promises';
 import path from 'path';
+import { replaceTemplateMarkers, resolveAgentFileCustomTemplate } from './templates';
+import { BranchContext } from '@/foundation/BranchContext';
 
 export async function pathExists(targetPath: string): Promise<boolean> {
     try {
@@ -94,4 +98,85 @@ export async function ensureLineInFile(filePath: string, line: string): Promise<
 
     await writeTextFile(filePath, newContent);
     return 1;
+}
+
+export async function copyFilesRecursively(
+    srcDir: string,
+    destDir: string,
+    options: { overwrite?: boolean; dryRun?: boolean } = {},
+): Promise<string[]> {
+    const { overwrite = false, dryRun = true } = options;
+    let fileChanges: string[] = [];
+    const entries = await readdir(srcDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const srcPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+
+        if (entry.isDirectory()) {
+            await ensureDir(destPath);
+            fileChanges = [...fileChanges, ...(await copyFilesRecursively(srcPath, destPath, options))];
+        } else if (entry.isFile()) {
+            const destExists = await pathExists(destPath);
+            if (!overwrite && destExists) continue; // don't overwrite existing files unless overwrite flag is set
+
+            if (!dryRun) {
+                let content = await readFile(srcPath, 'utf8');
+                await writeTextFile(destPath, content);
+            }
+
+            // Record change only if writing or would write
+            fileChanges.push(destPath);
+        }
+    }
+    return fileChanges;
+}
+
+export async function copyFilesWithTemplateReplacement(
+    forgeContext: ForgeContext,
+    branchContext: BranchContext,
+    repository: Repository,
+    srcDir: string,
+    destDir: string,
+    options: { overwrite?: boolean; dryRun?: boolean } = {},
+    baseSrcDir: string = srcDir,
+): Promise<string[]> {
+    const { overwrite = false, dryRun = true } = options;
+    let fileChanges: string[] = [];
+    const entries = await readdir(srcDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const srcEntryPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+
+        if (entry.isDirectory()) {
+            await ensureDir(destPath);
+            fileChanges = [
+                ...fileChanges,
+                ...(await copyFilesWithTemplateReplacement(
+                    forgeContext,
+                    branchContext,
+                    repository,
+                    srcEntryPath,
+                    destPath,
+                    options,
+                    baseSrcDir,
+                )),
+            ];
+        } else if (entry.isFile()) {
+            const destExists = await pathExists(destPath);
+            if (!overwrite && destExists) continue; // don't overwrite existing files unless overwrite flag is set
+
+            if (!dryRun) {
+                let entryRelativePath = path.relative(baseSrcDir, srcEntryPath);
+                let content = await resolveAgentFileCustomTemplate(forgeContext, repository, entryRelativePath);
+                content = replaceTemplateMarkers(content, forgeContext, branchContext, repository);
+                await writeTextFile(destPath, content);
+            }
+
+            // Record change only if writing or would write
+            fileChanges.push(destPath);
+        }
+    }
+    return fileChanges;
 }

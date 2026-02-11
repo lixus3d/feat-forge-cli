@@ -7,15 +7,17 @@ import { MaintenanceCommands } from './commands/MaintenanceCommands';
 import { CompletionCommands } from './commands/CompletionCommands';
 import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
-import { MergeCommands } from './commands/MergeCommands';
 import { ModeCommands } from './commands/ModeCommands';
-import { OpenCommands } from './commands/OpenCommands';
-import { RebaseCommands } from './commands/RebaseCommands';
 import { ForgeContext } from './foundation/ForgeContext';
-import { ForgeMode } from './foundation/types/ForgeMode';
 import { loadForgeContext } from './lib/config';
 import { ForgeConfig } from './foundation/ForgeConfig';
 import { ShellName } from './foundation/types/ShellName';
+import { SubBranchCommands } from './commands/SubBranchCommands';
+import { FixCommands } from './commands/FixCommands';
+import { ReleaseCommands } from './commands/ReleaseCommands';
+import { BranchCommands } from './commands/BranchCommands';
+import { ForgeConfigFile } from './foundation/ForgeConfigFile';
+import { plainToInstance } from 'class-transformer';
 
 /**
  * Register the init command on the main CLI program.
@@ -49,44 +51,113 @@ function registerInitCommands(program: Command): void {
         });
 }
 
+function genericBranchTypeCommands(
+    baseCommand: Command,
+    handlers: BranchCommands | SubBranchCommands,
+    subType: string | null = null,
+): void {
+    const argName = subType ? `${subType}` : 'branch-name';
+    const argDesc = subType ? `${subType} name (without prefix)` : 'Branch name';
+
+    baseCommand
+        .command('create')
+        .argument(`<${argName}>`, argDesc)
+        .description(`Create a new ${subType ? subType + ' ' : ''}branch folder and initialize its spec`)
+        .action(handlers.create.bind(handlers));
+
+    baseCommand
+        .command('start')
+        .argument(`<${argName}>`, argDesc)
+        .description(`Start working on a ${subType ? subType + ' ' : ''}branch : create the worktrees and necessary spec files`)
+        .action(handlers.start.bind(handlers));
+
+    baseCommand
+        .command('stop')
+        .argument(`<${argName}>`, argDesc)
+        .description(`Stop working on a ${subType ? subType + ' ' : ''}branch and remove its worktrees`)
+        .action(handlers.stop.bind(handlers));
+
+    baseCommand
+        .command('list')
+        .argument(`[prefix]`, 'Optional prefix to filter branches (e.g. "feat/")')
+        .description(`List all active ${subType ? subType + ' ' : ''}branches worktrees`)
+        .action(handlers.list.bind(handlers));
+
+    baseCommand
+        .command('resync')
+        .argument(`<${argName}>`, argDesc)
+        .description(
+            `Ensure all repos in a ${subType ? subType + ' ' : ''}branch are on the correct branch (useful if user manually switched branches in a worktree)`,
+        )
+        .action(handlers.resync.bind(handlers));
+
+    baseCommand
+        .command('archive')
+        .argument(`<${argName}>`, argDesc)
+        .description(`Archive a ${subType ? subType + ' ' : ''}branch by moving it to .specs/.archives/`)
+        .action(handlers.archive.bind(handlers));
+
+    baseCommand
+        .command('open')
+        .argument(`[${argName}]`, argDesc)
+        .description(
+            `Open the given ${subType ? subType + ' ' : ''}branch in the configured IDE (if no ${subType ? subType + ' ' : ''}branch is given, opens the nearest ${subType ? subType + ' ' : ''}branch)`,
+        )
+        .action(handlers.open.bind(handlers));
+
+    baseCommand
+        .command('merge')
+        .argument(`<${argName}>`, argDesc)
+        .description(
+            `Merge a ${subType ? subType + ' ' : ''}branch into a target branch (accross all repos). It will also ask for next actions to potentially delete the branch after merge.`,
+        )
+        .action(handlers.merge.bind(handlers));
+
+    baseCommand
+        .command('rebase')
+        .argument(`<${argName}>`, argDesc)
+        .description(`Rebase a ${subType ? subType + ' ' : ''}branch onto a base branch (accross all repos)`)
+        .action(handlers.rebase.bind(handlers));
+}
+
+/**
+ * Register feature subcommands on the main CLI program.
+ */
+function registerBranchCommands(program: Command, context: ForgeContext): void {
+    return genericBranchTypeCommands(program, new BranchCommands(context));
+}
+
+/**
+ * Register fix subcommands on the main CLI program.
+ */
+function registerFixCommands(program: Command, context: ForgeContext): void {
+    const fix = program
+        .command('fix')
+        .description(`Same base commands, but with automatic "${context.options.git.fixBranchPrefix}" prefix for branch names`);
+    const handlers = new FixCommands(context);
+    return genericBranchTypeCommands(fix, handlers, 'fix');
+}
+
+/**
+ * Register release subcommands on the main CLI program.
+ */
+function registerReleaseCommands(program: Command, context: ForgeContext): void {
+    const release = program
+        .command('release')
+        .description(`Same base commands, but with automatic "${context.options.git.releaseBranchPrefix}" prefix for branch names`);
+    const handlers = new ReleaseCommands(context);
+    return genericBranchTypeCommands(release, handlers, 'release');
+}
+
 /**
  * Register feature subcommands on the main CLI program.
  */
 function registerFeatureCommands(program: Command, context: ForgeContext): void {
-    const feature = program.command('feature').description('Manage feature lifecycle');
+    const feature = program
+        .command('feature')
+        .description(`Same base commands, but with automatic "${context.options.git.featureBranchPrefix}" prefix for branch names`);
     const handlers = new FeatureCommands(context);
-
-    feature
-        .command('create')
-        .argument('<slug>', 'Feature slug')
-        .description('Create a new feature folder and initialize its spec')
-        .action(handlers.create.bind(handlers));
-
-    feature
-        .command('start')
-        .argument('<slug>', 'Feature slug')
-        .description('Create/switch to feature worktrees and set local active feature in that worktree')
-        .action(handlers.start.bind(handlers));
-
-    feature
-        .command('stop')
-        .argument('<slug>', 'Feature slug')
-        .description('Stop a feature and remove its worktrees')
-        .action(handlers.stop.bind(handlers));
-
-    feature.command('list').description('List all feature worktrees').action(handlers.list.bind(handlers));
-
-    feature
-        .command('resync')
-        .argument('<slug>', 'Feature slug')
-        .description('Resync all repos in a feature to the correct branch')
-        .action(handlers.resync.bind(handlers));
-
-    feature
-        .command('archive')
-        .argument('<slug>', 'Feature slug')
-        .description('Archive a feature by moving it to .features/.archives/')
-        .action(handlers.archive.bind(handlers));
+    return genericBranchTypeCommands(feature, handlers, 'feature');
 }
 
 /**
@@ -94,14 +165,11 @@ function registerFeatureCommands(program: Command, context: ForgeContext): void 
  */
 function registerModeCommands(program: Command, context: ForgeContext): void {
     const handlers = new ModeCommands(context);
-    const mode = program.command('mode').description('Switch the active feature mode');
-
-    mode.command('spec')
-        .description('Switch to spec mode')
-        .action(() => handlers.setMode(ForgeMode.SPEC));
-    mode.command('code')
-        .description('Switch to code mode')
-        .action(() => handlers.setMode(ForgeMode.CODE));
+    program
+        .command('mode')
+        .argument('<mode>', 'Mode to switch to (as defined in the config)')
+        .description('Switch agents to this mode (updates agent files with the templates for this mode)')
+        .action(handlers.setMode.bind(handlers));
 }
 
 /**
@@ -111,7 +179,7 @@ function registerAgentCommands(program: Command, context: ForgeContext): void {
     const handlers = new AgentCommands(context);
     const agent = program.command('agent').description('Manage agent adapters');
 
-    agent.command('refresh').description('Refresh agent adapter files for the active feature').action(handlers.refresh.bind(handlers));
+    agent.command('refresh').description('Refresh agent adapter files for the nearest branch').action(handlers.refresh.bind(handlers));
 }
 
 /**
@@ -127,73 +195,8 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
         .option('--dry-run', 'Simulate changes without writing files')
         .option('--commit', 'Commit changes if files are written')
         .action(async (slug: string, opts: any) => {
-            await handlers.rewriteAgentFiles(slug, { dryRun: opts.dryRun, commit: opts.commit });
+            await handlers.installAgentTemplateLocally({ dryRun: opts.dryRun, commit: opts.commit });
         });
-}
-
-/**
- * Register merge commands with the CLI.
- */
-function registerMergeCommands(program: Command, context: ForgeContext): void {
-    const mergeCmd = new MergeCommands(context);
-
-    // Main command: forge feature merge <slug>
-    const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
-    if (featureCommand) {
-        featureCommand
-            .command('merge <slug>')
-            .description('Merge a feature branch into a target branch')
-            .action(mergeCmd.merge.bind(mergeCmd));
-    }
-
-    // Shortcut: forge merge <slug>
-    program
-        .command('merge <slug>')
-        .description('Merge a feature branch into a target branch (shortcut)')
-        .action(mergeCmd.merge.bind(mergeCmd));
-}
-
-/**
- * Register rebase commands with the CLI.
- */
-function registerRebaseCommands(program: Command, context: ForgeContext): void {
-    const rebaseCmd = new RebaseCommands(context);
-
-    // Main command: forge feature rebase <slug>
-    const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
-    if (featureCommand) {
-        featureCommand
-            .command('rebase <slug>')
-            .description('Rebase a feature branch onto a base branch')
-            .action(rebaseCmd.rebase.bind(rebaseCmd));
-    }
-
-    // Shortcut: forge rebase <slug>
-    program
-        .command('rebase <slug>')
-        .description('Rebase a feature branch onto a base branch (shortcut)')
-        .action(rebaseCmd.rebase.bind(rebaseCmd));
-}
-/**
- * Register open commands with the CLI.
- */
-function registerOpenCommands(program: Command, context: ForgeContext): void {
-    const handlers = new OpenCommands(context);
-
-    // Main command: forge feature open [slug]
-    const featureCommand = program.commands.find((c: Command) => c.name() === 'feature');
-    if (featureCommand) {
-        featureCommand
-            .command('open [slug]')
-            .description('Open the feature workspace in IDE')
-            .action(handlers.open.bind(handlers));
-    }
-
-    // Shortcut: forge open [slug]
-    program
-        .command('open [slug]')
-        .description('Open the feature workspace in IDE (shortcut)')
-        .action(handlers.open.bind(handlers));
 }
 
 /*
@@ -224,7 +227,8 @@ function registerCompletionCommands(program: Command, context?: ForgeContext): v
             // If no config, we'll use a fallback implementation
             if (!handlers) {
                 const cwd = process.cwd();
-                const fallbackContext = new ForgeContext(cwd, new ForgeConfig(cwd, { repositories: ['dummy'] }));
+                const fallbackConfigFile = plainToInstance(ForgeConfigFile, { repositories: ['dummy'] });
+                const fallbackContext = new ForgeContext(cwd, new ForgeConfig(cwd, fallbackConfigFile));
                 const fallbackHandlers = new CompletionCommands(fallbackContext, program);
                 await fallbackHandlers.generate(shell);
             } else {
@@ -266,13 +270,13 @@ async function main() {
         }
         if (context) {
             // Register commands that require config
+            registerBranchCommands(program, context);
             registerFeatureCommands(program, context);
+            registerFixCommands(program, context);
+            registerReleaseCommands(program, context);
             registerModeCommands(program, context);
             registerAgentCommands(program, context);
             registerMaintenanceCommands(program, context);
-            registerOpenCommands(program, context);
-            registerMergeCommands(program, context);
-            registerRebaseCommands(program, context);
             registerCompletionCommands(program, context);
         }
     }

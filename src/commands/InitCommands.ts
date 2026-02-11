@@ -1,13 +1,13 @@
-import path from 'path';
+import { ForgeConfigError } from '@/foundation/errors';
+import { AgentConfigEntry, ForgeConfigFile, IDEConfigEntry, RepositoryConfigEntry } from '@/foundation/ForgeConfigFile';
+import { AIAgentName } from '@/foundation/types/AIAgentName';
+import { IDEName } from '@/foundation/types/IDEName';
+import { FEAT_FORGE_CONFIG_FILE } from '@/lib/constants';
+import { pathExists, writeConfigSafely } from '@/lib/fs';
+import { CheckboxChoice, promptCheckbox, promptChoice, PromptChoice, promptConfirm, promptText } from '@/lib/prompt';
+import { findAncestorForgeConfig, scanGitRepos } from '@/lib/scanner';
 import { stat } from 'fs/promises';
-import { pathExists, writeConfigSafely } from '../lib/fs';
-import { FEAT_FORGE_CONFIG_FILE } from '../lib/constants';
-import { ForgeConfigFile, RepositoryConfigEntry, AgentConfigEntry, IDEConfigEntry } from '../foundation/ForgeConfig';
-import { scanGitRepos, findAncestorForgeConfig } from '../lib/scanner';
-import { promptConfirm, promptText, promptChoice, promptCheckbox, CheckboxChoice, PromptChoice } from '../lib/prompt';
-import { AIAgentName } from '../foundation/types/AIAgentName';
-import { IDEName } from '../foundation/types/IDEName';
-import { ForgeConfigError } from '../foundation/errors/ForgeConfigError';
+import path from 'path';
 import { InitOptions } from './types/InitOptions';
 
 // Constants for UI strings

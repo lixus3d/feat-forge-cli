@@ -1,165 +1,85 @@
 import path from 'path';
 import { FEAT_FORGE_CONFIG_FILE } from '../lib/constants';
 import { merge } from '../lib/merger';
+import { ForgeConfigError } from './errors';
 import { AIAgent } from './types/AIAgent';
 import { AIAgentName } from './types/AIAgentName';
+import { DeepPartial } from './types/DeepPartial';
 import { IDE } from './types/IDE';
 import { IDEName } from './types/IDEName';
-import { RepoName, RepoPath, RepositoryInfos } from './types/RepositoryInfos';
-import { ForgeConfigError } from './errors/ForgeConfigError';
-import { ArrayNotEmpty, IsArray, IsNotEmpty, IsOptional, IsString, Validate, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { RepositoryInfos } from './types/RepositoryInfos';
+import {
+    ForgeOptions,
+    ForgeConfigFile,
+    RepositoryConfigEntry,
+    RepositoryConfig,
+    IDEConfigEntry,
+    IDEConfig,
+    AgentConfigEntry,
+    AgentConfig,
+    ModeConfigEntry,
+} from './ForgeConfigFile';
+import { ModeConfig } from './types/ModeConfig';
 
-export class ForgeFoldersOptions {
-    /**
-     * Folder for feature specs within each repo. Default: '.features'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    specs: string = '.features';
-    /**
-     * Folder for git worktrees. Default: 'worktrees'
-     * Can be empty to put them in the root of the repo, but that can get messy so we default to a separate folder
-     */
-    @IsOptional()
-    @IsString()
-    worktrees: string = 'worktrees';
-    /**
-     * Folder for active feature tracking. Default: '.active-feature'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    activeFeature: string = '.active-feature';
-    /**
-     * Folder for feature templates. Default: '.template'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    template: string = '.template';
-    /**
-     * Folder for agent instructions. Default: 'agent'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    agent: string = 'agent';
-    /**
-     * Folder for archived feature specs within each repo. Default: '.archives'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    archive: string = '.archives';
-}
-
-export class ForgeFilesOptions {
-    /**
-     * File name for storing the current mode of a feature. Default: '.forge-mode'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    forgeMode: string = '.forge-mode';
-}
-
-export class ForgeGitOptions {
-    /**
-     * Prefix for feature branches. Default: 'feature/'
-     */
-    @IsOptional()
-    @IsString()
-    featureBranchPrefix: string = 'feature/';
-}
-
-export class ForgeOptions {
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeFoldersOptions)
-    folders: ForgeFoldersOptions = new ForgeFoldersOptions();
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeFilesOptions)
-    files: ForgeFilesOptions = new ForgeFilesOptions();
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeGitOptions)
-    git: ForgeGitOptions = new ForgeGitOptions();
-}
-
-/**
- * Type for the .feat-forge.json configuration file
- */
-export class ForgeConfigFile {
-    /**
-     * Optional root directory for all repositories. If not set, repos paths are relative to the config file location. Can be absolute or relative.
-     * Useful for monorepos or when you want to keep the config file in a separate folder.
-     */
-    @IsOptional()
-    @IsString()
-    rootDir?: string;
-
-    /**
-     * List of repositories to manage. Can be a simple string (repo path) or an object with more options.
-     * If multiple repos are defined, one must be marked as "main" (or it will take the first one) -> this is the repo where the feature branches will be created and where the active feature will be tracked.
-     * If only one repo is defined, it will be considered the main repo by default.
-     */
-    @IsArray()
-    @ArrayNotEmpty()
-    repositories!: RepositoryConfigEntry[];
-
-    @IsOptional()
-    @IsArray()
-    agents?: AgentConfigEntry[];
-
-    @IsOptional()
-    @IsArray()
-    ides?: IDEConfigEntry[];
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => ForgeOptions)
-    options?: DeepPartial<ForgeOptions>;
-}
-
-/**
- * Agent configuration - can be a simple string (agent name or custom file)
- * or a full config object for more control
- */
-export type AgentConfigEntry = string | AgentConfig;
-
-export type AgentConfig = {
-    name?: AIAgentName;
-    agentFile?: string;
-    settings?: Record<string, unknown>;
-};
-
-/**
- * IDE configuration - can be a simple string (IDE name) or a config object
- */
-export type IDEConfigEntry = string | IDEConfig;
-
-export type IDEConfig = {
-    name: IDEName;
-    createWorkspace?: boolean;
-    settings?: Record<string, unknown>;
-    openCommand?: string;
-};
-
-/**
- * Repository configuration - can be a simple string (repo root path) or a full config object
- */
-export type RepositoryConfigEntry = RepoPath | RepositoryConfig;
-
-export type RepositoryConfig = {
-    name?: RepoName;
-    path: RepoPath;
-    main?: boolean;
-};
+export const DEFAULT_SPEC_FILES = ['SPEC.md', 'TODO.md'];
+export const DEFAULT_MODES: ModeConfigEntry[] = [
+    {
+        name: 'general',
+        agentFile: '001.general.Omnibus.agent.md',
+        description: 'Default mode with no special behavior',
+    },
+    {
+        name: 'discovery',
+        agentFile: '002.discovery.Inventorius.agent.md',
+        description: 'Help to define a functional perimeter for a feature',
+        default: true,
+    },
+    {
+        name: 'design',
+        agentFile: '003.design.Architecturius.agent.md',
+        description: 'Help to define an architecture for a feature',
+    },
+    {
+        name: 'plan',
+        agentFile: '004.plan.Strategos.agent.md',
+        description: 'Generate a plan for a feature, in SPEC.md & TODO.md by default',
+    },
+    {
+        name: 'tdd',
+        agentFile: '005.tdd.TestDrivenCodificius.agent.md',
+        description: 'Test Driven Development agent to implement the feature',
+    },
+    {
+        name: 'code',
+        agentFile: '006.code.Codificius.agent.md',
+        description: 'Code agent to implement the feature',
+    },
+    {
+        name: 'simplify',
+        agentFile: '007.simplify.Consolidarius.agent.md',
+        description: 'Simplify and consolidate the feature',
+    },
+    {
+        name: 'review',
+        agentFile: '008.review.Auditorix.agent.md',
+        description: 'Review the feature and ensure code guidelines',
+    },
+    {
+        name: 'test-writer',
+        agentFile: '009.testwriter.TestScriptor.agent.md',
+        description: 'Write unit/functional tests',
+    },
+    {
+        name: 'test-executor',
+        agentFile: '010.testexecutor.TestExecutor.agent.md',
+        description: 'Execute unit/functional tests',
+    },
+    {
+        name: 'commit',
+        agentFile: '011.commit.Scribus.agent.md',
+        description: 'Propose commit message based changes related to the feature and then commit',
+    },
+];
 
 export class ForgeConfig {
     public readonly rootDir: string;
@@ -167,10 +87,14 @@ export class ForgeConfig {
     public readonly agents: AIAgent[];
     public readonly ides: IDE[];
     public readonly options: ForgeOptions;
+    public readonly specFiles: string[];
+    public readonly modes: ModeConfig[];
 
     constructor(configPath: string, configFile: ForgeConfigFile) {
-        this.rootDir = configFile.rootDir ? path.resolve(configFile.rootDir) : configPath;
+        this.rootDir = path.resolve(configFile.rootDir ? configFile.rootDir : configPath);
+        this.specFiles = configFile.specFiles || DEFAULT_SPEC_FILES;
         // standardize config entries
+        this.modes = this.standardizeModes(configFile.modes || DEFAULT_MODES);
         this.repositories = this.standardizeRepositories(configFile.repositories);
         this.ides = this.standardizeIDEs(configFile.ides);
         this.agents = this.standardizeAgents(configFile.agents);
@@ -178,7 +102,42 @@ export class ForgeConfig {
     }
 
     private getPath(...segments: string[]): string {
-        return path.join(this.rootDir, ...segments);
+        return path.resolve(this.rootDir, ...segments); // validate path segments
+    }
+
+    private standardizeModes(rawModes: ModeConfigEntry[]): ModeConfig[] {
+        if (!Array.isArray(rawModes)) {
+            throw new ForgeConfigError(`Invalid ${FEAT_FORGE_CONFIG_FILE}: "modes" must be an array.`);
+        }
+
+        if (rawModes.length === 0) {
+            throw new ForgeConfigError(`Invalid ${FEAT_FORGE_CONFIG_FILE}: At least one mode must be defined in the "modes" array.`);
+        }
+
+        const modes = rawModes.map((entry) => {
+            const agentFile = entry.agentFile?.trim();
+            if (!agentFile) {
+                throw new ForgeConfigError(
+                    `Invalid ${FEAT_FORGE_CONFIG_FILE}: Each mode entry must have a non-empty "agentFile" property.`,
+                );
+            }
+            const name = entry.name?.trim() || agentFile.replace(/\.[^/.]+$/, ''); // default name from agentFile if not provided
+            if (!name) {
+                throw new ForgeConfigError(
+                    `Invalid ${FEAT_FORGE_CONFIG_FILE}: Each mode entry must have a non-empty "name" or valid "agentFile" property.`,
+                );
+            }
+            return {
+                name,
+                agentFile,
+                description: entry.description?.trim(),
+                default: !!entry.default,
+            } as ModeConfig;
+        });
+
+        ForgeConfig.checkDefaultMode(modes);
+
+        return modes;
     }
 
     private standardizeRepositories(repos: RepositoryConfigEntry[]): RepositoryInfos[] {
@@ -255,7 +214,7 @@ export class ForgeConfig {
         }
 
         if (!Array.isArray(agents)) {
-            throw new Error(`Invalid ${FEAT_FORGE_CONFIG_FILE}: "agents" must be an array.`);
+            throw new ForgeConfigError(`Invalid ${FEAT_FORGE_CONFIG_FILE}: "agents" must be an array.`);
         }
 
         return agents
@@ -293,7 +252,20 @@ export class ForgeConfig {
         return merge(new ForgeOptions(), options || {});
     }
 
+    private static checkDefaultMode(modes: ModeConfig[]): void {
+        const defaultModes = modes.filter((mode) => mode.default);
+        if (defaultModes.length > 1) {
+            throw new ForgeConfigError('Multiple modes cannot be marked as default in the configuration.');
+        }
+        if (defaultModes.length === 0) {
+            modes[0].default = true; // set first mode as default if none marked
+        }
+    }
+
     private static checkMainRepo(repositories: RepositoryInfos[]): void {
+        if (repositories.filter((repo) => repo.main).length > 1) {
+            throw new ForgeConfigError('Multiple repositories cannot be marked as main in the configuration.');
+        }
         let mainRepo = repositories.find((repo) => repo.main);
         if (!mainRepo) {
             if (repositories.length > 0) {
@@ -310,7 +282,7 @@ export class ForgeConfig {
     private static getAgentFile(agentName?: AIAgentName | string | null): string {
         const agentFiles: { [key in AIAgentName]: string } = {
             [AIAgentName.CLAUDE]: 'CLAUDE.md',
-            [AIAgentName.COPILOT]: 'COPILOT.instructions.md',
+            [AIAgentName.COPILOT]: 'AGENTS.md',
             [AIAgentName.GEMINI]: 'GEMINI.md',
             [AIAgentName.CODEX]: 'AGENTS.md',
             [AIAgentName.CURSOR]: 'AGENTS.md',
