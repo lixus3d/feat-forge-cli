@@ -260,6 +260,9 @@ export class BranchContext {
                 }),
             );
         }
+
+        // Execute postRefreshAgents hooks after agent context files are refreshed
+        await this.executeHook(HookEvent.POST_REFRESH_AGENTS, { branch: this.branchName });
     }
 
     /**
@@ -376,7 +379,7 @@ export class BranchContext {
         }
 
         // Execute postBranchStart hooks in each repository
-        await this.executeHook(HookEvent.POST_BRANCH_START, { branch: this.branchName });
+        await this.executeHook(HookEvent.POST_START, { branch: this.branchName });
 
         this.active = true;
     }
@@ -394,7 +397,7 @@ export class BranchContext {
     private async executeHook(eventType: HookEvent, params?: Record<string, unknown>): Promise<void> {
         for (const repository of this.repositories) {
             try {
-                const executedHooks = await repository.executeHooksForEvent(eventType, params);
+                const executedHooks = await repository.executeHook(eventType, params);
                 if (executedHooks.length > 0) {
                     console.log(`📌 Executed ${executedHooks.length} ${eventType} hook(s) in ${repository.name}: ${executedHooks.join(', ')}`);
                 }
@@ -443,6 +446,9 @@ export class BranchContext {
     }
 
     async stop(): Promise<void> {
+        // Execute preStop hooks before stopping the branch
+        await this.executeHook(HookEvent.PRE_STOP, { branch: this.branchName });
+
         // Check for uncommitted changes in worktrees
         const dirtyRepositories = await this.getDirtyRepositories();
 
@@ -458,6 +464,9 @@ export class BranchContext {
     }
 
     async delete(): Promise<void> {
+        // Execute preDelete hooks before deleting the branch
+        await this.executeHook(HookEvent.PRE_DELETE, { branch: this.branchName });
+
         // Remove worktrees for all repositories
         await Promise.all(this.repositories.map((repo) => repo.remove()));
 
@@ -476,6 +485,8 @@ export class BranchContext {
     }
 
     async archive(): Promise<void> {
+        await this.executeHook(HookEvent.PRE_ARCHIVE, { branch: this.branchName });
+
         let worktreeRepo: WorktreeRepository;
         if (this.hasRepo(this.mainRepo.name)) {
             // worktree already exists, we can use it to create the Branch files without affecting the main branch
@@ -485,11 +496,12 @@ export class BranchContext {
             worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.BRANCH_ARCHIVE);
         }
 
-        // Create archives directory
-        await ensureDir(worktreeRepo.specsArchivePath);
 
-        const archivePath = path.join(worktreeRepo.specsArchivePath, this.branchName);
+        const archivePath = path.join(worktreeRepo.specsArchivePath, branchNameAsPath(this.branchName));
         const branchPath = worktreeRepo.getSpecPath(this.branchName);
+
+        // Create archives directory
+        await ensureDir(path.dirname(archivePath));
 
         // Move Branch to archive using git mv
         await runGit(worktreeRepo.path, ['mv', branchPath, archivePath]);

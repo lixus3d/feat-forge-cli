@@ -6,11 +6,11 @@ import { executeScript } from './bootstrap';
 
 /**
  * Available hook event types that can be triggered throughout the forge lifecycle.
- * Each event can have multiple hooks (e.g., postBranchStart.sh, postBranchStart_01.sh).
+ * Each event can have multiple hooks (e.g., postStart.sh, postStart_01.sh).
  */
 export enum HookEvent {
     /** Triggered after a branch is started */
-    POST_BRANCH_START = 'postBranchStart',
+    POST_START = 'postStart',
     /** Triggered before a merge operation */
     PRE_MERGE = 'preMerge',
     /** Triggered after a merge operation */
@@ -21,14 +21,20 @@ export enum HookEvent {
     PRE_REBASE = 'preRebase',
     /** Triggered after a rebase operation */
     POST_REBASE = 'postRebase',
+    /** Triggered before deleting a branch */
+    PRE_DELETE = 'preDelete',
+    /** Triggered before archiving a branch */
+    PRE_ARCHIVE = 'preArchive',
     /** Triggered after refreshing agent context files */
     POST_REFRESH_AGENTS = 'postRefreshAgents',
+    /** Triggered after setting active specs */
+    POST_SET_ACTIVE_SPECS = 'postSetActiveSpecs',
 }
 
 /**
  * Discover available hooks for a specific event type.
- * Returns hook names matching the event type without extension (e.g., 'postBranchStart' from 'postBranchStart.sh').
- * Supports multiple hooks for the same event (e.g., postBranchStart, postBranchStart_01, postBranchStart_02).
+ * Returns hook names matching the event type without extension (e.g., 'postStart' from 'postStart.sh').
+ * Supports multiple hooks for the same event (e.g., postStart, postStart_01, postStart_02).
  * Hooks are returned in alphabetical order for predictable execution.
  *
  * @param repositoryPath - Path to the repository/worktree
@@ -57,7 +63,7 @@ export async function discoverHooksForEvent(
                     return false;
                 }
                 const hookName = file.slice(0, -scriptExtension.length);
-                // Match exact event type or event type with suffix (e.g., postBranchStart, postBranchStart_01)
+                // Match exact event type or event type with suffix (e.g., postStart, postStart_01)
                 return hookName === eventType || hookName.startsWith(`${eventType}_`);
             })
             .map((file) => file.slice(0, -scriptExtension.length))

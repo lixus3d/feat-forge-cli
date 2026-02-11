@@ -1,10 +1,10 @@
 import { execa } from 'execa';
 import { readFile } from 'fs/promises';
 import path from 'path';
-import { ForgeContext } from '../foundation/ForgeContext';
-import { Repository } from '../foundation/Repository';
-import { pathExists } from './fs';
-import { paramsToEnv } from './env';
+import { ForgeContext } from './ForgeContext';
+import { Repository } from './Repository';
+import { pathExists } from '../lib/fs';
+import { paramsToEnv } from '../lib/env';
 
 interface PackageJson {
     scripts?: Record<string, string>;
@@ -102,11 +102,11 @@ export class NpmHelper {
                 },
             });
 
-            console.log(`✅ npm script ${scriptName} completed successfully`);
+            console.log(`✅ ${this.packageManager} script ${scriptName} completed successfully`);
             return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            console.error(`❌ npm script ${scriptName} failed: ${message}`);
+            console.error(`❌ ${this.packageManager} script ${scriptName} failed: ${message}`);
             throw error;
         }
     }
@@ -115,6 +115,8 @@ export class NpmHelper {
         if (scriptNames.length === 0) {
             return [];
         }
+        await this.initialize();
+
         const executedScripts: string[] = [];
 
         for (const scriptName of scriptNames) {
@@ -122,7 +124,7 @@ export class NpmHelper {
                 await this.executeNpmScript(scriptName, params);
                 executedScripts.push(scriptName);
             } catch (error) {
-                throw new Error(`npm script ${scriptName} failed in ${this.repository.name}`);
+                throw new Error(`${this.packageManager} script ${scriptName} failed in ${this.repository.name}`);
             }
         }
 
