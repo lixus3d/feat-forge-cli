@@ -3,3 +3,4 @@ node_modules
 
 .active-feature
 .active-spec
+.forge-agents
