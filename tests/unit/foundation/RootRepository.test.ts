@@ -1,8 +1,6 @@
 import { ForgeExpectMainRepositoryError } from '@/foundation/errors';
-import { ForgeFilesOptions, ForgeFoldersOptions, ForgeGitOptions } from '@/foundation/ForgeConfig';
 import { ForgeContext } from '@/foundation/ForgeContext';
 import { Repository, RootRepository, WorktreeRepository } from '@/foundation/Repository';
-import { ForgeMode } from '@/foundation/types/ForgeMode';
 import { TemporaryFolderType } from '@/lib/constants';
 import * as fsLib from '@/lib/fs';
 import * as gitLib from '@/lib/git';
@@ -11,6 +9,7 @@ import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContextHelper } from '../../helpers/ContextHelper';
 import { RepositoryHelpers } from '../../helpers/RepositoryHelpers';
+import { ForgeFoldersOptions, ForgeGitOptions, ForgeFilesOptions } from '@/foundation/ForgeConfigFile';
 
 // Mock git and fs operations
 vi.mock('@/lib/git');
@@ -20,7 +19,7 @@ vi.mock('@/lib/prompt');
 const customFolders: ForgeFoldersOptions = {
     activeSpec: 'custom-active-feature',
     worktrees: 'custom-worktrees',
-    agent: 'custom-agents',
+    repoAgents: 'custom-agents',
     archive: 'custom-archive',
     specs: 'custom-specs',
     template: 'custom-templates',
@@ -151,13 +150,13 @@ describe('RootRepository', () => {
 
     describe('getAgentPath()', () => {
         it('should return agent path', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch', customFolders.agent);
-            expect(customRepository.getAgentPath('test/branch')).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.repoAgents);
+            expect(customRepository.getAgentPath()).toBe(expectedPath);
         });
 
         it('should return agent path with segments', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch', customFolders.agent, 'notes.md');
-            expect(customRepository.getAgentPath('test/branch', 'notes.md')).toBe(expectedPath);
+            const expectedPath = path.join(customRepository.path, customFolders.repoAgents, 'TEST.AGENT.md');
+            expect(customRepository.getAgentPath('TEST.AGENT.md')).toBe(expectedPath);
         });
     });
 
@@ -175,7 +174,12 @@ describe('RootRepository', () => {
 
     describe('getAgentTemplatePath()', () => {
         it('should return agent template path', () => {
-            const expectedPath = path.join(customRepository.path, customFolders.specs, customFolders.template, customFolders.agent);
+            const expectedPath = path.join(
+                customRepository.path,
+                customFolders.specs,
+                customFolders.template,
+                customFolders.repoAgents,
+            );
             expect(customRepository.getAgentTemplatePath()).toBe(expectedPath);
         });
 
@@ -184,7 +188,7 @@ describe('RootRepository', () => {
                 customRepository.path,
                 customFolders.specs,
                 customFolders.template,
-                customFolders.agent,
+                customFolders.repoAgents,
                 'context.md',
             );
             expect(customRepository.getAgentTemplatePath('context.md')).toBe(expectedPath);

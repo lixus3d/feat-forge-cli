@@ -174,23 +174,24 @@ describe('ForgeConfig', () => {
         it('should standardize agents from string array to AgentInfos array', () => {
             const configWithAgents = {
                 ...minimumConfig,
-                agents: ['AgentA', 'Copilot'],
+                agents: ['AgentA', 'Gemini', 'Copilot'],
             };
             const forgeConfig = new ForgeConfig(configPath, configWithAgents);
             expect(forgeConfig.agents).toEqual([
                 { name: 'AgentA', agentFile: 'AGENTS.md', settings: undefined, requiresIDEConfig: false },
-                { name: 'Copilot', agentFile: 'COPILOT.instructions.md', settings: undefined, requiresIDEConfig: true },
+                { name: 'Gemini', agentFile: 'GEMINI.md', settings: undefined, requiresIDEConfig: false },
+                { name: 'Copilot', agentFile: 'AGENTS.md', settings: undefined, requiresIDEConfig: true },
             ]);
         });
 
         it('should handle agent entries with custom settings', () => {
             const configWithCustomAgents = {
                 ...minimumConfig,
-                agents: ['Copilot', { agentFile: 'FOOBAR.md', settings: { version: '1.0' } }],
+                agents: ['Gemini', { agentFile: 'FOOBAR.md', settings: { version: '1.0' } }],
             };
             const forgeConfig = new ForgeConfig(configPath, configWithCustomAgents);
             expect(forgeConfig.agents).toEqual([
-                { name: 'Copilot', agentFile: 'COPILOT.instructions.md', settings: undefined, requiresIDEConfig: true },
+                { name: 'Gemini', agentFile: 'GEMINI.md', settings: undefined, requiresIDEConfig: false },
                 { name: null, agentFile: 'FOOBAR.md', settings: { version: '1.0' }, requiresIDEConfig: false },
             ]);
         });

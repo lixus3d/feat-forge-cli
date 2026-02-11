@@ -1,13 +1,12 @@
 import { BranchContext } from '@/foundation/BranchContext';
 import { ForgeContext } from '@/foundation/ForgeContext';
 import { RootRepository, WorktreeRepository } from '@/foundation/Repository';
-import { ForgeMode } from '@/foundation/types/ForgeMode';
 import { ContextHelper } from 'tests/helpers/ContextHelper';
 import { RepositoryHelpers } from 'tests/helpers/RepositoryHelpers';
 
 import * as fsLib from '@/lib/fs';
-import { ForgeExpectMainRepositoryError } from '@/foundation/errors';
 import path from 'path';
+import { DEFAULT_MODES } from '@/foundation/ForgeConfig';
 
 // Mock git and fs operations
 // vi.mock('@/lib/git');
@@ -22,6 +21,9 @@ describe('BranchContext', () => {
     let rootSecondaryRepository: RootRepository;
     let worktreeMainRepository: WorktreeRepository;
     let worktreeSecondaryRepository: WorktreeRepository;
+
+    let testModeConfig = DEFAULT_MODES[0]!;
+    let testModeName = testModeConfig.name!;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -73,8 +75,8 @@ describe('BranchContext', () => {
 
     describe('setMode()', () => {
         it('should set mode to file', async () => {
-            await branchContext.setMode(ForgeMode.CODE);
-            expect(fsLib.writeTextFile).toHaveBeenCalledWith(branchContext.modeFilePath, 'code\n');
+            await branchContext.setMode(testModeName);
+            expect(fsLib.writeTextFile).toHaveBeenCalledWith(branchContext.modeFilePath, `${testModeName}\n`);
         });
     });
 
@@ -87,21 +89,12 @@ describe('BranchContext', () => {
     });
 
     describe('getMode()', () => {
-        it('should get mode from file (SPEC)', async () => {
+        it('should get mode from file', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            vi.mocked(fsLib.readTextFile).mockResolvedValue('spec\n');
+            vi.mocked(fsLib.readTextFile).mockResolvedValue(`${testModeName}\n`);
 
             const mode = await branchContext.getMode();
-            expect(mode).toBe(ForgeMode.SPEC);
-            expect(fsLib.pathExists).toHaveBeenCalledWith(branchContext.modeFilePath);
-        });
-
-        it('should get mode from file (CODE)', async () => {
-            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            vi.mocked(fsLib.readTextFile).mockResolvedValue('code\n');
-
-            const mode = await branchContext.getMode();
-            expect(mode).toBe(ForgeMode.CODE);
+            expect(mode).toEqual({ ...testModeConfig, default: false });
             expect(fsLib.pathExists).toHaveBeenCalledWith(branchContext.modeFilePath);
         });
 
