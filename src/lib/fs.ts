@@ -169,7 +169,6 @@ export async function copyFilesWithTemplateReplacement(
 
             if (!dryRun) {
                 let entryRelativePath = path.relative(baseSrcDir, srcEntryPath);
-                console.log(`Processing template file ${entryRelativePath} -> ${destPath}`);
                 let content = await resolveAgentFileCustomTemplate(forgeContext, repository, entryRelativePath);
                 content = replaceTemplateMarkers(content, forgeContext, branchContext, repository);
                 await writeTextFile(destPath, content);

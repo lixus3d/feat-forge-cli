@@ -6,8 +6,21 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { ForgeConfig } from '../foundation/ForgeConfig';
 import { ForgeContext } from '../foundation/ForgeContext';
-import { FEAT_FORGE_CONFIG_FILE } from './constants';
+import { FEAT_FORGE_CONFIG_FILE, FEAT_FORGE_CONFIG_FOLDER, FEAT_FORGE_HOME_CONFIG_FILE } from './constants';
 import { pathExists } from './fs';
+import os from 'os';
+import { merge, mergeDropUndefined } from './merger';
+
+const HOME_CONFIG_PATH = path.join(os.homedir(), FEAT_FORGE_CONFIG_FOLDER);
+
+export async function getHomeDirConfigFile(): Promise<Partial<ForgeConfigFile> | null> {
+    const configPath = path.join(HOME_CONFIG_PATH, FEAT_FORGE_HOME_CONFIG_FILE);
+    if (!(await pathExists(configPath))) {
+        return null;
+    }
+    const raw = await readFile(configPath, 'utf8');
+    return JSON.parse(raw) as Partial<ForgeConfigFile>;
+}
 
 /**
  * Find the nearest .feat-forge.json by walking up from startDir.
@@ -38,7 +51,12 @@ export async function loadForgeConfig(startDir: string = process.cwd()): Promise
 
     try {
         const raw = await readFile(configFilePath, 'utf8');
-        const forgeConfigFile = plainToInstance(ForgeConfigFile, JSON.parse(raw));
+        const projectConfigFile = JSON.parse(raw);
+        const homeConfigFile = await getHomeDirConfigFile();
+        const forgeConfigFile = plainToInstance(
+            ForgeConfigFile,
+            homeConfigFile ? mergeDropUndefined(homeConfigFile, projectConfigFile) : projectConfigFile,
+        );
         const errors = await validate(forgeConfigFile, { whitelist: true, validationError: { target: false, value: false } });
         if (errors.length > 0) {
             throw new ForgeConfigError(`Invalid config file at ${configFilePath}:\n${JSON.stringify(errors, null, 2)}`);

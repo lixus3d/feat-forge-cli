@@ -18,6 +18,11 @@ export class MergerOptions {
      * @default false
      */
     mergeArrays: boolean = false;
+    /**
+     * If true, undefined values in sources will be merged and overwrite existing values in target.
+     * If false, undefined values will be ignored.
+     */
+    mergeUndefined: boolean = true;
 
     constructor(options: Simplify<Partial<MergerOptions>> = {}) {
         Object.assign(this, options);
@@ -65,6 +70,9 @@ export class Merger {
                                 }
                                 this.merge(target[key], source[key]);
                             } else {
+                                if (source[key] === undefined && !this.options.mergeUndefined) {
+                                    continue;
+                                }
                                 Object.assign(target, { [key]: source[key] });
                             }
                         }
@@ -78,6 +86,7 @@ export class Merger {
 
 const defaultMerge = Merger.build();
 const arrayMerger = Merger.build({ mergeArrays: true });
+const mergeDropUndefinedMerger = Merger.build({ mergeUndefined: false });
 
 /**
  * Like Object.assign but will do a deep merge
@@ -94,3 +103,11 @@ export const merge = defaultMerge.merge.bind(defaultMerge);
  * @returns
  */
 export const mergeConcatArrays = arrayMerger.merge.bind(arrayMerger);
+
+/**
+ * Like Object.assign but will do a deep merge and will ignore undefined values in sources
+ * @param target where all sources will be merged
+ * @param sources what to merge into target, one or multiple
+ * @returns
+ */
+export const mergeDropUndefined = mergeDropUndefinedMerger.merge.bind(mergeDropUndefinedMerger);

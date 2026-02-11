@@ -58,22 +58,6 @@ export class ForgeFilesOptions {
     @IsString()
     @IsNotEmpty()
     forgeMode: string = '.forge-mode';
-
-    /**
-     * File name for the spec file in each feature branch. Default: 'SPEC.md'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    specFile: string = 'SPEC.md';
-
-    /**
-     * File name for the TODO file in each feature branch. Default: 'TODO.md'
-     */
-    @IsOptional()
-    @IsString()
-    @IsNotEmpty()
-    todoFile: string = 'TODO.md';
 }
 
 export class ForgeGitOptions {
