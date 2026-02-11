@@ -1,4 +1,7 @@
 import { branchNameAsPath } from '@/lib/branch';
+import { executeBootstrapScript } from '@/lib/bootstrap';
+import { HookEvent, executeHooksForEvent } from '@/lib/hooks';
+import { NpmHelper } from '@/foundation/NpmHelper';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -213,6 +216,37 @@ export abstract class Repository {
                 return await promptConfirm('This will discard local changes. Proceed?');
         }
     }
+
+    /**
+     * Execute hooks for a specific event type in this repository.
+     * Executes both npm scripts (feat-forge:hooks:eventType) and shell scripts (.forge/hooks/eventType.sh).
+     * Hooks are discovered and executed in alphabetical order for predictable and consistent execution.
+     *
+     * Supports:
+     * - npm scripts: feat-forge:hooks:postBranchStart, feat-forge:hooks:postBranchStart_01, etc.
+     * - shell scripts: .forge/hooks/postBranchStart.sh, postBranchStart_01.sh, etc.
+     *
+     * @param eventType - Type of event (HookEvent enum value)
+     * @param params - Optional parameters to pass to hooks as environment variables (FORGE_HOOK_PARAM_NAME)
+     * @returns Array of hook names that were executed (both npm and shell script names)
+     * @throws Error if any hook fails
+     */
+    async executeHook(eventType: HookEvent, params?: Record<string, unknown>): Promise<string[]> {
+        const repoConfigFolderPath = this.folders.repoConfig;
+        const npmHelper = new NpmHelper(this.context, this);
+
+        const executedHooks: string[] = [];
+
+        // Execute npm scripts for this event
+        const npmScripts = await npmHelper.executeNpmScriptsForEvent(eventType, params);
+        executedHooks.push(...npmScripts);
+
+        // Execute shell scripts for this event
+        const shellScripts = await executeHooksForEvent(this.path, repoConfigFolderPath, eventType, params);
+        executedHooks.push(...shellScripts);
+
+        return executedHooks;
+    }
 }
 
 export class RootRepository extends Repository {
@@ -323,6 +357,7 @@ export class RootRepository extends Repository {
         console.log(`\n=== Merging "${sourceBranch}" into "${targetBranch}" on repo "${this.name}" ===`);
 
         try {
+            await this.executeHook(HookEvent.PRE_MERGE, { sourceBranch, targetBranch });
             // Checkout target branch
             console.log(`Checking out "${targetBranch}"...`);
             await checkoutBranch(this.path, targetBranch);
@@ -332,6 +367,7 @@ export class RootRepository extends Repository {
                 console.log(`Merging "${sourceBranch}"...`);
                 await runGit(this.path, ['merge', '--no-ff', sourceBranch]);
                 console.log(`✅ Merge successful for repo: ${this.name}`);
+                await this.executeHook(HookEvent.POST_MERGE, { sourceBranch, targetBranch });
                 return { repo: this.name, success: true, hasConflicts: false };
             } catch (error) {
                 // Check if it's a merge conflict (detected by special status indicators)
@@ -379,6 +415,7 @@ export class WorktreeRepository extends Repository {
             // Create relative path from secondary to main's .active-spec
             await symlink(path.relative(path.dirname(secondaryActivePath), mainActivePath), secondaryActivePath);
         }
+        await this.executeHook(HookEvent.POST_SET_ACTIVE_SPECS, { branch: branchContext.branchName });
     }
 
     /**
@@ -386,6 +423,8 @@ export class WorktreeRepository extends Repository {
      */
     async rebase(specsBranch: string, baseBranch: string): Promise<GitOperationResult> {
         try {
+            await this.executeHook(HookEvent.PRE_REBASE, { branch: specsBranch, baseBranch });
+
             if (await this.isDirty()) {
                 console.log(
                     `⚠️  Worktree repository ${this.name} has uncommitted changes. Please commit or stash them before rebasing.`,
@@ -404,6 +443,7 @@ export class WorktreeRepository extends Repository {
             try {
                 await runGit(this.path, ['rebase', baseBranch]);
                 console.log(`✅ Rebase successful for ${this.name}`);
+                await this.executeHook(HookEvent.POST_REBASE, { branch: specsBranch, baseBranch });
                 return { repo: this.name, success: true, hasConflicts: false };
             } catch (error) {
                 // Check if it's a rebase conflict
@@ -424,4 +464,22 @@ export class WorktreeRepository extends Repository {
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }
+
+    /**
+     * Execute the bootstrap script in this repository.
+     * Executes both npm script (feat-forge:bootstrap) and shell script (bootstrap.sh/.bat).
+     *
+     * @throws Error if any bootstrap script fails
+     */
+    async executeBootstrapScript(): Promise<void> {
+        const repoConfigFolderPath = this.folders.repoConfig;
+        const npmHelper = new NpmHelper(this.context, this);
+
+        // Try npm bootstrap script first
+        await npmHelper.executeNpmBootstrapScript();
+
+        // Try shell bootstrap script after npm
+        await executeBootstrapScript(this.path, repoConfigFolderPath);
+    }
+
 }

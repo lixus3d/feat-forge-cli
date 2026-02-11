@@ -21,6 +21,7 @@ describe('ForgeConfig', () => {
                 archive: 'test-archive',
                 specs: 'test-specs',
                 template: 'test-templates',
+                repoConfig: '.forge',
             } as ForgeFoldersOptions,
         },
     };
@@ -71,6 +72,7 @@ describe('ForgeConfig', () => {
             expect(forgeConfig.options.folders.repoAgents).toEqual(defaultFolderOptions.repoAgents);
             expect(forgeConfig.options.folders.archive).toEqual(defaultFolderOptions.archive);
             expect(forgeConfig.options.folders.specs).toEqual(defaultFolderOptions.specs);
+            expect(forgeConfig.options.folders.repoConfig).toEqual(defaultFolderOptions.repoConfig);
         });
     });
 
