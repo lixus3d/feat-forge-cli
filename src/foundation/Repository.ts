@@ -1,6 +1,7 @@
 import { branchNameAsPath } from '@/lib/branch';
 import { executeBootstrapScript, executeHooksForEvent } from '@/lib/bootstrap';
 import { HookEvent } from '@/lib/hooks';
+import { executeNpmBootstrapScript, executeNpmScriptsForEvent } from '@/lib/npm';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import { rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -429,29 +430,52 @@ export class WorktreeRepository extends Repository {
 
     /**
      * Execute the bootstrap script in this repository.
-     * Can be extended in the future to handle other types of scripts (npm scripts, hooks, etc.)
+     * Executes both npm script (feat-forge:bootstrap) and shell script (bootstrap.sh/.bat).
      *
-     * @throws Error if the bootstrap script fails
+     * @throws Error if any bootstrap script fails
      */
     async executeBootstrapScript(): Promise<void> {
         const repoConfigFolderPath = this.folders.repoConfig;
+
+        // Try npm bootstrap script first
+        const npmExecuted = await executeNpmBootstrapScript(this.path);
+
+        // Try shell bootstrap script after npm
         await executeBootstrapScript(this.path, repoConfigFolderPath);
+
+        // If neither was found, that's fine (graceful fallback)
+        if (!npmExecuted && false) {
+            // This block will never execute, but it documents that not having any bootstrap script is OK
+        }
     }
 
     /**
      * Execute hooks for a specific event type in this repository.
-     * Hooks are discovered from the hooks directory and executed in alphabetical order
-     * for predictable and consistent execution.
+     * Executes both npm scripts (feat-forge:hooks:eventType) and shell scripts (.forge/hooks/eventType.sh).
+     * Hooks are discovered and executed in alphabetical order for predictable and consistent execution.
      *
-     * Supports hooks like: postBranchStart.sh, postBranchStart_01.sh, postBranchStart_02.sh
+     * Supports:
+     * - npm scripts: feat-forge:hooks:postBranchStart, feat-forge:hooks:postBranchStart_01, etc.
+     * - shell scripts: .forge/hooks/postBranchStart.sh, postBranchStart_01.sh, etc.
      *
      * @param eventType - Type of event (HookEvent enum value)
      * @param params - Optional parameters to pass to hooks as environment variables (FORGE_HOOK_PARAM_NAME)
-     * @returns Array of hook names that were executed
+     * @returns Array of hook names that were executed (both npm and shell script names)
      * @throws Error if any hook fails
      */
     async executeHooksForEvent(eventType: HookEvent, params?: Record<string, unknown>): Promise<string[]> {
         const repoConfigFolderPath = this.folders.repoConfig;
-        return executeHooksForEvent(this.path, repoConfigFolderPath, eventType, params);
+
+        const executedHooks: string[] = [];
+
+        // Execute npm scripts for this event
+        const npmScripts = await executeNpmScriptsForEvent(this.path, eventType, params);
+        executedHooks.push(...npmScripts);
+
+        // Execute shell scripts for this event
+        const shellScripts = await executeHooksForEvent(this.path, repoConfigFolderPath, eventType, params);
+        executedHooks.push(...shellScripts);
+
+        return executedHooks;
     }
 }
