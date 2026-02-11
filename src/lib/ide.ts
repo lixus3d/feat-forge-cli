@@ -5,6 +5,7 @@ import { pathExists } from './fs';
 import { IDE } from '../foundation/types/IDE';
 import { IDEName } from '../foundation/types/IDEName';
 import { AIAgent } from '../foundation/types/AIAgent';
+import { sanitizeSlug } from './slug';
 
 /**
  * Get the default CLI command for an IDE
@@ -31,8 +32,8 @@ type VSCodeWorkspace = {
  * Create IDE workspace files for a feature
  */
 export async function createIDEWorkspaces(
-    featureSlug: string,
-    worktreePath: string,
+    branchName: string,
+    branchRoot: string,
     mainRepoName: string,
     repositories: WorktreeRepository[],
     ides: IDE[],
@@ -45,7 +46,7 @@ export async function createIDEWorkspaces(
 
         switch (ide.name) {
             case IDEName.VSCODE:
-                await createVSCodeWorkspaceFile(featureSlug, worktreePath, ide, mainRepoName, repositories, agents);
+                await createVSCodeWorkspaceFile(branchName, branchRoot, ide, mainRepoName, repositories, agents);
                 break;
             default:
                 console.warn(`Unknown IDE: ${ide.name}, skipping workspace creation`);
@@ -58,15 +59,15 @@ export async function createIDEWorkspaces(
  * Also works for Cursor and Windsurf which use the same format
  */
 async function createVSCodeWorkspaceFile(
-    featureSlug: string,
-    workspacePath: string,
+    branchName: string,
+    branchRoot: string,
     ide: IDE,
     mainRepoName: string,
     repositories: WorktreeRepository[],
     agents: AIAgent[],
 ): Promise<void> {
-    const workspaceFileName = `${featureSlug}.code-workspace`;
-    const workspaceFilePath = path.join(workspacePath, workspaceFileName);
+    const workspaceFileName = `${sanitizeSlug(branchName, false).slug}.code-workspace`;
+    const workspaceFilePath = path.join(branchRoot, workspaceFileName);
 
     // Check if workspace already exists
     if (await pathExists(workspaceFilePath)) {
