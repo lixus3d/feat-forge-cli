@@ -71,11 +71,6 @@ export abstract class Repository {
         return path.join(this.path, this.folders.activeSpec);
     }
 
-    get modeFilePath(): string {
-        this.mustBeMainRepository();
-        return path.join(this.activeSpecPath, this.files.forgeMode);
-    }
-
     getSpecPath(branchName: string, ...segments: string[]): string {
         return path.join(this.specsPath, branchNameAsPath(branchName), ...segments);
     }
@@ -90,36 +85,6 @@ export abstract class Repository {
 
     getAgentTemplatePath(...segments: string[]): string {
         return this.getTemplatePath(this.folders.agent, ...segments);
-    }
-
-    async getMode(): Promise<ForgeMode> {
-        this.mustBeMainRepository();
-
-        const modeFile = this.modeFilePath;
-        if (!(await pathExists(modeFile))) {
-            throw new Error(`Mode file not found for active spec in repository ${this.name}. Expected at: ${modeFile}`);
-        }
-
-        const raw = (await readTextFile(modeFile)).trim().toLowerCase();
-        switch (raw) {
-            case ForgeMode.SPEC:
-                return ForgeMode.SPEC;
-            case ForgeMode.CODE:
-                return ForgeMode.CODE;
-        }
-        throw new Error(`Invalid mode value in ${modeFile}: ${raw}`);
-    }
-
-    async setMode(mode: ForgeMode): Promise<void> {
-        this.mustBeMainRepository();
-
-        const modeFile = this.modeFilePath;
-        await writeTextFile(modeFile, `${mode}\n`);
-    }
-
-    async hasModeFile(): Promise<boolean> {
-        this.mustBeMainRepository();
-        return pathExists(this.modeFilePath);
     }
 
     async hasBranch(branchName: string): Promise<boolean> {

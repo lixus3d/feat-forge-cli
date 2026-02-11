@@ -1,6 +1,12 @@
+import { ForgeExpectMainRepositoryError } from '@/foundation/errors';
+import { ForgeFilesOptions, ForgeFoldersOptions, ForgeGitOptions } from '@/foundation/ForgeConfig';
 import { ForgeContext } from '@/foundation/ForgeContext';
 import { Repository, RootRepository, WorktreeRepository } from '@/foundation/Repository';
 import { ForgeMode } from '@/foundation/types/ForgeMode';
+import { TemporaryFolderType } from '@/lib/constants';
+import * as fsLib from '@/lib/fs';
+import * as gitLib from '@/lib/git';
+import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContextHelper } from '../../helpers/ContextHelper';
@@ -10,13 +16,6 @@ import { RepositoryHelpers } from '../../helpers/RepositoryHelpers';
 vi.mock('@/lib/git');
 vi.mock('@/lib/fs');
 vi.mock('@/lib/prompt');
-
-import { ForgeExpectMainRepositoryError } from '@/foundation/errors';
-import { ForgeFilesOptions, ForgeFoldersOptions, ForgeGitOptions } from '@/foundation/ForgeConfig';
-import { TemporaryFolderType } from '@/lib/constants';
-import * as fsLib from '@/lib/fs';
-import * as gitLib from '@/lib/git';
-import { DirtyAction, promptDirtyActions, promptConfirm } from '@/lib/prompt';
 
 const customFolders: ForgeFoldersOptions = {
     activeSpec: 'custom-active-feature',
@@ -138,17 +137,6 @@ describe('RootRepository', () => {
         });
     });
 
-    describe('modeFilePath', () => {
-        it('should return modeFilePath for main repository', () => {
-            const expectedPath = path.join(customRepository.activeSpecPath, customFiles.forgeMode);
-            expect(customRepository.modeFilePath).toBe(expectedPath);
-        });
-
-        it('should throw when accessing modeFilePath on non-main repository', () => {
-            expect(() => secondaryRepository.modeFilePath).toThrow(ForgeExpectMainRepositoryError);
-        });
-    });
-
     describe('getFeaturePath()', () => {
         it('should return feature path with feature slug', () => {
             const expectedPath = path.join(customRepository.path, customFolders.specs, 'test/branch');
@@ -200,60 +188,6 @@ describe('RootRepository', () => {
                 'context.md',
             );
             expect(customRepository.getAgentTemplatePath('context.md')).toBe(expectedPath);
-        });
-    });
-
-    describe('getMode()', () => {
-        it('should get mode from file (SPEC)', async () => {
-            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            vi.mocked(fsLib.readTextFile).mockResolvedValue('spec\n');
-
-            const mode = await mainRepository.getMode();
-            expect(mode).toBe(ForgeMode.SPEC);
-            expect(fsLib.pathExists).toHaveBeenCalledWith(mainRepository.modeFilePath);
-        });
-
-        it('should get mode from file (CODE)', async () => {
-            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            vi.mocked(fsLib.readTextFile).mockResolvedValue('code\n');
-
-            const mode = await mainRepository.getMode();
-            expect(mode).toBe(ForgeMode.CODE);
-            expect(fsLib.pathExists).toHaveBeenCalledWith(mainRepository.modeFilePath);
-        });
-
-        it('should throw if mode file does not exist', async () => {
-            vi.mocked(fsLib.pathExists).mockResolvedValue(false);
-            await expect(mainRepository.getMode()).rejects.toThrow('Mode file not found');
-        });
-
-        it('should throw if mode file contains invalid content', async () => {
-            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            vi.mocked(fsLib.readTextFile).mockResolvedValue('invalid-mode\n');
-            await expect(mainRepository.getMode()).rejects.toThrow();
-        });
-
-        it('should throw when getting mode on non-main repository', async () => {
-            await expect(secondaryRepository.getMode()).rejects.toThrow(ForgeExpectMainRepositoryError);
-        });
-    });
-
-    describe('setMode()', () => {
-        it('should set mode to file', async () => {
-            await mainRepository.setMode(ForgeMode.CODE);
-            expect(fsLib.writeTextFile).toHaveBeenCalledWith(mainRepository.modeFilePath, 'code\n');
-        });
-
-        it('should throw when setting mode on non-main repository', async () => {
-            await expect(secondaryRepository.setMode(ForgeMode.CODE)).rejects.toThrow(ForgeExpectMainRepositoryError);
-        });
-    });
-
-    describe('hasModeFile()', () => {
-        it('should check if mode file exists', async () => {
-            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
-            const exists = await mainRepository.hasModeFile();
-            expect(exists).toBe(true);
         });
     });
 

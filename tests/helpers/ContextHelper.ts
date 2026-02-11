@@ -26,6 +26,9 @@ export class ContextHelper {
                         specs: 'test-specs',
                         template: 'test-templates',
                     },
+                    files: {
+                        forgeMode: 'test-forge-mode.txt',
+                    },
                 },
             } as ForgeConfigFile,
             config,

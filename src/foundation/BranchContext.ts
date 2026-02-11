@@ -2,7 +2,7 @@ import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
 import { refreshCopilotAgentContextFiles } from '../lib/agents';
 import { TemporaryFolderType } from '../lib/constants';
-import { ensureDir, pathExists } from '../lib/fs';
+import { ensureDir, pathExists, readTextFile, writeTextFile } from '../lib/fs';
 import { getGitStatusPorcelain, runGit } from '../lib/git';
 import { createIDEWorkspaces } from '../lib/ide';
 import { promptConfirm, promptForBranch } from '../lib/prompt';
@@ -116,6 +116,10 @@ export class BranchContext {
         return this.repositories.filter((repo) => !repo.main);
     }
 
+    get modeFilePath(): string {
+        return path.join(this.path, this.context.options.files.forgeMode);
+    }
+
     getInPath(...segments: string[]): string {
         return this.context.paths.getPathInBranchRoot(this.branchName, ...segments);
     }
@@ -148,17 +152,34 @@ export class BranchContext {
         return this.mainRepo.getAgentTemplatePath(...segments);
     }
 
+    async hasModeFile(): Promise<boolean> {
+        return pathExists(this.modeFilePath);
+    }
+
     async getMode(): Promise<ForgeMode> {
-        return this.mainRepo.getMode();
+        const modeFile = this.modeFilePath;
+        if (!(await this.hasModeFile())) {
+            throw new Error(`Mode file not found for branch ${this.branchName}. Expected at: ${modeFile}`);
+        }
+
+        const raw = (await readTextFile(modeFile)).trim().toLowerCase();
+        switch (raw) {
+            case ForgeMode.SPEC:
+                return ForgeMode.SPEC;
+            case ForgeMode.CODE:
+                return ForgeMode.CODE;
+        }
+        throw new Error(`Invalid mode value in ${modeFile}: ${raw}`);
     }
 
     async setMode(mode: ForgeMode): Promise<void> {
-        await this.mainRepo.setMode(mode);
+        const modeFile = this.modeFilePath;
+        await writeTextFile(modeFile, `${mode}\n`);
         await this.refreshAgentContextFiles(mode);
     }
 
     async initMode(mode: ForgeMode = ForgeMode.SPEC): Promise<void> {
-        if (!(await this.mainRepo.hasModeFile())) {
+        if (!(await this.hasModeFile())) {
             await this.setMode(mode);
         }
     }
