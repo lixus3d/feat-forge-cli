@@ -150,13 +150,6 @@ describe('WorktreeRepository', () => {
 
             await worktreeSecondaryRepository.setActiveSpec(branchContext);
 
-            console.log({
-                mainPath: worktreeMainRepository.path,
-                secondaryPath: worktreeSecondaryRepository.path,
-                mainActivePath: worktreeMainRepository.activeSpecPath,
-                secondaryActivePath: worktreeSecondaryRepository.activeSpecPath,
-            });
-
             const mainActivePath = worktreeMainRepository.activeSpecPath;
             const secondaryActivePath = worktreeSecondaryRepository.activeSpecPath;
             const expectedRelativePath = path.relative(path.dirname(secondaryActivePath), mainActivePath);
