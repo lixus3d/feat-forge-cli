@@ -145,6 +145,16 @@ export class ForgeProcessOptions {
 
 export class ForgeProxyOptions {
     /**
+     * Whether the proxy is enabled or not. Default: true
+     *
+     * Active by default, but you can disable it if you don't need to use the proxy features (like URL rewriting in .envrc)
+     * and want to save system resources by not running the proxy server at all.
+     */
+    @IsOptional()
+    @IsBoolean()
+    enabled: boolean = true;
+
+    /**
      * Base port for service port allocation. Default: 3000
      */
     @IsOptional()
@@ -167,6 +177,16 @@ export class ForgeProxyOptions {
     @IsInt()
     @Min(1)
     port: number = 8080;
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    envrc: string = '.envrc';
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    environmentVariablePrefix: string = 'FEAT_FORGE_';
 }
 
 export class ForgeOptions {

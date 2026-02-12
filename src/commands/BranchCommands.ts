@@ -1,4 +1,5 @@
-import { getDefaultIDECommand } from '@/lib/ide';
+import { getDefaultIDECommand, getWorkspaceFileName } from '@/lib/ide';
+import { execa } from 'execa';
 import { BranchContext } from '../foundation/BranchContext';
 import { RepositoryStatus, RootRepository, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
@@ -7,7 +8,6 @@ import { checkoutBranch, displayOperationSummary, gitBranchExists, GitOperation,
 import { promptChoice, promptConfirm, promptForBranch } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
-import { execa } from 'execa';
 
 export class BranchCommands extends AbstractCommands {
     // ============================================================================
@@ -218,7 +218,7 @@ export class BranchCommands extends AbstractCommands {
         const command = ide.openCommand || getDefaultIDECommand(ide.name);
 
         // 5. Determine the target to open
-        const workspaceFile = branchContext.getInPath(`${branchContext.branchName}.code-workspace`);
+        const workspaceFile = branchContext.getInPath(await getWorkspaceFileName(branchContext.branchName, ide.name));
         const workspaceExists = await pathExists(workspaceFile);
         const target = workspaceExists ? workspaceFile : branchContext.path;
 

@@ -14,6 +14,7 @@ import { Repository, RepositoryStatus, RootRepository, WorktreeRepository } from
 import { AIAgentName } from './types/AIAgentName';
 import { ModeConfig } from './types/ModeConfig';
 import { RepoName } from './types/RepositoryInfos';
+import { slugify } from '@/lib/slug';
 
 export type BranchName = string; // must be sanitized for branch names and file paths
 
@@ -114,6 +115,10 @@ export class BranchContext {
 
     get branchNameAsPath(): string {
         return branchNameAsPath(this.branchName);
+    }
+
+    get branchNameSlug(): string {
+        return slugify(this.branchName, false, false);
     }
 
     get mainRepo() {

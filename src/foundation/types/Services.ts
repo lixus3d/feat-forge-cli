@@ -1,13 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsString, IsEnum, IsOptional, IsNumber, IsObject, ValidateNested, Min, Max, IsArray } from 'class-validator';
+import { IsArray, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 import { RepoName } from './RepositoryInfos';
+import { ServiceName } from '../PortAllocator';
+import { BranchName } from '../BranchContext';
+import { T } from 'node_modules/vitest/dist/chunks/traces.d.402V_yFI';
 
 /**
  * Service definition from .forge/services.json (without port)
  */
 export class ServiceDefinition {
     @IsString()
-    name!: string;
+    name!: ServiceName;
 
     @IsOptional()
     @IsEnum(['http', 'tcp', 'grpc'])
@@ -19,19 +22,9 @@ export class ServiceDefinition {
 }
 
 /**
- * Service with assigned port (in generated.services.json)
- */
-export class GeneratedService extends ServiceDefinition {
-    @IsNumber()
-    @Min(1024)
-    @Max(65535)
-    port!: number;
-}
-
-/**
  * Services declaration from .forge/services.json
  */
-export class ServicesFile {
+export class ServicesDTO {
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => ServiceDefinition)
@@ -42,72 +35,85 @@ export class ServicesFile {
  * Services for a single repository
  */
 export class RepositoryServices {
+    /**
+     * Repository name
+     */
+    @IsString()
+    @IsNotEmpty()
+    name!: RepoName;
+
     @ValidateNested({ each: true })
-    @Type(() => GeneratedService)
-    services!: GeneratedService[];
+    @Type(() => ServiceDefinition)
+    services!: ServiceDefinition[];
+}
+
+/**
+ * Service with assigned port (in generated.services.json)
+ */
+export class ServiceDefinitionWithPort extends ServiceDefinition {
+    @IsNumber()
+    @Min(1024)
+    @Max(65535)
+    port!: number;
 }
 
 /**
  * All repositories' services in a branch
  */
-export class GeneratedServicesFile {
+export class GeneratedServicesDTO {
     @IsString()
     _doNotEdit!: string;
 
-    @IsString()
-    generatedAt!: string;
+    @IsDate()
+    @Type(() => Date)
+    generatedAt!: Date;
 
-    repos!: Record<string, RepositoryServices>;
-}
-
-/**
- * Port allocation for a single branch
- */
-export class BranchPortAllocation {
-    @IsNumber()
-    @Min(1024)
-    start!: number;
-
-    @IsNumber()
-    @Max(65535)
-    end!: number;
-
-    @IsNumber()
-    @Min(1024)
-    usedUntil!: number; // Highest port assigned + 1
-
-    @IsOptional()
-    @IsObject()
-    services?: Record<string, number>; // Maps service name to its allocated port
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => ServiceDefinitionWithPort)
+    services!: ServiceDefinitionWithPort[];
 }
 
 /**
  * Root port allocations file structure
  */
-export class PortAllocationsFile {
+export class PortAllocatorDTO {
     @IsString()
     _doNotEdit!: string;
 
-    @IsNumber()
-    @Min(1024)
-    servicesBasePort!: number;
-
-    @IsNumber()
-    @Min(1)
-    branchRangeSize!: number;
-
-    @IsObject()
-    allocations!: Record<string, BranchPortAllocation>;
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => BranchPortAllocationDTO)
+    allocations!: BranchPortAllocationDTO[];
 }
 
-/** Maps a repository name to its list of service definitions */
-export type RepoServices = Record<RepoName, ServiceDefinition[]>;
+export class BranchPortAllocationDTO {
+    /**
+     * Branch name
+     */
+    @IsString()
+    @IsNotEmpty()
+    name!: BranchName;
 
-/**
- * Result from scanning repositories for services
- */
-export class ScanResult {
-    @IsObject()
-    @Type(() => ServiceDefinition)
-    repos!: RepoServices;
+    /**
+     * Starting port number for this branch's allocation range
+     */
+    @IsNumber()
+    @Min(1024)
+    start!: number;
+
+    /**
+     * Ending port number for this branch's allocation range
+     */
+    @IsNumber()
+    @Max(65535)
+    end!: number;
+
+    /**
+     * Services with their allocated ports for this branch
+     */
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => ServiceDefinitionWithPort)
+    services!: ServiceDefinitionWithPort[]; // Maps service name to its allocated port
 }

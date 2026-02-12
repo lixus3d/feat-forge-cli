@@ -1,10 +1,15 @@
 import { BranchContext } from '@/foundation/BranchContext';
 import { PortAllocator } from '@/foundation/PortAllocator';
-import { GeneratedServicesFile } from '@/foundation/types/Services';
-import { pathExists, readJSONFile } from '@/lib/fs';
-import { generateEnvrcFile, generateRootServicesFile, scanServices } from '@/lib/services';
-import path from 'path';
+import { ServiceDefinitionWithPort } from '@/foundation/types/Services';
+import {
+    generateBranchServicesFile,
+    generateEnvrcFile,
+    getServiceOutputs,
+    loadGeneratedServicesFile,
+    scanReposServices,
+} from '@/lib/services';
 import { AbstractCommands } from './AbstractCommands';
+import { EnvCommands } from './EnvCommands';
 
 export class ServicesCommands extends AbstractCommands {
     // ============================================================================
@@ -22,93 +27,70 @@ export class ServicesCommands extends AbstractCommands {
 
         // Scan for services in all repositories
         console.log(`🔍 Scanning for services in branch "${branchContext.branchName}"...`);
-        const scannedServices = await scanServices(branchContext);
+        const reposServices = await scanReposServices(branchContext);
 
-        if (Object.keys(scannedServices.repos).length === 0) {
-            console.log('ℹ️  No services found');
+        if (reposServices.some((repo) => repo.services.length > 0)) {
+            console.log(`✅ Found services in ${reposServices.length} repository(ies)`);
+        } else {
+            console.log('⚠️ No services found in any repositories');
             return;
         }
-
+        console.log('🔄 Allocating ports for discovered services...');
         // Load port allocator
-        const portAllocator = await PortAllocator.load(this.context.rootDir, this.context.config.options.proxy);
+        const portAllocator = await PortAllocator.load(this.context);
 
         // Allocate ports for all repositories
-        const repoPortMappings = portAllocator.allocatePortsForRepos(branchContext.branchName, scannedServices.repos);
+        portAllocator.allocatePorts(branchContext.branchName, reposServices);
 
         // Save port allocations
         await portAllocator.save();
+        console.log('✅ Port allocation completed');
 
         // Generate and write generated.services.json
-        const generatedServices = await generateRootServicesFile(branchContext.path, scannedServices, repoPortMappings);
+        console.log('🔄 Generating generated.services.json with port assignments...');
+        const generated = await generateBranchServicesFile(branchContext, portAllocator);
+        console.log(`✅ generated.services.json: ${generated.path}`);
 
         // Generate and write .envrc
-        const branchAllocation = portAllocator.getBranchAllocation(branchContext.branchName);
-        await generateEnvrcFile(
-            branchContext.path,
-            branchContext.branchName,
-            generatedServices,
-            branchAllocation ? { start: branchAllocation.start, end: branchAllocation.end } : undefined,
-        );
+        await new EnvCommands(this.context).generateEnvrcFile(branchContext, generated.services);
 
         // Display summary
-        console.log(`✅ Generated configuration files for ${Object.keys(scannedServices.repos).length} repository(ies)`);
-        console.log(`📄 generated.services.json: ${path.join(branchContext.path, 'generated.services.json')}`);
-        console.log(`📄 .envrc: ${path.join(branchContext.path, '.envrc')}`);
-        console.log('');
-        console.log('Service Summary:');
-
-        for (const [repoName, services] of Object.entries(scannedServices.repos)) {
-            console.log(`  ${repoName}:`);
-            for (const service of services) {
-                const port = repoPortMappings[repoName][service.name];
-                const path = service.path ? ` (${service.path})` : '';
-                console.log(`    - ${service.name}: ${service.type} on port ${port}${path}`);
-            }
-        }
+        this.showServiceSummary(branchContext, generated.services);
     }
 
     /**
      * List discovered services with their allocated ports
      */
-    async list(format?: 'json' | 'table'): Promise<void> {
+    async list(format?: 'json' | 'default'): Promise<void> {
         // Load current branch context
         const branchContext = await BranchContext.findNearestBranchContext(this.context);
-        const generatedServicesPath = path.join(branchContext.path, 'generated.services.json');
 
-        if (!(await pathExists(generatedServicesPath))) {
-            console.log('❌ No generated services found. Run "forge services scan" first.');
-            return;
-        }
-
-        // Read generated services
-        const generatedServices = await readJSONFile(GeneratedServicesFile, generatedServicesPath);
+        // Load generated services file
+        const generatedServicesFile = await loadGeneratedServicesFile(branchContext);
 
         if (format === 'json') {
             // Output as JSON
-            console.log(JSON.stringify(generatedServices, null, 2));
+            console.log(JSON.stringify(generatedServicesFile, null, 2));
         } else {
-            // Default table format
-            console.log('Services in branch:', branchContext.branchName);
-            console.log('');
-
-            for (const [repoName, repoServices] of Object.entries(generatedServices.repos)) {
-                console.log(`${repoName}:`);
-
-                // Create a table-like display
-                const rows = repoServices.services.map((service) => {
-                    const pathStr = service.path || '-';
-                    return `  ${service.name.padEnd(20)} ${service.type.padEnd(8)} ${service.port} ${pathStr}`;
-                });
-
-                console.log('  Name                 Type     Port  Path');
-                console.log('  ' + '-'.repeat(60));
-                rows.forEach((row) => console.log(row));
-                console.log('');
-            }
+            // Default log format
+            this.showServiceSummary(branchContext, generatedServicesFile.services);
         }
     }
 
     // ============================================================================
     // PRIVATE UTILITY METHODS
     // ============================================================================
+
+    private showServiceSummary(branchContext: BranchContext, services: ServiceDefinitionWithPort[]): void {
+        console.log('Services Summary:');
+
+        for (const service of services) {
+            const { name, port, url, proxyUrl } = getServiceOutputs(this.context, branchContext, service);
+            console.log(`    🚀 ${name}: (PORT:${port})`);
+            console.log(`        🌐 url: ${url}`);
+            if (this.context.options.proxy.enabled) {
+                console.log(`        🔀 proxy-url: ${proxyUrl}`);
+            }
+        }
+    }
 }

@@ -20,6 +20,8 @@ import { ForgeConfigFile } from './foundation/ForgeConfigFile';
 import { plainToInstance } from 'class-transformer';
 import { ServicesCommands } from './commands/ServicesCommands';
 import { EnvCommands } from './commands/EnvCommands';
+// @ts-ignore
+import packageJson from '../package.json' with { type: 'json' };
 
 /**
  * Register the init command on the main CLI program.
@@ -220,11 +222,8 @@ function registerServicesCommands(program: Command, context: ForgeContext): void
         .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
         .description('List discovered services with their allocated ports')
         .action((branch: string | undefined, options: any) => {
-            const format = options.json ? 'json' : 'table';
-            handlers.list(format).catch((err) => {
-                console.error(err);
-                process.exitCode = 1;
-            });
+            const format = options.json ? 'json' : 'default';
+            handlers.list(format);
         });
 }
 
@@ -289,8 +288,7 @@ function registerCompletionCommands(program: Command, context?: ForgeContext): v
  */
 async function main() {
     const program = new Command();
-
-    program.name('forge').description('Feature-first workflow CLI').version('0.1.0');
+    program.name('forge').description('Feat-Forge workflow CLI').version(packageJson.version);
 
     // Init command doesn't need config
     registerInitCommands(program);

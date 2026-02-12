@@ -1,152 +1,403 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { PortAllocator, PortAllocation } from '@/foundation/PortAllocator';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { BranchPortAllocation, PortAllocator } from '@/foundation/PortAllocator';
+import { ServiceDefinition, ServiceDefinitionWithPort } from '@/foundation/types/Services';
+import { ForgeContext } from '@/foundation/ForgeContext';
+import { ForgePortRangeExhaustedError } from '@/foundation/errors';
 
-function createAllocator(config = { servicesBasePort: 3000, branchRangeSize: 100 }): PortAllocator {
-    return new PortAllocator(new Map(), '/test/path', config);
+function createMockForgeContext(config = { servicesBasePort: 3000, branchRangeSize: 100 }): ForgeContext {
+    return {
+        config: {
+            options: {
+                proxy: config,
+            },
+        },
+        paths: {
+            getPathInRoot: vi.fn((filename: string) => `/test/path/${filename}`),
+        },
+    } as any;
 }
 
-describe('PortAllocator', () => {
-    describe('allocatePorts', () => {
-        it('should allocate ports for a new branch', () => {
-            const allocator = createAllocator();
-            const result = allocator.allocatePorts('main', ['backend', 'frontend']);
+function createService(name: string, type: 'http' | 'tcp' | 'grpc' = 'http', path?: string): ServiceDefinition {
+    const service = new ServiceDefinition();
+    service.name = name;
+    service.type = type;
+    service.path = path;
+    return service;
+}
 
-            expect(result.start).toBe(3000);
-            expect(result.end).toBe(3099);
-            expect(result.assignedPorts['backend']).toBe(3000);
-            expect(result.assignedPorts['frontend']).toBe(3001);
+describe('BranchPortAllocation', () => {
+    describe('constructor and basic properties', () => {
+        it('should create allocation with correct properties', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
+
+            expect(allocation.name).toBe('main');
+            expect(allocation.start).toBe(3000);
+            expect(allocation.end).toBe(3099);
+            expect(allocation.getServices()).toHaveLength(0);
         });
 
-        it('should allocate ports for a second branch', () => {
-            const allocator = createAllocator();
+        it('should create allocation with initial services', () => {
+            const services: ServiceDefinitionWithPort[] = [
+                { ...createService('backend'), port: 3000 },
+                { ...createService('frontend'), port: 3001 },
+            ];
+            const allocation = new BranchPortAllocation('main', 3000, 3099, services);
 
-            // First branch
-            allocator.allocatePorts('main', ['service1']);
+            expect(allocation.getServices()).toHaveLength(2);
+        });
+    });
 
-            // Second branch
-            const result = allocator.allocatePorts('feature/auth', ['service1']);
+    describe('nextAvailablePort', () => {
+        it('should return start port when no services allocated', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
 
-            expect(result.start).toBe(3100);
-            expect(result.end).toBe(3199);
-            expect(result.assignedPorts['service1']).toBe(3100);
+            expect(allocation.nextAvailablePort).toBe(3000);
         });
 
-        it('should throw error when port range is exhausted', () => {
-            const allocator = createAllocator({ servicesBasePort: 3000, branchRangeSize: 2 });
+        it('should return next port after allocated services', () => {
+            const services: ServiceDefinitionWithPort[] = [
+                { ...createService('backend'), port: 3000 },
+                { ...createService('frontend'), port: 3001 },
+            ];
+            const allocation = new BranchPortAllocation('main', 3000, 3099, services);
 
-            // This should work
-            allocator.allocatePorts('main', ['service1', 'service2']);
+            expect(allocation.nextAvailablePort).toBe(3002);
+        });
 
-            // This should fail - trying to allocate more than available
-            expect(() => {
-                allocator.allocatePorts('main', ['service3']);
-            }).toThrow('Port range exhausted');
+        it('should throw error when range is exhausted', () => {
+            const services: ServiceDefinitionWithPort[] = [{ ...createService('backend'), port: 3099 }];
+            const allocation = new BranchPortAllocation('main', 3000, 3099, services);
+
+            expect(() => allocation.nextAvailablePort).toThrow(ForgePortRangeExhaustedError);
+        });
+    });
+
+    describe('hasService and getService', () => {
+        it('should return false for non-existent service', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
+
+            expect(allocation.hasService('backend')).toBe(false);
+        });
+
+        it('should return true for existing service', () => {
+            const services: ServiceDefinitionWithPort[] = [{ ...createService('backend'), port: 3000 }];
+            const allocation = new BranchPortAllocation('main', 3000, 3099, services);
+
+            expect(allocation.hasService('backend')).toBe(true);
+        });
+
+        it('should return undefined for non-existent service', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
+
+            expect(allocation.getService('backend')).toBeUndefined();
+        });
+
+        it('should return service for existing service', () => {
+            const services: ServiceDefinitionWithPort[] = [{ ...createService('backend', 'http', '/api'), port: 3000 }];
+            const allocation = new BranchPortAllocation('main', 3000, 3099, services);
+
+            const service = allocation.getService('backend');
+            expect(service).toBeDefined();
+            expect(service?.name).toBe('backend');
+            expect(service?.port).toBe(3000);
+            expect(service?.path).toBe('/api');
+        });
+    });
+
+    describe('allocatePort', () => {
+        it('should allocate port for new service', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
+            const service = createService('backend', 'http', '/api');
+
+            const port = allocation.allocatePort(service);
+
+            expect(port).toBe(3000);
+            expect(allocation.hasService('backend')).toBe(true);
+            expect(allocation.getServices()).toHaveLength(1);
+        });
+
+        it('should return existing port for already allocated service', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
+            const service = createService('backend');
+
+            const port1 = allocation.allocatePort(service);
+            const port2 = allocation.allocatePort(service);
+
+            expect(port1).toBe(3000);
+            expect(port2).toBe(3000);
+            expect(allocation.getServices()).toHaveLength(1);
         });
 
         it('should allocate sequential ports for multiple services', () => {
-            const allocator = createAllocator();
-            const result = allocator.allocatePorts('main', ['api', 'frontend', 'worker']);
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
 
-            expect(result.assignedPorts['api']).toBe(3000);
-            expect(result.assignedPorts['frontend']).toBe(3001);
-            expect(result.assignedPorts['worker']).toBe(3002);
+            const port1 = allocation.allocatePort(createService('backend'));
+            const port2 = allocation.allocatePort(createService('frontend'));
+            const port3 = allocation.allocatePort(createService('worker'));
+
+            expect(port1).toBe(3000);
+            expect(port2).toBe(3001);
+            expect(port3).toBe(3002);
+        });
+
+        it('should throw error when port range is exhausted', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3001);
+
+            allocation.allocatePort(createService('service1'));
+            allocation.allocatePort(createService('service2'));
+
+            expect(() => allocation.allocatePort(createService('service3'))).toThrow(ForgePortRangeExhaustedError);
         });
     });
 
-    describe('getBranchAllocation', () => {
+    describe('toJSON', () => {
+        it('should serialize to DTO format', () => {
+            const services: ServiceDefinitionWithPort[] = [{ ...createService('backend', 'http', '/api'), port: 3000 }];
+            const allocation = new BranchPortAllocation('main', 3000, 3099, services);
+
+            const json = allocation.toJSON();
+
+            expect(json.name).toBe('main');
+            expect(json.start).toBe(3000);
+            expect(json.end).toBe(3099);
+            expect(json.services).toHaveLength(1);
+            expect(json.services[0].name).toBe('backend');
+            expect(json.services[0].port).toBe(3000);
+        });
+    });
+
+    describe('load', () => {
+        it('should create allocation from DTO', () => {
+            const dto = {
+                name: 'feature/auth',
+                start: 3100,
+                end: 3199,
+                services: [{ ...createService('backend'), port: 3100 }],
+            };
+
+            const allocation = BranchPortAllocation.load(dto);
+
+            expect(allocation.name).toBe('feature/auth');
+            expect(allocation.start).toBe(3100);
+            expect(allocation.end).toBe(3199);
+            expect(allocation.getServices()).toHaveLength(1);
+        });
+    });
+});
+
+describe('PortAllocator', () => {
+    describe('constructor and basic methods', () => {
+        it('should create empty allocator', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            expect(allocator.getAllAllocations()).toHaveLength(0);
+        });
+
+        it('should create allocator with existing allocations', () => {
+            const context = createMockForgeContext();
+            const allocations = [new BranchPortAllocation('main', 3000, 3099)];
+            const allocator = new PortAllocator(context, allocations);
+
+            expect(allocator.getAllAllocations()).toHaveLength(1);
+        });
+    });
+
+    describe('getAllocation and hasAllocation', () => {
         it('should return undefined for non-existent branch', () => {
-            const allocator = createAllocator();
-            const result = allocator.getBranchAllocation('feature/nonexistent');
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
 
-            expect(result).toBeUndefined();
+            expect(allocator.getAllocation('main')).toBeUndefined();
+            expect(allocator.hasAllocation('main')).toBe(false);
         });
 
-        it('should return allocation after allocating ports', () => {
-            const allocator = createAllocator();
-            allocator.allocatePorts('main', ['service1']);
+        it('should return allocation for existing branch', () => {
+            const context = createMockForgeContext();
+            const allocations = [new BranchPortAllocation('main', 3000, 3099)];
+            const allocator = new PortAllocator(context, allocations);
 
-            const result = allocator.getBranchAllocation('main');
-
-            expect(result).toBeDefined();
-            expect(result?.start).toBe(3000);
-            expect(result?.end).toBe(3099);
-            expect(result?.usedUntil).toBe(3001);
+            expect(allocator.getAllocation('main')).toBeDefined();
+            expect(allocator.hasAllocation('main')).toBe(true);
         });
     });
 
-    describe('getConfig', () => {
-        it('should return base configuration', () => {
-            const allocator = createAllocator();
-            const config = allocator.getConfig();
+    describe('allocateBranchServicesPorts', () => {
+        it('should allocate ports for new branch', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
 
-            expect(config.servicesBasePort).toBe(3000);
-            expect(config.rangeSize).toBe(100);
-        });
-    });
+            const services = [createService('backend'), createService('frontend')];
+            const allocation = allocator.allocateBranchServicesPorts('main', services);
 
-    describe('persistent port allocation', () => {
-        it('should reuse the same port for an existing service on re-scan', () => {
-            const allocator = createAllocator();
-
-            // First scan: allocate ports for services
-            const result1 = allocator.allocatePorts('feature/auth', ['backend', 'frontend']);
-            expect(result1.assignedPorts['backend']).toBe(3000);
-            expect(result1.assignedPorts['frontend']).toBe(3001);
-
-            // Second scan: same services should get the same ports
-            const result2 = allocator.allocatePorts('feature/auth', ['backend', 'frontend']);
-            expect(result2.assignedPorts['backend']).toBe(3000);
-            expect(result2.assignedPorts['frontend']).toBe(3001);
-
-            // usedUntil should not have incremented
-            const allocation = allocator.getBranchAllocation('feature/auth');
-            expect(allocation?.usedUntil).toBe(3002);
+            expect(allocation.start).toBe(3000);
+            expect(allocation.end).toBe(3099);
+            expect(allocation.getServices()).toHaveLength(2);
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect(allocation.getService('frontend')?.port).toBe(3001);
         });
 
-        it('should assign new port for a new service on re-scan', () => {
-            const allocator = createAllocator();
+        it('should allocate ports for second branch in next range', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
 
-            // First scan: allocate ports
-            const result1 = allocator.allocatePorts('feature/auth', ['backend', 'frontend']);
-            expect(result1.assignedPorts['backend']).toBe(3000);
-            expect(result1.assignedPorts['frontend']).toBe(3001);
+            allocator.allocateBranchServicesPorts('main', [createService('service1')]);
+            const allocation = allocator.allocateBranchServicesPorts('feature/auth', [createService('service1')]);
 
-            // Second scan: add a new service
-            const result2 = allocator.allocatePorts('feature/auth', ['backend', 'frontend', 'worker']);
-            expect(result2.assignedPorts['backend']).toBe(3000);
-            expect(result2.assignedPorts['frontend']).toBe(3001);
-            expect(result2.assignedPorts['worker']).toBe(3002); // New port
+            expect(allocation.start).toBe(3100);
+            expect(allocation.end).toBe(3199);
+            expect(allocation.getService('service1')?.port).toBe(3100);
+        });
+
+        it('should reuse existing allocation for same branch', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            const services1 = [createService('backend'), createService('frontend')];
+            allocator.allocateBranchServicesPorts('main', services1);
+
+            const services2 = [createService('backend'), createService('frontend')];
+            const allocation = allocator.allocateBranchServicesPorts('main', services2);
+
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect(allocation.getService('frontend')?.port).toBe(3001);
+            expect(allocator.getAllAllocations()).toHaveLength(1);
+        });
+
+        it('should handle persistent port allocation for existing services', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            // First allocation
+            const services1 = [createService('backend'), createService('frontend')];
+            allocator.allocateBranchServicesPorts('feature/auth', services1);
+
+            // Second allocation with same services
+            const services2 = [createService('backend'), createService('frontend')];
+            const allocation = allocator.allocateBranchServicesPorts('feature/auth', services2);
+
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect(allocation.getService('frontend')?.port).toBe(3001);
+            expect(allocation.getServices()).toHaveLength(2);
+        });
+
+        it('should allocate new port for new service on re-scan', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            // First allocation
+            allocator.allocateBranchServicesPorts('main', [createService('backend'), createService('frontend')]);
+
+            // Second allocation with additional service
+            const allocation = allocator.allocateBranchServicesPorts('main', [
+                createService('backend'),
+                createService('frontend'),
+                createService('worker'),
+            ]);
+
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect(allocation.getService('frontend')?.port).toBe(3001);
+            expect(allocation.getService('worker')?.port).toBe(3002);
         });
 
         it('should handle removing services between scans', () => {
-            const allocator = createAllocator();
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
 
-            // First scan: allocate ports for 3 services
-            const result1 = allocator.allocatePorts('feature/auth', ['backend', 'frontend', 'worker']);
-            expect(result1.assignedPorts['backend']).toBe(3000);
-            expect(result1.assignedPorts['frontend']).toBe(3001);
-            expect(result1.assignedPorts['worker']).toBe(3002);
+            // First allocation with 3 services
+            allocator.allocateBranchServicesPorts('main', [
+                createService('backend'),
+                createService('frontend'),
+                createService('worker'),
+            ]);
 
-            // Second scan: remove middle service, only request backend and worker
-            const result2 = allocator.allocatePorts('feature/auth', ['backend', 'worker']);
-            expect(result2.assignedPorts['backend']).toBe(3000);
-            expect(result2.assignedPorts['worker']).toBe(3002);
+            // Second allocation removing middle service
+            const allocation = allocator.allocateBranchServicesPorts('main', [createService('backend'), createService('worker')]);
+
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect(allocation.getService('worker')?.port).toBe(3002);
+            expect(allocation.hasService('frontend')).toBe(true); // Still stored but not requested
+        });
+    });
+
+    describe('allocatePorts', () => {
+        it('should allocate ports for multiple repositories', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            const repoServices = [
+                {
+                    name: 'repo1',
+                    services: [createService('backend'), createService('frontend')],
+                },
+                {
+                    name: 'repo2',
+                    services: [createService('api')],
+                },
+            ];
+
+            allocator.allocatePorts('main', repoServices as any);
+
+            const allocation = allocator.getAllocation('main');
+            expect(allocation).toBeDefined();
+            expect(allocation?.getServices()).toHaveLength(3);
+            expect(allocation?.getService('backend')?.port).toBe(3000);
+            expect(allocation?.getService('frontend')?.port).toBe(3001);
+            expect(allocation?.getService('api')?.port).toBe(3002);
+        });
+    });
+
+    describe('toJSON and serialization', () => {
+        it('should serialize to DTO format', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            allocator.allocateBranchServicesPorts('main', [createService('backend')]);
+
+            const json = allocator.toJSON();
+
+            expect(json._doNotEdit).toContain('auto-generated');
+            expect(json.allocations).toHaveLength(1);
+            expect(json.allocations[0].name).toBe('main');
+            expect(json.allocations[0].services).toHaveLength(1);
+        });
+    });
+
+    describe('edge cases', () => {
+        it('should handle small branch range size', () => {
+            const context = createMockForgeContext({ servicesBasePort: 3000, branchRangeSize: 2 });
+            const allocator = new PortAllocator(context, []);
+
+            // Should work with 2 services
+            const allocation = allocator.allocateBranchServicesPorts('main', [createService('service1'), createService('service2')]);
+
+            expect(allocation.getServices()).toHaveLength(2);
+
+            // Should fail with 3rd service
+            expect(() => {
+                allocator.allocateBranchServicesPorts('main', [
+                    createService('service1'),
+                    createService('service2'),
+                    createService('service3'),
+                ]);
+            }).toThrow(ForgePortRangeExhaustedError);
         });
 
-        it('should handle mix of existing and new services', () => {
-            const allocator = createAllocator();
+        it('should handle different service types', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
 
-            // First scan: api, db, cache
-            const result1 = allocator.allocatePorts('main', ['api', 'db', 'cache']);
-            expect(result1.assignedPorts['api']).toBe(3000);
-            expect(result1.assignedPorts['db']).toBe(3001);
-            expect(result1.assignedPorts['cache']).toBe(3002);
+            const services = [
+                createService('http-service', 'http', '/api'),
+                createService('tcp-service', 'tcp'),
+                createService('grpc-service', 'grpc'),
+            ];
 
-            // Second scan: db, cache, redis (removed api, added redis)
-            const result2 = allocator.allocatePorts('main', ['db', 'cache', 'redis']);
-            expect(result2.assignedPorts['db']).toBe(3001);
-            expect(result2.assignedPorts['cache']).toBe(3002);
-            expect(result2.assignedPorts['redis']).toBe(3003); // New port
+            const allocation = allocator.allocateBranchServicesPorts('main', services);
+
+            expect(allocation.getService('http-service')?.type).toBe('http');
+            expect(allocation.getService('tcp-service')?.type).toBe('tcp');
+            expect(allocation.getService('grpc-service')?.type).toBe('grpc');
         });
     });
 });

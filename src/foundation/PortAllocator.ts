@@ -1,10 +1,17 @@
-import { readJSONFile, writeConfigSafely, pathExists } from '@/lib/fs';
-import { BranchPortAllocation, PortAllocationsFile, RepoServices } from '@/foundation/types/Services';
-import { ForgeProxyOptions } from '@/foundation/ForgeConfigFile';
 import { ForgePortAllocationsLoadError, ForgePortRangeExhaustedError } from '@/foundation/errors';
-import { BranchName } from '@/foundation/BranchContext';
 import { RepoName } from '@/foundation/types/RepositoryInfos';
+import {
+    BranchPortAllocationDTO,
+    PortAllocatorDTO,
+    RepositoryServices,
+    ServiceDefinition,
+    ServiceDefinitionWithPort,
+} from '@/foundation/types/Services';
+import { pathExists, readJSONFile, writeTextFile } from '@/lib/fs';
+import { Type } from 'class-transformer';
+import { IsArray, IsNotEmpty, IsNumber, IsString, Max, Min, ValidateNested } from 'class-validator';
 import path from 'path';
+import { ForgeContext } from './ForgeContext';
 
 const PORT_ALLOCATIONS_FILE = 'port-allocations.json';
 
@@ -14,70 +21,97 @@ export type ServiceName = string;
 /** Maps a service name to its assigned port number */
 export type ServicePortMap = Record<ServiceName, number>;
 
-/** Maps a repository name to its services' port assignments */
-export type RepoPortMappings = Record<RepoName, ServicePortMap>;
-
-export interface PortAllocationResult {
-    start: number;
-    end: number;
-    assignedPorts: ServicePortMap;
-}
-
 /**
  * Business entity representing port allocation for a branch
  */
-export class PortAllocation {
-    readonly start: number;
-    readonly end: number;
-    usedUntil: number;
-    private services: Record<string, number>;
+export class BranchPortAllocation {
+    /**
+     * Branch name
+     */
+    public readonly name: string;
 
-    constructor(start: number, end: number, usedUntil: number, services: Record<string, number> = {}) {
+    /**
+     * Starting port number for this branch's allocation range
+     */
+    public readonly start: number;
+
+    /**
+     * Ending port number for this branch's allocation range
+     */
+    public readonly end: number;
+
+    /**
+     * Services with their allocated ports for this branch
+     */
+    private services: ServiceDefinitionWithPort[]; // Maps service name to its allocated port
+
+    constructor(branchName: string, start: number, end: number, services: ServiceDefinitionWithPort[] = []) {
+        this.name = branchName;
         this.start = start;
         this.end = end;
-        this.usedUntil = usedUntil;
         this.services = services;
+    }
+
+    static load(file: BranchPortAllocationDTO): BranchPortAllocation {
+        return new BranchPortAllocation(file.name, file.start, file.end, file.services);
+    }
+
+    toJSON(): BranchPortAllocationDTO {
+        return {
+            name: this.name,
+            start: this.start,
+            end: this.end,
+            services: this.services,
+        };
+    }
+
+    get nextAvailablePort(): number {
+        const usedPorts = this.services.map((s) => s.port);
+        if (usedPorts.length === 0) {
+            return this.start;
+        }
+        const nextPort = Math.max(...usedPorts) + 1;
+
+        if (nextPort > this.end) {
+            throw new ForgePortRangeExhaustedError();
+        }
+        return nextPort;
+    }
+
+    hasService(serviceName: string): boolean {
+        return this.services.some((s) => s.name === serviceName);
+    }
+
+    getService(serviceName: string): ServiceDefinitionWithPort | undefined {
+        return this.services.find((s) => s.name === serviceName);
     }
 
     /**
      * Allocate a port for the given service. Returns the existing port if already allocated,
      * or assigns the next available port.
      */
-    allocatePort(serviceName: string, branchName: string): number {
-        if (this.services[serviceName] !== undefined) {
-            return this.services[serviceName];
+    allocatePort(service: ServiceDefinition): number {
+        const serviceName = service.name;
+        const existingService = this.getService(serviceName);
+        if (existingService) {
+            return existingService.port;
         }
 
-        const nextPort = this.usedUntil;
+        const nextPort = this.nextAvailablePort;
 
         if (nextPort > this.end) {
             throw new ForgePortRangeExhaustedError(
-                `Cannot allocate port for service "${serviceName}" in branch "${branchName}": ` +
-                    `Port range exhausted (${this.start}-${this.end}). ` +
-                    `Already used up to ${this.usedUntil}.`,
+                `Cannot allocate port for service "${serviceName}": Port range exhausted (${this.start}-${this.end}).`,
             );
         }
 
-        this.services[serviceName] = nextPort;
-        this.usedUntil++;
+        this.services.push({ ...service, port: nextPort });
+
         return nextPort;
     }
 
-    getServices(): Record<string, number> {
-        return { ...this.services };
-    }
-
-    toDTO(): BranchPortAllocation {
-        const dto = new BranchPortAllocation();
-        dto.start = this.start;
-        dto.end = this.end;
-        dto.usedUntil = this.usedUntil;
-        dto.services = { ...this.services };
-        return dto;
-    }
-
-    static fromDTO(dto: BranchPortAllocation): PortAllocation {
-        return new PortAllocation(dto.start, dto.end, dto.usedUntil, dto.services ? { ...dto.services } : {});
+    getServices() {
+        return this.services.slice();
     }
 }
 
@@ -85,75 +119,87 @@ export class PortAllocation {
  * Port allocator manages port assignments for services across branches
  */
 export class PortAllocator {
-    private allocations: Map<string, PortAllocation>;
-    private config: { servicesBasePort: number; branchRangeSize: number };
-    private filePath: string;
+    private forgeContext: ForgeContext;
 
-    constructor(
-        allocations: Map<string, PortAllocation>,
-        filePath: string,
-        config: { servicesBasePort: number; branchRangeSize: number },
-    ) {
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => BranchPortAllocation)
+    private allocations: BranchPortAllocation[];
+
+    constructor(forgeContext: ForgeContext, allocations: BranchPortAllocation[]) {
+        this.forgeContext = forgeContext;
         this.allocations = allocations;
-        this.filePath = filePath;
-        this.config = config;
     }
 
     /**
      * Load or create port allocations from rootDir
      */
-    static async load(rootDir: string, proxyOptions?: ForgeProxyOptions): Promise<PortAllocator> {
-        const filePath = path.join(rootDir, PORT_ALLOCATIONS_FILE);
+    static async load(forgeContext: ForgeContext): Promise<PortAllocator> {
+        const portAllocationFilePath = this.getPortAllocationsFilePath(forgeContext);
 
-        let mapping: PortAllocationsFile;
+        let allocations: BranchPortAllocation[] = [];
 
-        if (await pathExists(filePath)) {
+        if (await pathExists(portAllocationFilePath)) {
             try {
-                mapping = await readJSONFile(PortAllocationsFile, filePath);
+                const portAllocationFile = await readJSONFile(PortAllocatorDTO, portAllocationFilePath);
+                allocations = portAllocationFile.allocations.map(BranchPortAllocation.load);
             } catch (error) {
                 if (error instanceof Error) {
                     throw new ForgePortAllocationsLoadError(error.message);
                 }
                 throw error;
             }
-        } else {
-            // Create new allocations file
-            mapping = new PortAllocationsFile();
-            mapping._doNotEdit = 'This file is managed by feat-forge. Manual edits may cause port allocation conflicts.';
-            const defaults = proxyOptions ?? new ForgeProxyOptions();
-            mapping.servicesBasePort = defaults.servicesBasePort;
-            mapping.branchRangeSize = defaults.branchRangeSize;
-            mapping.allocations = {};
         }
 
-        const config = {
-            servicesBasePort: mapping.servicesBasePort,
-            branchRangeSize: mapping.branchRangeSize,
+        return new PortAllocator(forgeContext, allocations);
+    }
+
+    static getPortAllocationsFilePath(forgeContext: ForgeContext): string {
+        return forgeContext.paths.getPathInRoot(PORT_ALLOCATIONS_FILE);
+    }
+
+    /**
+     * Persist allocations to disk
+     */
+    toJSON(): PortAllocatorDTO {
+        return {
+            _doNotEdit: "This file is auto-generated by 'forge services scan'. Manual edits will be lost on next generation.",
+            allocations: this.allocations.map((alloc) => alloc.toJSON()),
         };
+    }
 
-        const allocations = new Map<string, PortAllocation>();
-        for (const [branchName, dto] of Object.entries(mapping.allocations)) {
-            allocations.set(branchName, PortAllocation.fromDTO(dto));
-        }
+    async save(): Promise<void> {
+        const filePath = PortAllocator.getPortAllocationsFilePath(this.forgeContext);
+        const content = JSON.stringify(this, null, 2);
+        await writeTextFile(filePath, content);
+    }
 
-        return new PortAllocator(allocations, filePath, config);
+    private get config() {
+        return this.forgeContext.config.options.proxy;
+    }
+
+    getAllocation(branchName: string): BranchPortAllocation | undefined {
+        return this.allocations.find((alloc) => alloc.name === branchName);
+    }
+
+    hasAllocation(branchName: string): boolean {
+        return this.allocations.some((alloc) => alloc.name === branchName);
     }
 
     /**
      * Get or create allocation for a branch
      */
-    private getOrCreateBranchAllocation(branchName: string): PortAllocation {
-        const existing = this.allocations.get(branchName);
-        if (existing) {
-            return existing;
+    private getOrCreateBranchAllocation(branchName: string): BranchPortAllocation {
+        if (this.hasAllocation(branchName)) {
+            return this.getAllocation(branchName)!;
         }
 
-        const branchIndex = this.allocations.size;
+        const branchIndex = this.allocations.length;
         const start = this.config.servicesBasePort + branchIndex * this.config.branchRangeSize;
         const end = start + this.config.branchRangeSize - 1;
 
-        const allocation = new PortAllocation(start, end, start);
-        this.allocations.set(branchName, allocation);
+        const allocation = new BranchPortAllocation(branchName, start, end);
+        this.allocations.push(allocation);
         return allocation;
     }
 
@@ -161,75 +207,29 @@ export class PortAllocator {
      * Allocate ports for services in a branch
      * Returns mapping of service names to assigned ports
      */
-    allocatePorts(branchName: string, serviceNames: string[]): PortAllocationResult {
+    allocateBranchServicesPorts(branchName: string, services: ServiceDefinition[]): BranchPortAllocation {
         const allocation = this.getOrCreateBranchAllocation(branchName);
-        const assignedPorts: ServicePortMap = {};
 
-        for (const serviceName of serviceNames) {
-            assignedPorts[serviceName] = allocation.allocatePort(serviceName, branchName);
+        for (const service of services) {
+            allocation.allocatePort(service);
         }
 
-        return {
-            start: allocation.start,
-            end: allocation.end,
-            assignedPorts,
-        };
+        return allocation;
     }
 
     /**
      * Allocate ports for all repositories in a branch at once
      */
-    allocatePortsForRepos(branchName: string, repoServices: RepoServices): RepoPortMappings {
-        return Object.fromEntries(
-            Object.entries(repoServices).map(([repoName, services]) => [
-                repoName,
-                this.allocatePorts(
-                    branchName,
-                    services.map((s) => s.name),
-                ).assignedPorts,
-            ]),
-        );
-    }
-
-    /**
-     * Get the branch allocation (read-only)
-     */
-    getBranchAllocation(branchName: string): PortAllocation | undefined {
-        return this.allocations.get(branchName);
+    allocatePorts(branchName: string, repoServices: RepositoryServices[]) {
+        for (const repoService of repoServices) {
+            this.allocateBranchServicesPorts(branchName, repoService.services);
+        }
     }
 
     /**
      * Get all allocations
      */
-    getAllAllocations(): Map<BranchName, PortAllocation> {
-        return this.allocations;
-    }
-
-    /**
-     * Persist allocations to disk
-     */
-    async save(): Promise<void> {
-        const mapping = new PortAllocationsFile();
-        mapping._doNotEdit = 'This file is managed by feat-forge. Manual edits may cause port allocation conflicts.';
-        mapping.servicesBasePort = this.config.servicesBasePort;
-        mapping.branchRangeSize = this.config.branchRangeSize;
-        mapping.allocations = {};
-
-        for (const [branchName, allocation] of this.allocations) {
-            mapping.allocations[branchName] = allocation.toDTO();
-        }
-
-        const content = JSON.stringify(mapping, null, 2);
-        await writeConfigSafely(this.filePath, content);
-    }
-
-    /**
-     * Get base port configuration
-     */
-    getConfig(): { servicesBasePort: number; rangeSize: number } {
-        return {
-            servicesBasePort: this.config.servicesBasePort,
-            rangeSize: this.config.branchRangeSize,
-        };
+    getAllAllocations(): BranchPortAllocation[] {
+        return this.allocations.slice();
     }
 }

@@ -54,6 +54,11 @@ export async function createIDEWorkspaces(
     }
 }
 
+export async function getWorkspaceFileName(branchName: string, ideName: IDEName): Promise<string> {
+    // FIXME: must handle IDE specific file extensions (.code-workspace for VSCode, .cw for Cursor, .wsp for Windsurf, etc.)
+    return `${slugify(branchName, false)}.code-workspace`;
+}
+
 /**
  * Create a VSCode-style workspace file (.code-workspace)
  * Also works for Cursor and Windsurf which use the same format
@@ -66,7 +71,7 @@ async function createVSCodeWorkspaceFile(
     repositories: WorktreeRepository[],
     agents: AIAgent[],
 ): Promise<void> {
-    const workspaceFileName = `${slugify(branchName, false)}.code-workspace`;
+    const workspaceFileName = await getWorkspaceFileName(branchName, ide.name);
     const workspaceFilePath = path.join(branchRoot, workspaceFileName);
 
     // Check if workspace already exists

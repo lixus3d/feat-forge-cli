@@ -1,13 +1,17 @@
 import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
+import { validate, ValidatorOptions } from 'class-validator';
 
-export async function validateInput<T extends Object>(classTransformerClass: new () => T, data: any): Promise<T> {
+export async function validateInput<T extends Object>(
+    classTransformerClass: new () => T,
+    data: any,
+    options?: ValidatorOptions,
+): Promise<T> {
     // Validate and transform using class-validator and class-transformer
     const extractedInstance = plainToInstance(classTransformerClass, data);
     const errors = await validate(extractedInstance, {
         whitelist: true,
-        forbidNonWhitelisted: true,
         validationError: { target: true, value: true },
+        ...options,
     });
 
     if (errors.length > 0) {

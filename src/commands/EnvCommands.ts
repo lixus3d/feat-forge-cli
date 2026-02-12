@@ -1,10 +1,10 @@
 import { AbstractCommands } from './AbstractCommands';
 import { ForgeContext } from '@/foundation/ForgeContext';
 import { BranchContext } from '@/foundation/BranchContext';
-import { generateEnvrcFile } from '@/lib/services';
+import { generateEnvrcFile, loadGeneratedServicesFile } from '@/lib/services';
 import { PortAllocator } from '@/foundation/PortAllocator';
 import { readTextFile, pathExists, readJSONFile } from '@/lib/fs';
-import { GeneratedServicesFile } from '@/foundation/types/Services';
+import { GeneratedServicesDTO, ServiceDefinitionWithPort } from '@/foundation/types/Services';
 import path from 'path';
 
 export class EnvCommands extends AbstractCommands {
@@ -27,20 +27,10 @@ export class EnvCommands extends AbstractCommands {
             console.log('❌ No generated.services.json found. Run "forge services scan" first.');
             return;
         }
+        const generatedServicesFile = await loadGeneratedServicesFile(branchContext);
 
         // Read generated services
-        console.log(`🔄 Generating .envrc for branch "${branchContext.branchName}"...`);
-        const generatedServices = await readJSONFile(GeneratedServicesFile, generatedServicesPath);
-
-        // Load port allocations to get branch range
-        const portAllocator = await PortAllocator.load(this.context.rootDir, this.context.config.options.proxy);
-        const branchAllocation = portAllocator.getBranchAllocation(branchContext.branchName);
-
-        // Generate .envrc
-        const proxyPort = this.context.config.options.proxy?.port ?? 8080;
-        await generateEnvrcFile(branchContext.path, branchContext.branchName, generatedServices, branchAllocation ? { start: branchAllocation.start, end: branchAllocation.end } : undefined, proxyPort);
-
-        console.log(`✅ Generated .envrc at ${path.join(branchContext.path, '.envrc')}`);
+        await this.generateEnvrcFile(branchContext, generatedServicesFile.services);
     }
 
     /**
@@ -68,18 +58,15 @@ export class EnvCommands extends AbstractCommands {
         console.log('=== .envrc content ===');
         console.log(envrcContent);
         console.log('');
+    }
 
-        // Show port allocation info
-        const portAllocator = await PortAllocator.load(this.context.rootDir, this.context.config.options.proxy);
-        const branchAllocation = portAllocator.getBranchAllocation(branchContext.branchName);
-
-        if (branchAllocation) {
-            console.log('=== Port allocation ===');
-            console.log(`Reserved range: ${branchAllocation.start} - ${branchAllocation.end}`);
-            console.log(`Used until: ${branchAllocation.usedUntil}`);
-            console.log(`Available ports: ${branchAllocation.end - branchAllocation.usedUntil + 1}`);
-        } else {
-            console.log('❌ No port allocation found for this branch');
-        }
+    async generateEnvrcFile(
+        branchContext: BranchContext,
+        services: ServiceDefinitionWithPort[],
+    ): Promise<{ path: string; env: string }> {
+        console.log(`🔄 Generating .envrc for branch "${branchContext.branchName}"...`);
+        const env = await generateEnvrcFile(this.context, branchContext, services);
+        console.log(`✅ .envrc: ${env.path}`);
+        return env;
     }
 }
