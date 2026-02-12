@@ -264,7 +264,12 @@ export class BranchCommands extends AbstractCommands {
         console.log(`\nMerging : ${branchName}`);
         console.log(`\n📍 Target branch: ${targetBranch}\n`);
 
-        const results = await Promise.all(targetRepos.map((repo) => repo.merge(branchName, targetBranch)));
+        let results: GitOperationResult[] = [];
+        // Sequential merge for more readable logging.
+        // Also merge commit editor will be opened sequentially, which is better UX than multiple merge commit editors opening at the same time if there are multiple repos to merge.
+        for (const repo of targetRepos) {
+            results.push(await repo.merge(branchName, targetBranch));
+        }
 
         await this.displayMergeSummaryAndProposeAction(results, branchName);
     }
@@ -297,7 +302,12 @@ export class BranchCommands extends AbstractCommands {
         console.log(`\nRebasing branch: ${branchName}`);
         console.log(`\n📍 Base branch: ${baseBranch}\n`);
 
-        const results = await Promise.all(targetRepos.map((repo) => repo.rebase(branchName, baseBranch)));
+        let results: GitOperationResult[] = [];
+        // Sequential rebase for more readable logging.
+        // Also rebase commit editor will be opened sequentially, which is better UX than multiple rebase commit editors opening at the same time if there are multiple repos to rebase.
+        for (const repo of targetRepos) {
+            results.push(await repo.rebase(branchName, baseBranch));
+        }
 
         await this.displayRebaseSummary(results, branchName);
     }

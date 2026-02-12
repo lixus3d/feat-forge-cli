@@ -358,23 +358,38 @@ export class RootRepository extends Repository {
 
         try {
             await this.executeHook(HookEvent.PRE_MERGE, { sourceBranch, targetBranch });
-            // Checkout target branch
-            console.log(`Checking out "${targetBranch}"...`);
-            await checkoutBranch(this.path, targetBranch);
+            // check if target branch is opened as a worktree - if so we must use the worktreeRepository to merge
+            let mergeRepoPath = this.path;
+            let mergeRepo: Repository = this;
+            const repoAllWorktrees = await this.listGitWorktrees();
+            const targetWorktree = repoAllWorktrees.find((wt) => wt.path === this.getWorktreePath(targetBranch));
+            if (targetWorktree) {
+                console.log(
+                    `Target branch "${targetBranch}" is currently checked out in worktree at ${targetWorktree.path}. Merging there.`,
+                );
+                mergeRepoPath = targetWorktree.path;
+                mergeRepo = targetWorktree;
+            } else {
+                if ((await this.getCurrentBranch()) !== targetBranch) {
+                    // Checkout target branch
+                    console.log(`RootRepo not on target branch. Checking out "${targetBranch}"...`);
+                    await checkoutBranch(mergeRepoPath, targetBranch);
+                }
+            }
 
             // Perform merge with --no-ff to preserve feature branch history
             try {
                 console.log(`Merging "${sourceBranch}"...`);
-                await runGit(this.path, ['merge', '--no-ff', sourceBranch]);
+                await runGit(mergeRepoPath, ['merge', '--no-ff', sourceBranch]);
                 console.log(`✅ Merge successful for repo: ${this.name}`);
-                await this.executeHook(HookEvent.POST_MERGE, { sourceBranch, targetBranch });
+                await mergeRepo.executeHook(HookEvent.POST_MERGE, { sourceBranch, targetBranch });
                 return { repo: this.name, success: true, hasConflicts: false };
             } catch (error) {
                 // Check if it's a merge conflict (detected by special status indicators)
-                const status = await getGitStatusPorcelain(this.path);
+                const status = await getGitStatusPorcelain(mergeRepoPath);
                 if (status.includes('UU ') || status.includes('AA ') || status.includes('DD ')) {
                     console.log(`⚠️  Merge conflicts detected in ${this.name}`);
-                    console.log(`Please resolve conflicts manually in: ${this.path}`);
+                    console.log(`Please resolve conflicts manually in: ${mergeRepoPath}`);
                     return { repo: this.name, success: false, hasConflicts: true };
                 } else {
                     // Re-throw if it's not a merge conflict
@@ -481,5 +496,4 @@ export class WorktreeRepository extends Repository {
         // Try shell bootstrap script after npm
         await executeBootstrapScript(this.path, repoConfigFolderPath);
     }
-
 }
