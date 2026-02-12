@@ -1,7 +1,7 @@
 {
   "_doNotEdit": "This file is managed by feat-forge. Manual edits may cause port allocation conflicts.",
-  "basePort": 3000,
-  "rangeSize": 100,
+  "servicesBasePort": 3000,
+  "branchRangeSize": 100,
   "allocations": {
     "main": {
       "start": 3000,

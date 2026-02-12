@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean, IsInt, Min } from 'class-validator';
 import { AIAgentName } from './types/AIAgentName';
 import { DeepPartial } from './types/DeepPartial';
 import { IDEName } from './types/IDEName';
@@ -143,6 +143,32 @@ export class ForgeProcessOptions {
     npmScriptPrefix: string = 'feat-forge';
 }
 
+export class ForgeProxyOptions {
+    /**
+     * Base port for service port allocation. Default: 3000
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    servicesBasePort: number = 3000;
+
+    /**
+     * Number of ports allocated per branch. Default: 100
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    branchRangeSize: number = 100;
+
+    /**
+     * Port for the proxy server. Default: 8080
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    port: number = 8080;
+}
+
 export class ForgeOptions {
     @IsOptional()
     @ValidateNested()
@@ -163,6 +189,11 @@ export class ForgeOptions {
     @ValidateNested()
     @Type(() => ForgeGitOptions)
     git: ForgeGitOptions = new ForgeGitOptions();
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeProxyOptions)
+    proxy: ForgeProxyOptions = new ForgeProxyOptions();
 }
 
 /**

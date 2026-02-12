@@ -18,6 +18,8 @@ import { ReleaseCommands } from './commands/ReleaseCommands';
 import { BranchCommands } from './commands/BranchCommands';
 import { ForgeConfigFile } from './foundation/ForgeConfigFile';
 import { plainToInstance } from 'class-transformer';
+import { ServicesCommands } from './commands/ServicesCommands';
+import { EnvCommands } from './commands/EnvCommands';
 
 /**
  * Register the init command on the main CLI program.
@@ -199,6 +201,51 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
         });
 }
 
+/**
+ * Register services commands on the main CLI program.
+ */
+function registerServicesCommands(program: Command, context: ForgeContext): void {
+    const handlers = new ServicesCommands(context);
+    const services = program.command('services').description('Manage service declarations and configurations');
+
+    services
+        .command('scan')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('Scan repositories for .forge/services.json and generate configuration with allocated ports')
+        .action(handlers.scan.bind(handlers));
+
+    services
+        .command('list')
+        .option('--json', 'Output as JSON')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('List discovered services with their allocated ports')
+        .action((branch: string | undefined, options: any) => {
+            const format = options.json ? 'json' : 'table';
+            handlers.list(format).catch((err) => {
+                console.error(err);
+                process.exitCode = 1;
+            });
+        });
+}
+
+/**
+ * Register environment commands on the main CLI program.
+ */
+function registerEnvCommands(program: Command, context: ForgeContext): void {
+    const handlers = new EnvCommands(context);
+    const env = program.command('env').description('Manage environment configuration');
+
+    env.command('update')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('Generate .envrc from generated.services.json')
+        .action(handlers.update.bind(handlers));
+
+    env.command('show')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('Display current .envrc and port allocation information')
+        .action(handlers.show.bind(handlers));
+}
+
 /*
  * Register completion commands with the CLI.
  * This command works both with and without config.
@@ -277,6 +324,8 @@ async function main() {
             registerModeCommands(program, context);
             registerAgentCommands(program, context);
             registerMaintenanceCommands(program, context);
+            registerServicesCommands(program, context);
+            registerEnvCommands(program, context);
             registerCompletionCommands(program, context);
         }
     }

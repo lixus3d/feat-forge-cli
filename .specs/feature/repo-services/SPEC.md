@@ -31,8 +31,8 @@ Chaque branche a sa plage exclusive (ex: main=3000-3099, feature/auth=3100-3199)
 ```json
 {
   "_doNotEdit": "Managed by feat-forge. Manual edits cause conflicts.",
-  "basePort": 3000,
-  "rangeSize": 100,
+  "servicesBasePort": 3000,
+  "branchRangeSize": 100,
   "allocations": {
     "main": { "start": 3000, "end": 3099, "usedUntil": 3050 }
   }

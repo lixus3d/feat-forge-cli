@@ -91,7 +91,7 @@ export class ForgeConfig {
     public readonly modes: ModeConfig[];
 
     constructor(configPath: string, configFile: ForgeConfigFile) {
-        this.rootDir = path.resolve(configFile.rootDir ? configFile.rootDir : configPath);
+        this.rootDir = path.resolve(configFile.rootDir ? path.resolve(configPath, configFile.rootDir) : configPath);
         this.specFiles = configFile.specFiles || DEFAULT_SPEC_FILES;
         // standardize config entries
         this.modes = this.standardizeModes(configFile.modes || DEFAULT_MODES);

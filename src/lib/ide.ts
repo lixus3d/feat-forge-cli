@@ -5,7 +5,7 @@ import { pathExists } from './fs';
 import { IDE } from '../foundation/types/IDE';
 import { IDEName } from '../foundation/types/IDEName';
 import { AIAgent } from '../foundation/types/AIAgent';
-import { sanitizeSlug } from './slug';
+import { slugify } from './slug';
 
 /**
  * Get the default CLI command for an IDE
@@ -66,7 +66,7 @@ async function createVSCodeWorkspaceFile(
     repositories: WorktreeRepository[],
     agents: AIAgent[],
 ): Promise<void> {
-    const workspaceFileName = `${sanitizeSlug(branchName, false).slug}.code-workspace`;
+    const workspaceFileName = `${slugify(branchName, false)}.code-workspace`;
     const workspaceFilePath = path.join(branchRoot, workspaceFileName);
 
     // Check if workspace already exists

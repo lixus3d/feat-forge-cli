@@ -4,6 +4,9 @@ import { access, mkdir, readFile, writeFile, rename, unlink, readdir } from 'fs/
 import path from 'path';
 import { replaceTemplateMarkers, resolveAgentFileCustomTemplate } from './templates';
 import { BranchContext } from '@/foundation/BranchContext';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { validateInput } from './validator';
 
 export async function pathExists(targetPath: string): Promise<boolean> {
     try {
@@ -37,6 +40,18 @@ export async function writeTextFile(targetPath: string, contents: string, makePa
         await ensureDir(dir);
     }
     await writeFile(targetPath, contents, { encoding: 'utf8' });
+}
+
+/**
+ * Read a json file againt a class-validator/class-transformer class, validate and return the instance.
+ * @throws if file doesn't exist, is not valid JSON, or fails validation
+ * @returns an instance of the provided class with the file data
+ */
+export async function readJSONFile<T extends Object>(classTransformerClass: new () => T, targetPath: string): Promise<T> {
+    const content = await readTextFile(targetPath);
+    const data = JSON.parse(content);
+
+    return validateInput(classTransformerClass, data);
 }
 
 /**
