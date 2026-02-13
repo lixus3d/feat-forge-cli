@@ -474,13 +474,13 @@ export class BranchCommands extends AbstractCommands {
      */
     private async proposeNextAction(branchName: string): Promise<void> {
         const selection = await promptChoice('What would you like to do next?', [
-            { value: '1', name: 'Archive branch (recommended)' },
+            { value: '1', name: 'Do nothing (keep branch active)' },
             { value: '2', name: 'Stop branch (keep branches)' },
-            { value: '3', name: 'Do nothing (keep branch active)' },
+            { value: '3', name: 'Archive branch (recommended)' },
         ]);
 
         switch (selection) {
-            case '1':
+            case '3':
                 console.log(`\n📦 Archiving branch "${branchName}"...`);
                 await this.archive(branchName);
                 break;
@@ -488,7 +488,7 @@ export class BranchCommands extends AbstractCommands {
                 console.log(`\n⏸️  Stopping branch "${branchName}"...`);
                 await this.stop(branchName);
                 break;
-            case '3':
+            case '1':
                 console.log('\n✅ Branch remains active. You can continue working on it.');
                 break;
             default:
