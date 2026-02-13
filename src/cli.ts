@@ -20,6 +20,7 @@ import { ForgeConfigFile } from './foundation/ForgeConfigFile';
 import { plainToInstance } from 'class-transformer';
 import { ServicesCommands } from './commands/ServicesCommands';
 import { EnvCommands } from './commands/EnvCommands';
+import { ProxyCommands } from './commands/ProxyCommands';
 // @ts-ignore
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -245,6 +246,20 @@ function registerEnvCommands(program: Command, context: ForgeContext): void {
         .action(handlers.show.bind(handlers));
 }
 
+/**
+ * Register proxy commands on the main CLI program.
+ */
+function registerProxyCommands(program: Command, context: ForgeContext): void {
+    const handlers = new ProxyCommands(context);
+    program
+        .command('proxy')
+        .description('Start a reverse-proxy server routing branches via subdomains')
+        .option('--port <port>', 'Override proxy port')
+        .action(async (options: any) => {
+            await handlers.start(options);
+        });
+}
+
 /*
  * Register completion commands with the CLI.
  * This command works both with and without config.
@@ -324,6 +339,7 @@ async function main() {
             registerMaintenanceCommands(program, context);
             registerServicesCommands(program, context);
             registerEnvCommands(program, context);
+            registerProxyCommands(program, context);
             registerCompletionCommands(program, context);
         }
     }

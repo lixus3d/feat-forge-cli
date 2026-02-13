@@ -8,4 +8,5 @@ export const FORGE_ERRORS = {
     ForgeServicesScanError: 'Failed to scan services from a repository.',
     ForgeServicesValidationError: 'Service definition is invalid.',
     ForgePortNotAssignedError: 'No port was assigned for a service.',
+    ForgeNotInActiveBranchError: 'No active branch found in this folder. Execute the command in an active branch context.',
 };

@@ -10,6 +10,7 @@ import {
 } from '@/lib/services';
 import { AbstractCommands } from './AbstractCommands';
 import { EnvCommands } from './EnvCommands';
+import { ForgeNotInActiveBranchError } from '@/foundation/errors';
 
 export class ServicesCommands extends AbstractCommands {
     // ============================================================================
@@ -21,41 +22,59 @@ export class ServicesCommands extends AbstractCommands {
      */
     async scan(branchName?: string): Promise<void> {
         // Load branch context (use current branch if not specified)
-        const branchContext = branchName
-            ? await this.context.loadBranchContext(branchName)
-            : await BranchContext.findNearestBranchContext(this.context);
-
-        // Scan for services in all repositories
-        console.log(`🔍 Scanning for services in branch "${branchContext.branchName}"...`);
-        const reposServices = await scanReposServices(branchContext);
-
-        if (reposServices.some((repo) => repo.services.length > 0)) {
-            console.log(`✅ Found services in ${reposServices.length} repository(ies)`);
-        } else {
-            console.log('⚠️ No services found in any repositories');
-            return;
+        let branches: BranchContext[] = [];
+        try {
+            const branchContext = branchName
+                ? await this.context.loadBranchContext(branchName)
+                : await BranchContext.findNearestBranchContext(this.context);
+            branches = [branchContext];
+        } catch (err) {
+            if (err instanceof ForgeNotInActiveBranchError) {
+                branches.push(...(await this.context.loadActiveBranchesContexts()));
+            } else {
+                throw err;
+            }
         }
-        console.log('🔄 Allocating ports for discovered services...');
+
         // Load port allocator
         const portAllocator = await PortAllocator.load(this.context);
 
-        // Allocate ports for all repositories
-        portAllocator.allocatePorts(branchContext.branchName, reposServices);
+        for (const branchContext of branches) {
+            // Scan for services in all repositories
+            console.log('-----------------------------------------------------------------------');
+            console.log(`🔍 Scanning for services in branch "${branchContext.branchName}"...`);
+            const reposServices = await scanReposServices(branchContext);
 
-        // Save port allocations
-        await portAllocator.save();
-        console.log('✅ Port allocation completed');
+            if (reposServices.some((repo) => repo.services.length > 0)) {
+                console.log(`✅ Found services in ${reposServices.length} repository(ies)`);
+            } else {
+                console.log('⚠️ No services found in any repositories');
+                continue;
+            }
+            console.log('🔄 Allocating ports for discovered services...');
 
-        // Generate and write generated.services.json
-        console.log('🔄 Generating generated.services.json with port assignments...');
-        const generated = await generateBranchServicesFile(branchContext, portAllocator);
-        console.log(`✅ generated.services.json: ${generated.path}`);
+            // Allocate ports for all repositories
+            portAllocator.allocatePorts(branchContext.branchName, reposServices);
 
-        // Generate and write .envrc
-        await new EnvCommands(this.context).generateEnvrcFile(branchContext, generated.services);
+            // Save port allocations
+            await portAllocator.save();
 
-        // Display summary
-        this.showServiceSummary(branchContext, generated.services);
+            console.log('   ✅ Port allocation completed');
+            console.log('');
+
+            // Generate and write generated.services.json
+            console.log('🔄 Generating generated.services.json with port assignments...');
+            const generated = await generateBranchServicesFile(branchContext, portAllocator);
+            console.log(`   ✅ generated.services.json: ${generated.path}`);
+            console.log('');
+
+            // Generate and write .envrc
+            await new EnvCommands(this.context).generateEnvrcFile(branchContext, generated.services);
+
+            // Display summary
+            this.showServiceSummary(branchContext, generated.services);
+            console.log('');
+        }
     }
 
     /**
