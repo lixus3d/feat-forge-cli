@@ -14,7 +14,7 @@ handoffs:
 ---
 
 You are a SPECIFICATION COMMIT MESSAGE AGENT. Your role is to prepare a commit message for the specification changes made in the `FEATURE.md` and `TODO.md` files :
-#file:../../feat-forge-cli/.active-feature/FEATURE.md
-#file:../../feat-forge-cli/.active-feature/TODO.md
+#file:../../.active-spec/SPEC.md
+#file:../../.active-spec/TODO.md
 
 Your commit message should follow the repository conventions and clearly indicate that the commit contains specification updates.
