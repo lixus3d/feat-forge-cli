@@ -105,6 +105,11 @@ export class ForgeContext {
         return `${this.options.git.releaseBranchPrefix}${releaseSlug}`;
     }
 
+    async hasBranch(branchName: string): Promise<boolean> {
+        // only check on mainRepo
+        return this.mainRepo.hasBranch(branchName);
+    }
+
     async hasFeatureBranch(featureSlug: string): Promise<boolean> {
         // only check on mainRepo
         const branchName = this.getFeatureBranchName(featureSlug);
