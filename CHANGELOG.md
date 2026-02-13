@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.0...v1.0.1) (2026-02-13)
+
+
+### Bug Fixes
+
+* correct CI publish workflow order ([c991141](https://github.com/lixus3d/feat-forge-cli/commit/c9911414546bb8c809dbed877c6922c97ba9d55d))
+
 ## 1.0.0 (2026-02-13)
 
 
