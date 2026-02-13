@@ -1,4 +1,5 @@
-import { getDefaultIDECommand } from '@/lib/ide';
+import { getDefaultIDECommand, getWorkspaceFileName } from '@/lib/ide';
+import { execa } from 'execa';
 import { BranchContext } from '../foundation/BranchContext';
 import { RepositoryStatus, RootRepository, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
@@ -7,7 +8,6 @@ import { checkoutBranch, displayOperationSummary, gitBranchExists, GitOperation,
 import { promptChoice, promptConfirm, promptForBranch } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
-import { execa } from 'execa';
 
 export class BranchCommands extends AbstractCommands {
     // ============================================================================
@@ -218,7 +218,7 @@ export class BranchCommands extends AbstractCommands {
         const command = ide.openCommand || getDefaultIDECommand(ide.name);
 
         // 5. Determine the target to open
-        const workspaceFile = branchContext.getInPath(`${branchContext.branchName}.code-workspace`);
+        const workspaceFile = branchContext.getInPath(await getWorkspaceFileName(branchContext.branchName, ide.name));
         const workspaceExists = await pathExists(workspaceFile);
         const target = workspaceExists ? workspaceFile : branchContext.path;
 
@@ -264,7 +264,12 @@ export class BranchCommands extends AbstractCommands {
         console.log(`\nMerging : ${branchName}`);
         console.log(`\n📍 Target branch: ${targetBranch}\n`);
 
-        const results = await Promise.all(targetRepos.map((repo) => repo.merge(branchName, targetBranch)));
+        let results: GitOperationResult[] = [];
+        // Sequential merge for more readable logging.
+        // Also merge commit editor will be opened sequentially, which is better UX than multiple merge commit editors opening at the same time if there are multiple repos to merge.
+        for (const repo of targetRepos) {
+            results.push(await repo.merge(branchName, targetBranch));
+        }
 
         await this.displayMergeSummaryAndProposeAction(results, branchName);
     }
@@ -297,7 +302,12 @@ export class BranchCommands extends AbstractCommands {
         console.log(`\nRebasing branch: ${branchName}`);
         console.log(`\n📍 Base branch: ${baseBranch}\n`);
 
-        const results = await Promise.all(targetRepos.map((repo) => repo.rebase(branchName, baseBranch)));
+        let results: GitOperationResult[] = [];
+        // Sequential rebase for more readable logging.
+        // Also rebase commit editor will be opened sequentially, which is better UX than multiple rebase commit editors opening at the same time if there are multiple repos to rebase.
+        for (const repo of targetRepos) {
+            results.push(await repo.rebase(branchName, baseBranch));
+        }
 
         await this.displayRebaseSummary(results, branchName);
     }

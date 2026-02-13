@@ -23,6 +23,7 @@ const customFolders: ForgeFoldersOptions = {
     archive: 'custom-archive',
     specs: 'custom-specs',
     template: 'custom-templates',
+    repoConfig: 'custom-repo-config',
 };
 
 const customGit: ForgeGitOptions = {

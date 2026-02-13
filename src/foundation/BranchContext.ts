@@ -1,4 +1,5 @@
 import { branchNameAsPath } from '@/lib/branch';
+import { HookEvent } from '@/lib/hooks';
 import { replaceTemplateMarkers, resolveAgentFileCustomTemplate, resolveSpecFileCustomTemplate } from '@/lib/templates';
 import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
@@ -13,6 +14,8 @@ import { Repository, RepositoryStatus, RootRepository, WorktreeRepository } from
 import { AIAgentName } from './types/AIAgentName';
 import { ModeConfig } from './types/ModeConfig';
 import { RepoName } from './types/RepositoryInfos';
+import { slugify } from '@/lib/slug';
+import { ForgeNotInActiveBranchError } from './errors';
 
 export type BranchName = string; // must be sanitized for branch names and file paths
 
@@ -81,8 +84,7 @@ export class BranchContext {
         const worktreesRoot = path.resolve(context.paths.worktreesRoot);
 
         const matchingBranch = (await context.mainRepo.getBranches()).find((branchName) => {
-            const branchNamePath = branchNameAsPath(branchName);
-            const branchWorktreePath = path.join(worktreesRoot, branchNamePath);
+            const branchWorktreePath = context.paths.getBranchRootPath(branchName);
             if (currentDir.startsWith(branchWorktreePath)) {
                 return true;
             }
@@ -90,7 +92,7 @@ export class BranchContext {
         });
 
         if (!matchingBranch) {
-            throw new Error(`No active Branch context found for current directory: ${currentDir}`);
+            throw new ForgeNotInActiveBranchError(`No active Branch context found for current directory: ${currentDir}`);
         }
 
         // If we found a matching branch, we can directly load the Branch context from its worktree path
@@ -114,6 +116,10 @@ export class BranchContext {
 
     get branchNameAsPath(): string {
         return branchNameAsPath(this.branchName);
+    }
+
+    get branchNameSlug(): string {
+        return slugify(this.branchName, false, false);
     }
 
     get mainRepo() {
@@ -259,6 +265,9 @@ export class BranchContext {
                 }),
             );
         }
+
+        // Execute postRefreshAgents hooks after agent context files are refreshed
+        await this.executeHook(HookEvent.POST_REFRESH_AGENTS, { branch: this.branchName });
     }
 
     /**
@@ -363,7 +372,47 @@ export class BranchContext {
                 this.context.agents,
             );
         }
+
+        // Execute bootstrap scripts in each repository
+        for (const repository of this.repositories) {
+            try {
+                await repository.executeBootstrapScript();
+            } catch (error) {
+                // Soft error here, so that the Branch can still be started even if a bootstrap script fails, which can be useful for debugging or if the bootstrap script is not critical
+                console.error(`❌ Failed to execute bootstrap script in ${repository.name}`, error);
+            }
+        }
+
+        // Execute postBranchStart hooks in each repository
+        await this.executeHook(HookEvent.POST_START, { branch: this.branchName });
+
         this.active = true;
+    }
+
+    /**
+     * Execute hooks for a specific event across all repositories in this branch.
+     * Soft errors are used so that the branch operation can continue even if a hook fails.
+     *
+     * Hook parameters are passed to scripts as environment variables with FORGE_HOOK_ prefix.
+     * Example: params { sourceBranch: 'feature/xyz' } becomes FORGE_HOOK_SOURCEBRANCH
+     *
+     * @param eventType - Type of hook event to execute
+     * @param params - Optional parameters to pass to hooks as environment variables
+     */
+    private async executeHook(eventType: HookEvent, params?: Record<string, unknown>): Promise<void> {
+        for (const repository of this.repositories) {
+            try {
+                const executedHooks = await repository.executeHook(eventType, params);
+                if (executedHooks.length > 0) {
+                    console.log(
+                        `📌 Executed ${executedHooks.length} ${eventType} hook(s) in ${repository.name}: ${executedHooks.join(', ')}`,
+                    );
+                }
+            } catch (error) {
+                // Soft error: allow the branch operation to continue even if a hook fails
+                console.error(`❌ Failed to execute ${eventType} hooks in ${repository.name}`, error);
+            }
+        }
     }
 
     async ensureWorktrees(): Promise<WorktreeRepository[]> {
@@ -404,6 +453,9 @@ export class BranchContext {
     }
 
     async stop(): Promise<void> {
+        // Execute preStop hooks before stopping the branch
+        await this.executeHook(HookEvent.PRE_STOP, { branch: this.branchName });
+
         // Check for uncommitted changes in worktrees
         const dirtyRepositories = await this.getDirtyRepositories();
 
@@ -419,6 +471,9 @@ export class BranchContext {
     }
 
     async delete(): Promise<void> {
+        // Execute preDelete hooks before deleting the branch
+        await this.executeHook(HookEvent.PRE_DELETE, { branch: this.branchName });
+
         // Remove worktrees for all repositories
         await Promise.all(this.repositories.map((repo) => repo.remove()));
 
@@ -437,6 +492,8 @@ export class BranchContext {
     }
 
     async archive(): Promise<void> {
+        await this.executeHook(HookEvent.PRE_ARCHIVE, { branch: this.branchName });
+
         let worktreeRepo: WorktreeRepository;
         if (this.hasRepo(this.mainRepo.name)) {
             // worktree already exists, we can use it to create the Branch files without affecting the main branch
@@ -446,11 +503,11 @@ export class BranchContext {
             worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.BRANCH_ARCHIVE);
         }
 
-        // Create archives directory
-        await ensureDir(worktreeRepo.specsArchivePath);
-
-        const archivePath = path.join(worktreeRepo.specsArchivePath, this.branchName);
+        const archivePath = path.join(worktreeRepo.specsArchivePath, branchNameAsPath(this.branchName));
         const branchPath = worktreeRepo.getSpecPath(this.branchName);
+
+        // Create archives directory
+        await ensureDir(path.dirname(archivePath));
 
         // Move Branch to archive using git mv
         await runGit(worktreeRepo.path, ['mv', branchPath, archivePath]);

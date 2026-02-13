@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean, IsInt, Min } from 'class-validator';
 import { AIAgentName } from './types/AIAgentName';
 import { DeepPartial } from './types/DeepPartial';
 import { IDEName } from './types/IDEName';
@@ -48,6 +48,13 @@ export class ForgeFoldersOptions {
     @IsString()
     @IsNotEmpty()
     archive: string = '.archives';
+    /**
+     * Folder for repository configuration, bootstrap and hook scripts. Default: '.forge'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    repoConfig: string = '.forge';
 }
 
 export class ForgeFilesOptions {
@@ -97,6 +104,8 @@ export class ForgeProcessOptions {
      * Do we ensure that .gitignore includes the .active-spec folder in all repos to avoid accidentally committing active branch pointers? Default: true
      * You might want to set this to false if you want to commit the active spec pointers for some reason, but be careful not to accidentally commit them.
      */
+    @IsOptional()
+    @IsBoolean()
     manageGitIgnore: boolean = true;
     /**
      * Do we put an .active-spec folder in each repo on branch start.
@@ -123,6 +132,61 @@ export class ForgeProcessOptions {
     @IsOptional()
     @IsBoolean()
     agentsInEachRepo: boolean = true;
+
+    /**
+     * Prefix for npm scripts in package.json. Default: 'feat-forge'
+     * Example: with prefix 'feat-forge', scripts would be 'feat-forge:bootstrap', 'feat-forge:hooks:postBranchStart'
+     */
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    npmScriptPrefix: string = 'feat-forge';
+}
+
+export class ForgeProxyOptions {
+    /**
+     * Whether the proxy is enabled or not. Default: true
+     *
+     * Active by default, but you can disable it if you don't need to use the proxy features (like URL rewriting in .envrc)
+     * and want to save system resources by not running the proxy server at all.
+     */
+    @IsOptional()
+    @IsBoolean()
+    enabled: boolean = true;
+
+    /**
+     * Base port for service port allocation. Default: 3000
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    servicesBasePort: number = 3000;
+
+    /**
+     * Number of ports allocated per branch. Default: 100
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    branchRangeSize: number = 100;
+
+    /**
+     * Port for the proxy server. Default: 8080
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    port: number = 8080;
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    envrc: string = '.envrc';
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    environmentVariablePrefix: string = 'FEAT_FORGE_';
 }
 
 export class ForgeOptions {
@@ -145,6 +209,11 @@ export class ForgeOptions {
     @ValidateNested()
     @Type(() => ForgeGitOptions)
     git: ForgeGitOptions = new ForgeGitOptions();
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeProxyOptions)
+    proxy: ForgeProxyOptions = new ForgeProxyOptions();
 }
 
 /**

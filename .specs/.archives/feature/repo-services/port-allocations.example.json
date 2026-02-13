@@ -1,0 +1,22 @@
+{
+  "_doNotEdit": "This file is managed by feat-forge. Manual edits may cause port allocation conflicts.",
+  "servicesBasePort": 3000,
+  "branchRangeSize": 100,
+  "allocations": {
+    "main": {
+      "start": 3000,
+      "end": 3099,
+      "usedUntil": 3050
+    },
+    "feature/auth": {
+      "start": 3100,
+      "end": 3199,
+      "usedUntil": 3102
+    },
+    "feature/payments": {
+      "start": 3200,
+      "end": 3299,
+      "usedUntil": 3200
+    }
+  }
+}

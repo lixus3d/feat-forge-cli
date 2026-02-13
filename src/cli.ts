@@ -18,6 +18,11 @@ import { ReleaseCommands } from './commands/ReleaseCommands';
 import { BranchCommands } from './commands/BranchCommands';
 import { ForgeConfigFile } from './foundation/ForgeConfigFile';
 import { plainToInstance } from 'class-transformer';
+import { ServicesCommands } from './commands/ServicesCommands';
+import { EnvCommands } from './commands/EnvCommands';
+import { ProxyCommands } from './commands/ProxyCommands';
+// @ts-ignore
+import packageJson from '../package.json' with { type: 'json' };
 
 /**
  * Register the init command on the main CLI program.
@@ -199,6 +204,62 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
         });
 }
 
+/**
+ * Register services commands on the main CLI program.
+ */
+function registerServicesCommands(program: Command, context: ForgeContext): void {
+    const handlers = new ServicesCommands(context);
+    const services = program.command('services').description('Manage service declarations and configurations');
+
+    services
+        .command('scan')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('Scan repositories for .forge/services.json and generate configuration with allocated ports')
+        .action(handlers.scan.bind(handlers));
+
+    services
+        .command('list')
+        .option('--json', 'Output as JSON')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('List discovered services with their allocated ports')
+        .action((branch: string | undefined, options: any) => {
+            const format = options.json ? 'json' : 'default';
+            handlers.list(format);
+        });
+}
+
+/**
+ * Register environment commands on the main CLI program.
+ */
+function registerEnvCommands(program: Command, context: ForgeContext): void {
+    const handlers = new EnvCommands(context);
+    const env = program.command('env').description('Manage environment configuration');
+
+    env.command('update')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('Generate .envrc from generated.services.json')
+        .action(handlers.update.bind(handlers));
+
+    env.command('show')
+        .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
+        .description('Display current .envrc and port allocation information')
+        .action(handlers.show.bind(handlers));
+}
+
+/**
+ * Register proxy commands on the main CLI program.
+ */
+function registerProxyCommands(program: Command, context: ForgeContext): void {
+    const handlers = new ProxyCommands(context);
+    program
+        .command('proxy')
+        .description('Start a reverse-proxy server routing branches via subdomains')
+        .option('--port <port>', 'Override proxy port')
+        .action(async (options: any) => {
+            await handlers.start(options);
+        });
+}
+
 /*
  * Register completion commands with the CLI.
  * This command works both with and without config.
@@ -242,8 +303,7 @@ function registerCompletionCommands(program: Command, context?: ForgeContext): v
  */
 async function main() {
     const program = new Command();
-
-    program.name('forge').description('Feature-first workflow CLI').version('0.1.0');
+    program.name('forge').description('Feat-Forge workflow CLI').version(packageJson.version);
 
     // Init command doesn't need config
     registerInitCommands(program);
@@ -277,6 +337,9 @@ async function main() {
             registerModeCommands(program, context);
             registerAgentCommands(program, context);
             registerMaintenanceCommands(program, context);
+            registerServicesCommands(program, context);
+            registerEnvCommands(program, context);
+            registerProxyCommands(program, context);
             registerCompletionCommands(program, context);
         }
     }
