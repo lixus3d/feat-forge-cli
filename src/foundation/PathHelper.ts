@@ -33,6 +33,10 @@ export class PathHelper {
         return path.join(this.featForgeConfigRoot, TEMP_FOLDER);
     }
 
+    getPathInRoot(...segments: string[]): string {
+        return path.join(this.rootDir, ...segments);
+    }
+
     getPathInWorktrees(...segments: string[]): string {
         return path.join(this.worktreesRoot, ...segments);
     }

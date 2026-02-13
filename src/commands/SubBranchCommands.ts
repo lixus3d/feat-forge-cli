@@ -21,8 +21,7 @@ export abstract class SubBranchCommands extends AbstractCommands {
     }
 
     async list(): Promise<void> {
-        const prefix = this.context.options.git.fixBranchPrefix;
-        return this.branchCommands.list(prefix);
+        return this.branchCommands.list(this.prefix);
     }
 
     async resync(rawSlug: string): Promise<void> {

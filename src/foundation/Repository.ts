@@ -77,6 +77,10 @@ export abstract class Repository {
         return path.join(this.path, this.folders.repoAgents);
     }
 
+    get repoConfigPath(): string {
+        return path.join(this.path, this.folders.repoConfig);
+    }
+
     getSpecPath(branchName: string, ...segments: string[]): string {
         return path.join(this.specsPath, branchNameAsPath(branchName), ...segments);
     }
@@ -91,6 +95,10 @@ export abstract class Repository {
 
     getAgentTemplatePath(...segments: string[]): string {
         return this.getTemplatePath(this.folders.repoAgents, ...segments);
+    }
+
+    getRepoConfigPath(...segments: string[]): string {
+        return path.join(this.repoConfigPath, ...segments);
     }
 
     async hasBranch(branchName: string): Promise<boolean> {

@@ -14,6 +14,7 @@ import { Repository, RepositoryStatus, RootRepository, WorktreeRepository } from
 import { AIAgentName } from './types/AIAgentName';
 import { ModeConfig } from './types/ModeConfig';
 import { RepoName } from './types/RepositoryInfos';
+import { slugify } from '@/lib/slug';
 
 export type BranchName = string; // must be sanitized for branch names and file paths
 
@@ -82,8 +83,7 @@ export class BranchContext {
         const worktreesRoot = path.resolve(context.paths.worktreesRoot);
 
         const matchingBranch = (await context.mainRepo.getBranches()).find((branchName) => {
-            const branchNamePath = branchNameAsPath(branchName);
-            const branchWorktreePath = path.join(worktreesRoot, branchNamePath);
+            const branchWorktreePath = context.paths.getBranchRootPath(branchName);
             if (currentDir.startsWith(branchWorktreePath)) {
                 return true;
             }
@@ -115,6 +115,10 @@ export class BranchContext {
 
     get branchNameAsPath(): string {
         return branchNameAsPath(this.branchName);
+    }
+
+    get branchNameSlug(): string {
+        return slugify(this.branchName, false, false);
     }
 
     get mainRepo() {
@@ -399,7 +403,9 @@ export class BranchContext {
             try {
                 const executedHooks = await repository.executeHook(eventType, params);
                 if (executedHooks.length > 0) {
-                    console.log(`📌 Executed ${executedHooks.length} ${eventType} hook(s) in ${repository.name}: ${executedHooks.join(', ')}`);
+                    console.log(
+                        `📌 Executed ${executedHooks.length} ${eventType} hook(s) in ${repository.name}: ${executedHooks.join(', ')}`,
+                    );
                 }
             } catch (error) {
                 // Soft error: allow the branch operation to continue even if a hook fails
@@ -495,7 +501,6 @@ export class BranchContext {
             // create a temporary worktree to move the Branch files without affecting the main branch
             worktreeRepo = await this.getTemporaryRepo(this.mainRepo.name, TemporaryFolderType.BRANCH_ARCHIVE);
         }
-
 
         const archivePath = path.join(worktreeRepo.specsArchivePath, branchNameAsPath(this.branchName));
         const branchPath = worktreeRepo.getSpecPath(this.branchName);

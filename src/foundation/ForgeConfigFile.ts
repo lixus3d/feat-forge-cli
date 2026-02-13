@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean, IsInt, Min } from 'class-validator';
 import { AIAgentName } from './types/AIAgentName';
 import { DeepPartial } from './types/DeepPartial';
 import { IDEName } from './types/IDEName';
@@ -143,6 +143,52 @@ export class ForgeProcessOptions {
     npmScriptPrefix: string = 'feat-forge';
 }
 
+export class ForgeProxyOptions {
+    /**
+     * Whether the proxy is enabled or not. Default: true
+     *
+     * Active by default, but you can disable it if you don't need to use the proxy features (like URL rewriting in .envrc)
+     * and want to save system resources by not running the proxy server at all.
+     */
+    @IsOptional()
+    @IsBoolean()
+    enabled: boolean = true;
+
+    /**
+     * Base port for service port allocation. Default: 3000
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    servicesBasePort: number = 3000;
+
+    /**
+     * Number of ports allocated per branch. Default: 100
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    branchRangeSize: number = 100;
+
+    /**
+     * Port for the proxy server. Default: 8080
+     */
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    port: number = 8080;
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    envrc: string = '.envrc';
+
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    environmentVariablePrefix: string = 'FEAT_FORGE_';
+}
+
 export class ForgeOptions {
     @IsOptional()
     @ValidateNested()
@@ -163,6 +209,11 @@ export class ForgeOptions {
     @ValidateNested()
     @Type(() => ForgeGitOptions)
     git: ForgeGitOptions = new ForgeGitOptions();
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeProxyOptions)
+    proxy: ForgeProxyOptions = new ForgeProxyOptions();
 }
 
 /**

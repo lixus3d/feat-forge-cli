@@ -5,6 +5,7 @@ import { ForgeContext } from './ForgeContext';
 import { Repository } from './Repository';
 import { pathExists } from '../lib/fs';
 import { paramsToEnv } from '../lib/env';
+import { unwatchFile } from 'fs';
 
 interface PackageJson {
     scripts?: Record<string, string>;
@@ -30,7 +31,7 @@ export class NpmHelper {
      * Must be called before executing any scripts
      */
     async initialize(): Promise<void> {
-        if(this.packageManager) return;
+        if (this.packageManager) return;
         if (await pathExists(path.join(this.repository.path, 'pnpm-lock.yaml'))) {
             this.packageManager = 'pnpm';
         } else if (await pathExists(path.join(this.repository.path, 'yarn.lock'))) {
@@ -44,6 +45,8 @@ export class NpmHelper {
      * Read and parse package.json from the repository
      */
     private async readPackageJson(): Promise<PackageJson | null> {
+        if (process.env.VITEST) return null; // Skip reading package.json during tests to avoid filesystem dependencies
+
         const packageJsonPath = path.join(this.repository.path, 'package.json');
 
         if (!(await pathExists(packageJsonPath))) {

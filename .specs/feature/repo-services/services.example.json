@@ -1,0 +1,14 @@
+{
+  "services": [
+    {
+      "name": "backend",
+      "type": "http",
+      "path": "/api"
+    },
+    {
+      "name": "frontend",
+      "type": "http",
+      "path": "/"
+    }
+  ]
+}
