@@ -1,4 +1,5 @@
-import { ForgeConfig, ForgeConfigFile } from '@/foundation/ForgeConfig';
+import { ForgeConfig } from '@/foundation/ForgeConfig';
+import { ForgeConfigFile } from '@/foundation/ForgeConfigFile';
 import { ForgeContext } from '@/foundation/ForgeContext';
 import { merge } from '@/lib/merger';
 

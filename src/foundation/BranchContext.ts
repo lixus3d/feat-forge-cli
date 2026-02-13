@@ -15,6 +15,7 @@ import { AIAgentName } from './types/AIAgentName';
 import { ModeConfig } from './types/ModeConfig';
 import { RepoName } from './types/RepositoryInfos';
 import { slugify } from '@/lib/slug';
+import { ForgeNotInActiveBranchError } from './errors';
 
 export type BranchName = string; // must be sanitized for branch names and file paths
 
@@ -91,7 +92,7 @@ export class BranchContext {
         });
 
         if (!matchingBranch) {
-            throw new Error(`No active Branch context found for current directory: ${currentDir}`);
+            throw new ForgeNotInActiveBranchError(`No active Branch context found for current directory: ${currentDir}`);
         }
 
         // If we found a matching branch, we can directly load the Branch context from its worktree path

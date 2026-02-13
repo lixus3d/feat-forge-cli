@@ -149,8 +149,11 @@ export function getServiceOutputs(forgeContext: ForgeContext, branchContext: Bra
     const proxyPort = forgeContext.options.proxy.port;
     return {
         ...service,
+        branchSlug,
+        key: `${branchSlug}.${urlSlug}`,
         slug: serviceSlug,
         SLUG: serviceSlug.toUpperCase(),
+        urlSlug: urlSlug,
         url: `${service.type}://localhost:${service.port}${service.path || ''}`,
         proxyUrl: `${service.type}://${branchSlug}.${urlSlug}.localhost:${proxyPort}${service.path || ''}`,
     };

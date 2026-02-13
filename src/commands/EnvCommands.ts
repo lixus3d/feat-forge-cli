@@ -66,7 +66,8 @@ export class EnvCommands extends AbstractCommands {
     ): Promise<{ path: string; env: string }> {
         console.log(`🔄 Generating .envrc for branch "${branchContext.branchName}"...`);
         const env = await generateEnvrcFile(this.context, branchContext, services);
-        console.log(`✅ .envrc: ${env.path}`);
+        console.log(`   ✅ .envrc: ${env.path}`);
+        console.log('');
         return env;
     }
 }

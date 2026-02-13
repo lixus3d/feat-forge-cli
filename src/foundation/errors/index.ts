@@ -10,3 +10,4 @@ export { ForgePortRangeExhaustedError } from './generated/ForgePortRangeExhauste
 export { ForgeServicesScanError } from './generated/ForgeServicesScanError';
 export { ForgeServicesValidationError } from './generated/ForgeServicesValidationError';
 export { ForgePortNotAssignedError } from './generated/ForgePortNotAssignedError';
+export { ForgeNotInActiveBranchError } from './generated/ForgeNotInActiveBranchError';
