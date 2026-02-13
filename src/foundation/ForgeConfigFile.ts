@@ -183,6 +183,13 @@ export class ForgeProxyOptions {
     @IsNotEmpty()
     envrc: string = '.envrc';
 
+    /**
+     * Whether to put a source_up command in the .envrc file to load parent .envrc files
+     */
+    @IsOptional()
+    @IsBoolean()
+    envrc_source_up: boolean = true;
+
     @IsOptional()
     @IsString()
     @IsNotEmpty()
