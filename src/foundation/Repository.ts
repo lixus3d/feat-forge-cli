@@ -272,6 +272,7 @@ export class RootRepository extends Repository {
             if (!(await pathExists(src))) continue;
             if (await pathExists(dest)) continue;
             await ensureDir(path.dirname(dest));
+            console.log(`Copying file from root repository to worktree: ${src} -> ${dest}`);
             await copyFile(src, dest);
         }
     }
