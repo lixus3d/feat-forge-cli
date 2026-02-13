@@ -21,6 +21,17 @@ export class BranchCommands extends AbstractCommands {
      */
     async create(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
+
+        if (await this.context.isBranchActive(branchName)) {
+            console.log(`Branch "${branchName}" is already active. Use "forge start ${branchName}" to start working on it.`);
+            return;
+        }
+
+        if (await this.context.hasBranch(branchName)) {
+            console.log(`Branch "${branchName}" already exists in the repository. You can start it with "forge start ${branchName}".`);
+            return;
+        }
+
         const baseBranch = await promptForBranch(
             this.context.mainRepo.path,
             'Select base branch for the new branch (showing branches of main repo, the branch must exist in all repos):',
@@ -49,12 +60,18 @@ export class BranchCommands extends AbstractCommands {
      */
     async start(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
-        const baseBranch = await promptForBranch(
-            this.context.mainRepo.path,
-            'Select base branch for the new branch (showing branches of main repo, the branch must exist in all repos):',
-            this.context.options.git.featureBranchPrefix,
-            true,
-        );
+
+        let baseBranch: string | undefined = undefined;
+
+        if (!(await this.context.hasBranch(branchName))) {
+            baseBranch = await promptForBranch(
+                this.context.mainRepo.path,
+                'Select base branch for the new branch (showing branches of main repo, the branch must exist in all repos):',
+                this.context.options.git.featureBranchPrefix,
+                true,
+            );
+        }
+
         // Prepare branch: validate branchName, ensure branch and spec exist
         await (await this.prepareBranch(branchName, baseBranch)).start();
 
@@ -319,7 +336,7 @@ export class BranchCommands extends AbstractCommands {
     /**
      * Prepare branch + spec initialization shared by create/start.
      */
-    private async prepareBranch(branchName: string, baseBranch: string): Promise<BranchContext> {
+    private async prepareBranch(branchName: string, baseBranch?: string): Promise<BranchContext> {
         let invisibleRepoChanges = 0;
 
         // Ensure branch exists in all repos (creates branch if missing, but does not check it out)

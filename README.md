@@ -16,20 +16,21 @@ With **FeatForge** you will be able to :
 
 **FeatForge** is :
 
-- Developed using FeatForge itself from the start. You can look at the `.features/` folder to see how features are specified and implemented, and how agents are configured. Test and Learn by example!
+- Developed using FeatForge itself from the start. You can look at the `.specs/` folder to see how features are specified and implemented, and how agents are configured. Test and Learn by example!
 - Not opinionated about how you specify features, how you implement them, or how you use agents. It just provides a structure (yet customizable) and a workflow to keep everything organized and traceable.
-- Partially tested with : Copilot, Codex, Claude code (+Ollama, LM-Studio). But it should work with any agent that can be configured to read/write files in the .active-feature folders.
+- Partially tested with : Copilot, Codex, Claude code (+Ollama, LM-Studio). But it should work with any agent that can be configured to read/write files in the `.active-spec` folders.
 
 **_This is an expirement, trying to mix between classic development and vibe-coding in large project with quality and sustainability in mind by making specification explicit and separating thinking from coding accross multiple agents and repositories._**
 
 ## Key Concepts
 
-- A **feature** is a self-contained unit with its own spec (`FEATURE.md`) and tasks (`TODO.md`).
-- You always work inside one **active feature** (`.active-feature`) per git worktree, which can span multiple repositories.
-- Two modes: `spec` (think/specify) and `code` (implement) per feature.
-- Agents goals are always scoped to a feature, never global.
-- You can launch multiple agents per feature and work on multiple features in parallel.
-- Finished features are archived in `.features/.archives/`.
+- A **branch** is a self-contained unit with its own spec (`SPEC.md`) and tasks (`TODO.md`).
+- You always work inside one **active spec** (`.active-spec`) per git worktree, which can span multiple repositories.
+- Multiple modes are available per branch (see [Modes](#modes)).
+- Agents goals are always scoped to a branch, never global.
+- You can launch multiple agents per branch and work on multiple branches in parallel.
+- Finished branches are archived in `.specs/.archives/`.
+- Branch types: `anything` `feature/`, `fix/`, `release/` (each with their own customizable prefix).
 
 ---
 
@@ -48,16 +49,13 @@ forge --version
 # Initialize FeatForge in your project
 forge init
 
-# Create a new feature
+# Create a new feature (branch: feature/my-feature (customizable prefix))
 forge feature create my-feature
 
 # Start working on a feature (creates worktrees)
 forge feature start my-feature
 
-# Switch to spec mode (write/clarify spec)
-forge mode spec
-
-# Switch to code mode (implement)
+# Switch mode (updates agent files with the templates for this mode)
 forge mode code
 
 # Stop working on a feature (cleanup worktrees)
@@ -78,56 +76,62 @@ forge-project-root/
   .feat-forge.json            # Configuration file for the project (per user)
   repo1/
     .git/                     # Git repository for repo1
-  repo2/                      # Main repo (contains .features/)
+  repo2/                      # Main repo (contains .specs/)
     .git/                     # Git repository for repo2
-    .features/                # All feature directories (created on first feature creation)
-      .archives/              # Archived features folders (moved here when archived)
-      .template/              # Template for new features (created on first feature creation)
-        FEATURE.md            # Default feature specification
-        TODO.md               # Default todo list
+    .specs/                   # All branch spec directories (created on first branch creation)
+      .archives/              # Archived branch folders (moved here when archived)
+      .template/              # Template for new branches
         agent/                # Agent configuration templates
-          CONTEXT.spec.md     # Spec mode context template
-          CONTEXT.code.md     # Code mode context template
-      <feature-slug>/         # Active
-        FEATURE.md            # Feature specification (required)
+          CONTEXT.spec.md     # Legacy spec mode context template
+          CONTEXT.code.md     # Legacy code mode context template
+      <branch-slug>/          # Active branch
+        SPEC.md               # Branch specification (required)
         TODO.md               # Implementation tasks (required)
-        agent/                # Agent configuration
-          CONTEXT.spec.md     # Spec mode context files (generated)
-          CONTEXT.code.md     # Code mode context files (generated)
+        .forge-mode           # Current mode
   repo3/
     .git/                     # Git repository for repo3
-  features/
-    001-bootstrap/            # Example active feature directory (created on feature start)
-      repo1/                  # git worktree for repo1 (created on feature start)
-        .active-feature -> ../repo2/.active-feature  # symlink to active feature in main repo
-      repo2/                  # git worktree for repo2 (created on feature start)
-        .active-feature -> ../.features/001-bootstrap  # symlink to active feature in this repo
-        .features
-          001-bootstrap/      # actual feature folder with spec and agent context
-            .forge-mode       # current mode (spec or code)
-            FEATURE.md        # feature specification
+  worktrees/
+    001-bootstrap/            # Example active branch directory (created on branch start)
+      repo1/                  # git worktree for repo1 (created on branch start)
+        .active-spec -> ../repo2/.active-spec  # symlink to active spec in main repo
+      repo2/                  # git worktree for repo2 (created on branch start)
+        .active-spec -> ../.specs/001-bootstrap  # symlink to active spec in this repo
+        .specs/
+          001-bootstrap/      # actual branch folder with spec and agent context
+            .forge-mode       # current mode
+            SPEC.md           # branch specification
             TODO.md           # implementation tasks
-            agent/
-              CONTEXT.spec.md
-              CONTEXT.code.md
-      repo3/                  # git worktree for repo3 (created on feature start)
-        .active-feature -> ../repo2/.active-feature  # symlink to active feature in main repo
+      repo3/                  # git worktree for repo3 (created on branch start)
+        .active-spec -> ../repo2/.active-spec  # symlink to active spec in main repo
 ```
 
 ---
 
 ## Modes
 
-Each feature has a mode stored in `.features/<slug>/.forge-mode`:
+Each branch has a mode stored in `.specs/<slug>/.forge-mode`. Switching modes updates agent adapter files with the corresponding templates.
+Agent name are useful when calling subagent
 
-- `spec`: Write/clarify the spec (`FEATURE.md`, `TODO.md` only)
-- `code`: Implement according to the spec
+Built-in modes:
+
+| Mode            | Agent                | Description                         |
+| --------------- | -------------------- | ----------------------------------- |
+| `general`       | Omnibus              | General-purpose agent               |
+| `discovery`     | Inventorius          | Explore and understand the codebase |
+| `design`        | Architecturius       | Design architecture and specs       |
+| `plan`          | Strategos            | Plan implementation strategy        |
+| `tdd`           | TestDrivenCodificius | Test-driven development             |
+| `code`          | Codificius           | Implement according to the spec     |
+| `simplify`      | Consolidarius        | Simplify and consolidate code       |
+| `review`        | Auditorix            | Review code                         |
+| `test-writer`   | TestScriptor         | Write tests                         |
+| `test-executor` | TestExecutor         | Execute tests                       |
+| `commit`        | Scribus              | Commit changes                      |
 
 Switch modes at any time:
 
 ```bash
-forge mode spec
-forge mode code
+forge mode <mode>
 ```
 
 ---
@@ -156,7 +160,7 @@ forge init
 
 ### `forge feature create <slug>`
 
-Create a new feature folder with spec and todo files.
+Create a new feature branch folder and initialize its spec.
 
 **Usage:**
 
@@ -189,7 +193,7 @@ forge feature start my-feature
 
 ### `forge feature list`
 
-List all active features and their status.
+List all active feature branches and their worktrees.
 
 **Usage:**
 
@@ -201,7 +205,7 @@ forge feature list
 
 ### `forge feature stop <slug>`
 
-Clean up worktrees and remove the active feature symlink.
+Clean up worktrees and remove the active spec symlink.
 
 **Usage:**
 
@@ -213,7 +217,7 @@ forge feature stop my-feature
 
 ### `forge feature archive <slug>`
 
-Move a completed feature to the archive folder.
+Move a completed feature to `.specs/.archives/`.
 
 **Usage:**
 
@@ -227,15 +231,112 @@ forge feature archive my-feature
 
 ---
 
-### `forge mode spec` / `forge mode code`
+### `forge feature merge <slug>`
 
-Switch the current feature mode. `spec` for writing/clarifying, `code` for implementation.
+Merge a feature branch into a target branch (across all repos).
+
+---
+
+### `forge feature rebase <slug>`
+
+Rebase a feature branch onto a base branch (across all repos).
+
+---
+
+### `forge feature open [slug]`
+
+Open a feature branch in the configured IDE.
+
+---
+
+### `forge feature resync <slug>`
+
+Resync all repos to the expected branch.
+
+---
+
+### `forge fix` / `forge release` / `forge <command> branch`
+
+Same commands as `forge feature`, but with automatic `fix/` or `release/` prefix for branch names, or just plain branch names if you prefer.
+
+```bash
+forge fix create my-bugfix
+forge release create v1.2.0
+forge start dev
+```
+
+---
+
+### `forge merge <slug>` / `forge rebase <slug>`
+
+Top-level shortcuts for merge and rebase operations (across all repos).
+
+---
+
+### `forge mode <mode>`
+
+Switch agents to the given mode (updates agent files with the templates for this mode).
 
 **Usage:**
 
 ```bash
-forge mode spec
 forge mode code
+forge mode review
+```
+
+---
+
+### `forge agent refresh`
+
+Refresh agent adapter files for the nearest branch.
+
+---
+
+### `forge services scan [branch]`
+
+Scan repositories for service declarations and generate configuration with allocated ports.
+
+---
+
+### `forge services list [branch]`
+
+List discovered services with their allocated ports.
+
+---
+
+### `forge env update [branch]`
+
+Generate `.envrc` from `generated.services.json`.
+
+---
+
+### `forge env show [branch]`
+
+Display current `.envrc` and port allocation information.
+
+---
+
+### `forge proxy`
+
+Start a reverse-proxy server routing branches via subdomains.
+
+---
+
+### `forge maintenance rewrite-agent-files <slug>`
+
+Rewrite all agent template files from built-in templates (overwrite).
+
+---
+
+### `forge completion <shell>`
+
+Generate shell completion script (bash, zsh, fish, powershell).
+
+**Usage:**
+
+```bash
+forge completion bash
+forge completion zsh
 ```
 
 ---

@@ -3,10 +3,10 @@ import { executeBootstrapScript } from '@/lib/bootstrap';
 import { HookEvent, executeHooksForEvent } from '@/lib/hooks';
 import { NpmHelper } from '@/foundation/NpmHelper';
 import { DirtyAction, promptConfirm, promptDirtyActions } from '@/lib/prompt';
-import { rm, symlink } from 'fs/promises';
+import { copyFile, rm, symlink } from 'fs/promises';
 import path from 'path';
 import { TemporaryFolderType } from '../lib/constants';
-import { pathExists } from '../lib/fs';
+import { ensureDir, pathExists } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
@@ -258,8 +258,23 @@ export abstract class Repository {
 }
 
 export class RootRepository extends Repository {
+    public readonly copyFiles: string[];
+
     constructor(context: ForgeContext, repoInfos: RepositoryInfos) {
         super(context, repoInfos);
+        this.copyFiles = repoInfos.copyFiles ?? [];
+    }
+
+    async copyFilesToWorktree(worktree: WorktreeRepository): Promise<void> {
+        for (const file of this.copyFiles) {
+            const src = path.join(this.path, file);
+            const dest = path.join(worktree.path, file);
+            if (!(await pathExists(src))) continue;
+            if (await pathExists(dest)) continue;
+            await ensureDir(path.dirname(dest));
+            console.log(`Copying file from root repository to worktree: ${src} -> ${dest}`);
+            await copyFile(src, dest);
+        }
     }
 
     getWorktreePath(branchName: string, temporary?: TemporaryFolderType): string {

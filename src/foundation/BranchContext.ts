@@ -376,6 +376,9 @@ export class BranchContext {
         // Execute bootstrap scripts in each repository
         for (const repository of this.repositories) {
             try {
+                // Copy configured files from root repos to worktrees
+                await repository.rootRepository.copyFilesToWorktree(repository);
+                // Execute bootstrap script if defined in the repository
                 await repository.executeBootstrapScript();
             } catch (error) {
                 // Soft error here, so that the Branch can still be started even if a bootstrap script fails, which can be useful for debugging or if the bootstrap script is not critical
