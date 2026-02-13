@@ -89,8 +89,8 @@ describe('ForgeConfig', () => {
         it('should standardize repositories from string array to RepositoryInfos array', () => {
             const forgeConfig = new ForgeConfig(configPath, minimumConfig);
             expect(forgeConfig.repositories).toEqual([
-                { name: 'repoA', path: path.resolve(`${configPath}/repoA`), main: true },
-                { name: 'repoB', path: path.resolve(`${configPath}/repoB`), main: false },
+                { name: 'repoA', path: path.resolve(`${configPath}/repoA`), main: true, copyFiles: [] },
+                { name: 'repoB', path: path.resolve(`${configPath}/repoB`), main: false, copyFiles: [] },
             ]);
         });
 
@@ -100,8 +100,8 @@ describe('ForgeConfig', () => {
             };
             const forgeConfig = new ForgeConfig(configPath, customReposConfig);
             expect(forgeConfig.repositories).toEqual([
-                { name: 'repoA', path: path.resolve(`${configPath}/repoA`), main: false },
-                { name: 'repoB', path: '/custom/path/repoB', main: true },
+                { name: 'repoA', path: path.resolve(`${configPath}/repoA`), main: false, copyFiles: [] },
+                { name: 'repoB', path: '/custom/path/repoB', main: true, copyFiles: [] },
             ]);
         });
 

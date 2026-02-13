@@ -5,4 +5,5 @@ export type RepositoryInfos = {
     name: RepoName;
     path: RepoPath;
     main: boolean;
+    copyFiles?: string[];
 };

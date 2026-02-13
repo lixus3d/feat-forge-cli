@@ -158,6 +158,7 @@ export class ForgeConfig {
                     name: repositoryConfig.name ?? path.basename(rootPath),
                     path: this.getPath(rootPath),
                     main: !!(repositoryConfig.main ?? false),
+                    copyFiles: repositoryConfig.copyFiles ?? [],
                 };
             });
 

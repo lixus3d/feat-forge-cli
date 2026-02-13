@@ -314,6 +314,7 @@ export type RepositoryConfig = {
     name?: RepoName;
     path: RepoPath;
     main?: boolean;
+    copyFiles?: string[];
 };
 
 export class ModeConfigEntry {
