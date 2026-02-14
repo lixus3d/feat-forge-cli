@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.2...v1.0.3) (2026-02-14)
+
+
+### Bug Fixes
+
+* **port-allocator:** now flushing deleted services from generated files ([c9fa02a](https://github.com/lixus3d/feat-forge-cli/commit/c9fa02a2e2f1566f3eeae8261228bb2145c752dc))
+
 ## [1.0.2](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.1...v1.0.2) (2026-02-14)
 
 
