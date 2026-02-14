@@ -1,5 +1,11 @@
 # FeatForge
 
+[![CI](https://github.com/lixus3d/feat-forge-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/lixus3d/feat-forge-cli/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/feat-forge)](https://www.npmjs.com/package/feat-forge)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vitest](https://img.shields.io/badge/tested%20with-Vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/lixus3d/feat-forge-cli/pulls)
+
 **FeatForge** is a feature-first workflow and CLI (`forge`) to help you build software at scale, with (or without) AI agents.
 
 Its goal is to make the specification of features explicit and separate the thinking/specifying phase from the coding/implementation phase, across multiple agents and repositories, while keeping everything organized and traceable.
@@ -348,3 +354,7 @@ For all commands and options:
 ```bash
 forge --help
 ```
+
+# License
+
+[![License: AGPL-3.0](https://img.shields.io/npm/l/feat-forge)](./LICENSE)
