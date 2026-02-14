@@ -1,7 +1,27 @@
 {
-    "repoPaths": ["./feat-forge-cli"],
-    "mainRepo": "feat-forge-cli",
-    "worktreesPath": "features",
+    "repositories": [
+        "./feat-forge-cli",
+        {
+            "name": "other-repo",
+            "path": "./other-repo",
+            "main": false,
+            "copyFiles": ["shared-config.json"]
+        }
+    ],
+    "specFiles": ["SPEC.md", "TODO.md"],
+    "modes": [
+        {
+            "name": "develop",
+            "description": "Standard development mode",
+            "agentFile": "DEVELOP.md",
+            "default": true
+        },
+        {
+            "name": "review",
+            "description": "Code review mode",
+            "agentFile": "REVIEW.md"
+        }
+    ],
     "agents": [
         "Claude",
         "Copilot",
@@ -15,11 +35,47 @@
         "VSCode",
         {
             "name": "VSCode",
+            "createWorkspace": true,
             "settings": {
                 "chat.instructionsFilesLocations": {
                     "custom-path/": true
                 }
             }
         }
-    ]
+    ],
+    "options": {
+        "process": {
+            "manageGitIgnore": true,
+            "activeSpecInEachRepo": true,
+            "agentsInEachRepo": true,
+            "npmScriptPrefix": "feat-forge"
+        },
+        "folders": {
+            "specs": ".specs",
+            "worktrees": "worktrees",
+            "activeSpec": ".active-spec",
+            "template": ".template",
+            "repoAgents": ".forge-agents",
+            "archive": ".archives",
+            "repoConfig": ".forge"
+        },
+        "files": {
+            "forgeMode": ".forge-mode"
+        },
+        "git": {
+            "featureBranchPrefix": "feature/",
+            "fixBranchPrefix": "fix/",
+            "releaseBranchPrefix": "release/",
+            "protectedBranches": ["main", "master", "develop", "dev"]
+        },
+        "proxy": {
+            "enabled": true,
+            "servicesBasePort": 3000,
+            "branchRangeSize": 100,
+            "port": 8080,
+            "envrc": ".envrc",
+            "envrc_source_up": true,
+            "environmentVariablePrefix": "FEAT_FORGE_"
+        }
+    }
 }
