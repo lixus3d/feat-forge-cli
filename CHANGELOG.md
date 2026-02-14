@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.1...v1.0.2) (2026-02-14)
+
+
+### Bug Fixes
+
+* add environment to release.yml ci ([313cf68](https://github.com/lixus3d/feat-forge-cli/commit/313cf6827b9ed171a3da7732b077c169cbb55511))
+* add environment to release.yml ci ([458e363](https://github.com/lixus3d/feat-forge-cli/commit/458e363bbf9b5aa22e28320908f60ee9cc08351d))
+
 ## [1.0.1](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.0...v1.0.1) (2026-02-13)
 
 
