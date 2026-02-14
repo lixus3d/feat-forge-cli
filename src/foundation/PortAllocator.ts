@@ -110,6 +110,14 @@ export class BranchPortAllocation {
         return nextPort;
     }
 
+    /**
+     * Remove services that are not in the provided list of names
+     */
+    retainOnly(services: ServiceDefinition[]): void {
+        const serviceNames = new Set(services.map((s) => s.name));
+        this.services = this.services.filter((s) => serviceNames.has(s.name));
+    }
+
     getServices() {
         return this.services.slice();
     }
@@ -221,9 +229,14 @@ export class PortAllocator {
      * Allocate ports for all repositories in a branch at once
      */
     allocatePorts(branchName: string, repoServices: RepositoryServices[]) {
+        const allServices = repoServices.flatMap((r) => r.services);
+
         for (const repoService of repoServices) {
             this.allocateBranchServicesPorts(branchName, repoService.services);
         }
+
+        // Remove services that no longer exist in any repository
+        this.getAllocation(branchName)?.retainOnly(allServices);
     }
 
     /**

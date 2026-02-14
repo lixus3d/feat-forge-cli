@@ -316,7 +316,8 @@ describe('PortAllocator', () => {
 
             expect(allocation.getService('backend')?.port).toBe(3000);
             expect(allocation.getService('worker')?.port).toBe(3002);
-            expect(allocation.hasService('frontend')).toBe(true); // Still stored but not requested
+            // allocateBranchServicesPorts does not purge; purging happens in allocatePorts
+            expect(allocation.hasService('frontend')).toBe(true);
         });
     });
 
@@ -336,7 +337,7 @@ describe('PortAllocator', () => {
                 },
             ];
 
-            allocator.allocatePorts('main', repoServices as any);
+            allocator.allocatePorts('main', repoServices);
 
             const allocation = allocator.getAllocation('main');
             expect(allocation).toBeDefined();
@@ -344,6 +345,35 @@ describe('PortAllocator', () => {
             expect(allocation?.getService('backend')?.port).toBe(3000);
             expect(allocation?.getService('frontend')?.port).toBe(3001);
             expect(allocation?.getService('api')?.port).toBe(3002);
+        });
+
+        it('should remove services that are no longer declared in any repository', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, []);
+
+            // First scan: 3 services across 2 repos
+            allocator.allocatePorts('main', [
+                { name: 'repo1', services: [createService('backend'), createService('frontend')] },
+                { name: 'repo2', services: [createService('worker')] },
+            ]);
+
+            let allocation = allocator.getAllocation('main')!;
+            expect(allocation.getServices()).toHaveLength(3);
+
+            // Second scan: 'frontend' removed from repo1
+            allocator.allocatePorts('main', [
+                { name: 'repo1', services: [createService('backend')] },
+                { name: 'repo2', services: [createService('worker')] },
+            ]);
+
+            allocation = allocator.getAllocation('main')!;
+            expect(allocation.getServices()).toHaveLength(2);
+            expect(allocation.hasService('backend')).toBe(true);
+            expect(allocation.hasService('worker')).toBe(true);
+            expect(allocation.hasService('frontend')).toBe(false);
+            // Existing ports are preserved
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect(allocation.getService('worker')?.port).toBe(3002);
         });
     });
 
