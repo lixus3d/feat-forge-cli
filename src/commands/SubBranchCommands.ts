@@ -44,6 +44,11 @@ export abstract class SubBranchCommands extends AbstractCommands {
         return this.branchCommands.open(rawSlug);
     }
 
+    async path(rawSlug?: string): Promise<void> {
+        rawSlug = rawSlug ? this.toSubBranchSlug(rawSlug) : undefined;
+        return this.branchCommands.path(rawSlug);
+    }
+
     async merge(rawSlug: string): Promise<void> {
         rawSlug = this.toSubBranchSlug(rawSlug);
         return this.branchCommands.merge(rawSlug);

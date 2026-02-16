@@ -4,6 +4,7 @@ import 'reflect-metadata';
 import { Command } from 'commander';
 import { AgentCommands } from './commands/AgentCommands';
 import { MaintenanceCommands } from './commands/MaintenanceCommands';
+import { AliasCommands } from './commands/AliasCommands';
 import { CompletionCommands } from './commands/CompletionCommands';
 import { FeatureCommands } from './commands/FeatureCommands';
 import { InitCommands } from './commands/InitCommands';
@@ -109,6 +110,14 @@ function genericBranchTypeCommands(
             `Open the given ${subType ? subType + ' ' : ''}branch in the configured IDE (if no ${subType ? subType + ' ' : ''}branch is given, opens the nearest ${subType ? subType + ' ' : ''}branch)`,
         )
         .action(handlers.open.bind(handlers));
+
+    baseCommand
+        .command('path')
+        .argument(`[${argName}]`, argDesc)
+        .description(
+            `Print the worktree path of a ${subType ? subType + ' ' : ''}branch (useful for shell integration: cd "$(forge path <name>)")`,
+        )
+        .action(handlers.path.bind(handlers));
 
     baseCommand
         .command('merge')
@@ -261,6 +270,33 @@ function registerProxyCommands(program: Command, context: ForgeContext): void {
 }
 
 /*
+ * Register alias commands with the CLI.
+ * This command works without config.
+ */
+function registerAliasCommands(program: Command): void {
+    const handlers = new AliasCommands();
+
+    const validShells: string[] = [ShellName.Bash, ShellName.Zsh, ShellName.Fish, ShellName.PowerShell, ShellName.Pwsh];
+
+    function isValidShellName(value: string): value is ShellName {
+        return validShells.includes(value);
+    }
+
+    program
+        .command('alias <shell>')
+        .description(`Generate shell aliases for feat-forge (${validShells.join(', ')})`)
+        .option('--prefix <prefix>', 'Prefix for alias names', 'ff')
+        .action((shell: string, options: { prefix: string }) => {
+            if (!isValidShellName(shell)) {
+                console.error(`Error: Unsupported shell type "${shell}". Supported shells: ${validShells.join(', ')}`);
+                process.exitCode = 1;
+                return;
+            }
+            handlers.generate(shell, options.prefix);
+        });
+}
+
+/*
  * Register completion commands with the CLI.
  * This command works both with and without config.
  */
@@ -308,15 +344,19 @@ async function main() {
     // Init command doesn't need config
     registerInitCommands(program);
 
+    // Alias command doesn't need config
+    registerAliasCommands(program);
+
     // Completion command should work with or without config
     // Register it early so it's available even without .feat-forge.json
     let context: ForgeContext | undefined;
 
     // Load config for other commands
     const isInitCommand = process.argv[2] === 'init';
+    const isAliasCommand = process.argv[2] === 'alias';
     const isCompletionCommand = process.argv[2] === 'completion';
 
-    if (!isInitCommand) {
+    if (!isInitCommand && !isAliasCommand) {
         try {
             context = await loadForgeContext();
         } catch (error) {

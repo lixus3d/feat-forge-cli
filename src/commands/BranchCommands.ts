@@ -255,6 +255,20 @@ export class BranchCommands extends AbstractCommands {
         });
     }
 
+    /**
+     * Print the path of a branch worktree directory.
+     * Outputs only the path to stdout, suitable for shell capture: cd "$(forge path <branch>)"
+     *
+     * @param rawSlug - Optional branch slug. If not provided, finds the nearest branch context.
+     */
+    async path(rawSlug?: string): Promise<void> {
+        const branchContext = rawSlug
+            ? await this.context.loadBranchContext(await confirmSlugOrThrow(rawSlug))
+            : await BranchContext.findNearestBranchContext(this.context);
+
+        process.stdout.write(branchContext.path);
+    }
+
     async merge(rawSlug: string): Promise<void> {
         const branchName = await confirmSlugOrThrow(rawSlug);
 

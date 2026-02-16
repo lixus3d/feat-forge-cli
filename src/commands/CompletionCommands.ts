@@ -321,6 +321,8 @@ complete -F _forge_completion forge
 #   Option 2 - Save to file:
 #     forge completion bash > ~/.local/share/bash-completion/completions/forge
 #     # Or system-wide: /etc/bash_completion.d/forge
+#
+# Tip: Run 'forge alias bash' to generate shell aliases for quick access.
 `;
     }
 
@@ -487,6 +489,8 @@ compdef _forge forge
 #     forge completion zsh > ~/.zsh/completions/_forge
 #     # Add to .zshrc: fpath=(~/.zsh/completions $fpath)
 #     # Then run: autoload -Uz compinit && compinit
+#
+# Tip: Run 'forge alias zsh' to generate shell aliases for quick access.
 `;
     }
 
@@ -638,6 +642,8 @@ complete -c forge -n "__fish_seen_subcommand_from completion" -a pwsh -d "Genera
 #
 #   Option 2 - Save to completions directory:
 #     forge completion fish > ~/.config/fish/completions/forge.fish
+#
+# Tip: Run 'forge alias fish' to generate shell aliases for quick access.
 `;
     }
 
@@ -777,6 +783,8 @@ Register-ArgumentCompleter -CommandName forge -ScriptBlock {
 # Installation instructions:
 #   Option 1 - Add to $PROFILE:
 #     forge completion powershell | Out-String | Invoke-Expression
+#
+# Tip: Run 'forge alias powershell' to generate shell aliases for quick access.
 `;
     }
 }
