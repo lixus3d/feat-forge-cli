@@ -45,6 +45,7 @@ alias ${p}r='forge release'
 
 # Command shortcuts
 alias ${p}s='forge start'
+alias ${p}x='forge stop'
 alias ${p}c='forge create'
 alias ${p}o='forge open'
 alias ${p}l='forge list'
@@ -53,6 +54,7 @@ alias ${p}a='forge archive'
 
 # Feature shortcuts
 alias ${p}fs='forge feature start'
+alias ${p}fx='forge feature stop'
 alias ${p}fc='forge feature create'
 alias ${p}fo='forge feature open'
 alias ${p}fl='forge feature list'
@@ -61,15 +63,21 @@ alias ${p}fa='forge feature archive'
 
 # Fix shortcuts
 alias ${p}is='forge fix start'
+alias ${p}ix='forge fix stop'
 alias ${p}ic='forge fix create'
 alias ${p}io='forge fix open'
 alias ${p}il='forge fix list'
+alias ${p}im='forge fix merge'
+alias ${p}ia='forge fix archive'
 
 # Release shortcuts
 alias ${p}rs='forge release start'
+alias ${p}rx='forge release stop'
 alias ${p}rc='forge release create'
 alias ${p}ro='forge release open'
 alias ${p}rl='forge release list'
+alias ${p}rm='forge release merge'
+alias ${p}ra='forge release archive'
 
 # cd into branch worktree
 ${p}cd()  { cd "$(forge path "$@")"; }
@@ -91,6 +99,7 @@ alias ${p}r='forge release'
 
 # Command shortcuts
 alias ${p}s='forge start'
+alias ${p}x='forge stop'
 alias ${p}c='forge create'
 alias ${p}o='forge open'
 alias ${p}l='forge list'
@@ -99,6 +108,7 @@ alias ${p}a='forge archive'
 
 # Feature shortcuts
 alias ${p}fs='forge feature start'
+alias ${p}fx='forge feature stop'
 alias ${p}fc='forge feature create'
 alias ${p}fo='forge feature open'
 alias ${p}fl='forge feature list'
@@ -107,15 +117,21 @@ alias ${p}fa='forge feature archive'
 
 # Fix shortcuts
 alias ${p}is='forge fix start'
+alias ${p}ix='forge fix stop'
 alias ${p}ic='forge fix create'
 alias ${p}io='forge fix open'
 alias ${p}il='forge fix list'
+alias ${p}im='forge fix merge'
+alias ${p}ia='forge fix archive'
 
 # Release shortcuts
 alias ${p}rs='forge release start'
+alias ${p}rx='forge release stop'
 alias ${p}rc='forge release create'
 alias ${p}ro='forge release open'
 alias ${p}rl='forge release list'
+alias ${p}rm='forge release merge'
+alias ${p}ra='forge release archive'
 
 # cd into branch worktree
 ${p}cd()  { cd "$(forge path "$@")"; }
@@ -137,6 +153,7 @@ abbr -a ${p}r 'forge release'
 
 # Command shortcuts
 abbr -a ${p}s 'forge start'
+abbr -a ${p}x 'forge stop'
 abbr -a ${p}c 'forge create'
 abbr -a ${p}o 'forge open'
 abbr -a ${p}l 'forge list'
@@ -145,6 +162,7 @@ abbr -a ${p}a 'forge archive'
 
 # Feature shortcuts
 abbr -a ${p}fs 'forge feature start'
+abbr -a ${p}fx 'forge feature stop'
 abbr -a ${p}fc 'forge feature create'
 abbr -a ${p}fo 'forge feature open'
 abbr -a ${p}fl 'forge feature list'
@@ -153,15 +171,21 @@ abbr -a ${p}fa 'forge feature archive'
 
 # Fix shortcuts
 abbr -a ${p}is 'forge fix start'
+abbr -a ${p}ix 'forge fix stop'
 abbr -a ${p}ic 'forge fix create'
 abbr -a ${p}io 'forge fix open'
 abbr -a ${p}il 'forge fix list'
+abbr -a ${p}im 'forge fix merge'
+abbr -a ${p}ia 'forge fix archive'
 
 # Release shortcuts
 abbr -a ${p}rs 'forge release start'
+abbr -a ${p}rx 'forge release stop'
 abbr -a ${p}rc 'forge release create'
 abbr -a ${p}ro 'forge release open'
 abbr -a ${p}rl 'forge release list'
+abbr -a ${p}rm 'forge release merge'
+abbr -a ${p}ra 'forge release archive'
 
 # cd into branch worktree
 function ${p}cd; cd (forge path $argv); end
@@ -183,6 +207,7 @@ function ${p}r { forge release @args }
 
 # Command shortcuts
 function ${p}s { forge start @args }
+function ${p}x { forge stop @args }
 function ${p}c { forge create @args }
 function ${p}o { forge open @args }
 function ${p}l { forge list @args }
@@ -191,6 +216,7 @@ function ${p}a { forge archive @args }
 
 # Feature shortcuts
 function ${p}fs { forge feature start @args }
+function ${p}fx { forge feature stop @args }
 function ${p}fc { forge feature create @args }
 function ${p}fo { forge feature open @args }
 function ${p}fl { forge feature list @args }
@@ -199,15 +225,21 @@ function ${p}fa { forge feature archive @args }
 
 # Fix shortcuts
 function ${p}is { forge fix start @args }
+function ${p}ix { forge fix stop @args }
 function ${p}ic { forge fix create @args }
 function ${p}io { forge fix open @args }
 function ${p}il { forge fix list @args }
+function ${p}im { forge fix merge @args }
+function ${p}ia { forge fix archive @args }
 
 # Release shortcuts
 function ${p}rs { forge release start @args }
+function ${p}rx { forge release stop @args }
 function ${p}rc { forge release create @args }
 function ${p}ro { forge release open @args }
 function ${p}rl { forge release list @args }
+function ${p}rm { forge release merge @args }
+function ${p}ra { forge release archive @args }
 
 # cd into branch worktree
 function ${p}cd { Set-Location (forge path @args) }
