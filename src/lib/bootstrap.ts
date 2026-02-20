@@ -64,4 +64,3 @@ export async function executeBootstrapScript(
     const scriptPath = path.join(repositoryPath, repoConfigFolderPath, `${scriptName}${scriptExtension}`);
     return executeScript(scriptPath, repositoryPath, scriptName);
 }
-

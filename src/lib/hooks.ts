@@ -113,4 +113,3 @@ export async function executeHooksForEvent(
 
     return executedHooks;
 }
-
