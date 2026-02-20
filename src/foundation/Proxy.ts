@@ -12,6 +12,7 @@ export interface RouteEntry {
     serviceName: string;
     url: string;
     proxyUrl: string;
+    healthCheckUrl: string;
 }
 
 export type RoutingTable = Map<string, RouteEntry>;
@@ -68,12 +69,13 @@ export class Proxy {
             try {
                 const generated = await loadGeneratedServicesFile(branchContext);
                 for (const service of generated.services) {
-                    const { proxyUrl, url, key, name } = getServiceOutputs(this.context, branchContext, service);
+                    const { proxyUrl, url, key, name, healthCheckUrl } = getServiceOutputs(this.context, branchContext, service);
                     table.set(key, {
                         branchName: branchContext.branchName,
                         serviceName: name,
                         url,
                         proxyUrl,
+                        healthCheckUrl,
                     });
                 }
             } catch {

@@ -94,6 +94,8 @@ export class BranchPortAllocation {
         const serviceName = service.name;
         const existingService = this.getService(serviceName);
         if (existingService) {
+            // Keep the allocated port stable, but refresh service metadata from latest scan
+            Object.assign(existingService, service);
             return existingService.port;
         }
 

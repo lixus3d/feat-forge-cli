@@ -3,7 +3,6 @@ import { IsArray, IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Ma
 import { RepoName } from './RepositoryInfos';
 import { ServiceName } from '../PortAllocator';
 import { BranchName } from '../BranchContext';
-import { T } from 'node_modules/vitest/dist/chunks/traces.d.402V_yFI';
 
 /**
  * Service definition from .forge/services.json (without port)
@@ -19,6 +18,10 @@ export class ServiceDefinition {
     @IsOptional()
     @IsString()
     path?: string; // HTTP only, e.g., "/api"
+
+    @IsOptional()
+    @IsString()
+    healthCheckPath?: string; // HTTP only, e.g., "/health"
 }
 
 /**

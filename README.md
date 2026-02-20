@@ -302,6 +302,23 @@ Refresh agent adapter files for the nearest branch.
 
 Scan repositories for service declarations and generate configuration with allocated ports.
 
+Service declarations are read from `.forge/services.json` in each repository. You can define an optional dedicated health endpoint per service:
+
+```json
+{
+  "services": [
+    {
+      "name": "api",
+      "type": "http",
+      "path": "/api",
+      "healthCheckPath": "/health"
+    }
+  ]
+}
+```
+
+If `healthCheckPath` is omitted, proxy health checks fallback to `path`, then `/`.
+
 ---
 
 ### `forge services list [branch]`

@@ -10,7 +10,7 @@ interface RouteStatus {
 
 async function checkHealth(target: string): Promise<boolean> {
     return new Promise((resolve) => {
-        const req = http.get(target, { timeout: 2000 }, (res) => {
+        const req = http.get(target, { timeout: 800 }, (res) => {
             res.resume();
             resolve(true);
         });
@@ -31,7 +31,7 @@ export async function handleDashboardRequest(
     const statuses: RouteStatus[] = [];
 
     const checks = Array.from(routingTable.entries()).map(async ([key, route]) => {
-        const healthy = await checkHealth(route.url);
+        const healthy = await checkHealth(route.healthCheckUrl);
         statuses.push({ key, route, healthy });
     });
     await Promise.all(checks);
@@ -49,7 +49,7 @@ export async function handleDashboardRequest(
 
     const rows = Array.from(grouped.entries())
         .map(([branchName, services]) => {
-            const header = `<tr class="branch-header"><td colspan="4"><strong>${branchName}</strong></td></tr>`;
+            const header = `<tr class="branch-header"><td colspan="5"><strong>${branchName}</strong></td></tr>`;
             const serviceRows = services
                 .map((s) => {
                     const statusBadge = s.healthy
@@ -59,6 +59,7 @@ export async function handleDashboardRequest(
                     <td>${s.route.serviceName}</td>
                     <td><a href="${s.route.proxyUrl}" target="_blank">${s.route.proxyUrl}</a></td>
                     <td><a href="${s.route.url}" target="_blank">${s.route.url}</a></td>
+                    <td><a href="${s.route.healthCheckUrl}" target="_blank">${s.route.healthCheckUrl}</a></td>
                     <td>${statusBadge}</td>
                 </tr>`;
                 })
@@ -88,8 +89,8 @@ export async function handleDashboardRequest(
 <h1>Feat-Forge Proxy Dashboard</h1>
 <p class="meta">${statuses.length} routes &middot; auto-refresh 30s &middot; proxy port ${proxyPort}</p>
 <table>
-<thead><tr><th>Service</th><th>Proxy URL</th><th>Target</th><th>Status</th></tr></thead>
-<tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:#64748b">No routes configured. Run <code>forge services scan</code> on active branches.</td></tr>'}</tbody>
+<thead><tr><th>Service</th><th>Proxy URL</th><th>Target</th><th>Health Check</th><th>Status</th></tr></thead>
+<tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:#64748b">No routes configured. Run <code>forge services scan</code> on active branches.</td></tr>'}</tbody>
 </table>
 </body></html>`;
 
