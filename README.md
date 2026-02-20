@@ -372,6 +372,10 @@ For all commands and options:
 forge --help
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and contribution workflow.
+
 # License
 
 [![License: AGPL-3.0](https://img.shields.io/npm/l/feat-forge)](./LICENSE)
