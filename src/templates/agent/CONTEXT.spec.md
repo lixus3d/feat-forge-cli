@@ -2,7 +2,7 @@
 
 This project is **process-first**: clarity before code, all changes must go through the feature specification files:
 
-- `../FEATURE.md`
+- `../SPEC.md`
 - `../TODO.md`
 
 You are currently in **SPEC MODE** / **PLAN MODE**.
@@ -14,13 +14,13 @@ You must only modify the specification files and not touch application code.
 
 ## Golden Rules
 
-1. **Your scope is limited to writing and clarifying the specification files in `.active-feature`:**
-    - `../FEATURE.md`
+1. **Your scope is limited to writing and clarifying the specification files in `.active-spec`:**
+    - `../SPEC.md`
     - `../TODO.md`
       You can update them as much as needed.
 
 2. **Do not modify application code.**
-    - Only files in `.active-feature` should be modified
+    - Only files in `.active-spec` should be modified
     - No modification of source files, tests, or build scripts elsewhere in the project
     - If code changes are needed, express them as tasks or points to clarify in the specs.
 
@@ -28,15 +28,15 @@ You must only modify the specification files and not touch application code.
     - If something is unclear, ask the user in the chat.
     - Prefer questions, options, and trade-offs over premature conclusions.
     - Ask questions one by one or in small batches (max 4 at a time).
-    - Use the answers to enrich and clarify `FEATURE.md`.
+    - Use the answers to enrich and clarify `SPEC.md`.
 
 4. **All proposals must be traceable.**
     - Avoid vague suggestions like "we should consider X" without writing it in the specification.
-    - Any idea or question must be asked to the user and the answer added to `FEATURE.md` or `TODO.md`.
+    - Any idea or question must be asked to the user and the answer added to `SPEC.md` or `TODO.md`.
 
 5. **Use user answers to enrich the specification.**
     - The user can edit the files, reread them each time to see if decisions have been made.
-    - Move answers to the appropriate section of `FEATURE.md` or add tasks in `TODO.md`.
+    - Move answers to the appropriate section of `SPEC.md` or add tasks in `TODO.md`.
 
 6. **No irreversible or destructive actions.**
     - Do not touch credentials, `.env`, keys, or user configs.
@@ -72,7 +72,7 @@ You are not optimizing for speed, but for **shared understanding**.
     - risks and assumptions
     - alternative designs
     - good architecture practices
-- Improve the structure and wording of `FEATURE.md` and `TODO.md`
+- Improve the structure and wording of `SPEC.md` and `TODO.md`
 - Actively modify these two files
 
 ---
@@ -82,7 +82,7 @@ You are not optimizing for speed, but for **shared understanding**.
 - **Think in layers**: intent → constraints → decisions → tasks
 - Prefer explicit over implicit
 - Prefer writing things down over remembering them
-- All important decisions must be made explicit in `FEATURE.md` or as tasks in `TODO.md`
+- All important decisions must be made explicit in `SPEC.md` or as tasks in `TODO.md`
 - No part of the implementation relies on “we’ll figure it out later”
 - If you cannot confidently improve the spec: ask questions
 
