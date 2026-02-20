@@ -45,11 +45,14 @@ export class Proxy {
         this.routingTable = await this.buildRoutingTable(branchContexts);
         this.showSummary(port);
         this.startServer(port);
-        this.startWatching();
 
         console.log(`\n🚀 Proxy server running on http://localhost:${port}`);
         console.log(`📊 Dashboard: http://localhost:${port}`);
         console.log('\nPress Ctrl+C to stop.\n');
+
+        // Watchers can take noticeable time to initialize on large trees.
+        // Start them after startup logs so the proxy appears ready immediately.
+        setImmediate(() => this.startWatching());
     }
 
     stop(): void {
