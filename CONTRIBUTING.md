@@ -51,6 +51,18 @@ Check formatting:
 pnpm format:check
 ```
 
+Run lint checks:
+
+```bash
+pnpm lint
+```
+
+Run lint fix command:
+
+```bash
+pnpm lint:fix
+```
+
 Regenerate typed errors:
 
 ```bash
@@ -61,5 +73,5 @@ pnpm generate:errors
 
 - Keep changes focused and small when possible.
 - Add or update tests when behavior changes.
-- Ensure `pnpm test` and `pnpm build` pass before opening a PR.
+- Ensure `pnpm format:check`, `pnpm lint`, `pnpm test`, and `pnpm build` pass before opening a PR.
 - Test locally with `pnpm link` or `npm link` if your changes affect the CLI behavior.
