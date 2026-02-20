@@ -4,7 +4,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 describe('ForgeConfigFile', () => {
-    it('should work correctly with class-validator and class-transformer', () => {
+    it('should work correctly with class-validator and class-transformer', async () => {
         const validConfigObject: ForgeConfigFile = {
             repositories: ['repo1', 'repo2'],
             ides: ['VSCode', { name: IDEName.VSCODE, openCommand: 'webstorm' }],
@@ -28,6 +28,6 @@ describe('ForgeConfigFile', () => {
         };
         const forgeConfigFile = plainToInstance(ForgeConfigFile, validConfigObject);
         expect(forgeConfigFile).toBeInstanceOf(ForgeConfigFile);
-        expect(validate(forgeConfigFile)).resolves.not.toThrow();
+        await expect(validate(forgeConfigFile)).resolves.not.toThrow();
     });
 });
