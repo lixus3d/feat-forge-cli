@@ -25,6 +25,31 @@ import { ProxyCommands } from './commands/ProxyCommands';
 // @ts-ignore
 import packageJson from '../package.json' with { type: 'json' };
 
+type InitCommandOptions = {
+    yes?: boolean;
+    force?: boolean;
+    nonInteractive?: boolean;
+    quiet?: boolean;
+    path?: string;
+    rootDir?: string;
+    repositories?: string;
+    agents?: string;
+    ides?: string;
+};
+
+type RewriteAgentFilesOptions = {
+    dryRun?: boolean;
+    commit?: boolean;
+};
+
+type ServicesListOptions = {
+    json?: boolean;
+};
+
+type ProxyCommandOptions = {
+    port?: string;
+};
+
 /**
  * Register the init command on the main CLI program.
  */
@@ -42,7 +67,7 @@ function registerInitCommands(program: Command): void {
         .option('--repositories <paths>', 'Repository paths (comma-separated or JSON array)')
         .option('--agents <names>', 'Agent names (comma-separated or JSON array)')
         .option('--ides <names>', 'IDE names (comma-separated or JSON array)')
-        .action(async (options: any) => {
+        .action(async (options: InitCommandOptions) => {
             await handlers.init({
                 yes: options.yes,
                 force: options.force,
@@ -208,7 +233,7 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
         .description('Rewrite all agent template files from built-in templates (overwrite)')
         .option('--dry-run', 'Simulate changes without writing files')
         .option('--commit', 'Commit changes if files are written')
-        .action(async (slug: string, opts: any) => {
+        .action(async (slug: string, opts: RewriteAgentFilesOptions) => {
             await handlers.installAgentTemplateLocally({ dryRun: opts.dryRun, commit: opts.commit });
         });
 }
@@ -231,7 +256,7 @@ function registerServicesCommands(program: Command, context: ForgeContext): void
         .option('--json', 'Output as JSON')
         .argument('[branch-name]', 'Optional branch name (defaults to current branch)')
         .description('List discovered services with their allocated ports')
-        .action((branch: string | undefined, options: any) => {
+        .action((branch: string | undefined, options: ServicesListOptions) => {
             const format = options.json ? 'json' : 'default';
             handlers.list(format);
         });
@@ -264,7 +289,7 @@ function registerProxyCommands(program: Command, context: ForgeContext): void {
         .command('proxy')
         .description('Start a reverse-proxy server routing branches via subdomains')
         .option('--port <port>', 'Override proxy port')
-        .action(async (options: any) => {
+        .action(async (options: ProxyCommandOptions) => {
             await handlers.start(options);
         });
 }
