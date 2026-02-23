@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.3...v1.1.0) (2026-02-18)
+
+
+### Features
+
+* **alias:** add missing alias to all shell ([efdc103](https://github.com/lixus3d/feat-forge-cli/commit/efdc1039754e80ba438d1756619f155d7553f7d1))
+* **commands:** add path command to allow quick "cd" to a branch folder ([7a1f3cd](https://github.com/lixus3d/feat-forge-cli/commit/7a1f3cd163123430f065d082902a2ccc903a0173))
+
+
+### Bug Fixes
+
+* **completion:** overhaul shell completion with proper branch listing and missing commands ([02937e3](https://github.com/lixus3d/feat-forge-cli/commit/02937e31fbbb798b47ead67f580c303076c88d63))
+
 ## [1.0.3](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.2...v1.0.3) (2026-02-14)
 
 
