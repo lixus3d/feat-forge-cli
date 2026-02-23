@@ -46,11 +46,3 @@ jobs:
       - id: pack
         run: echo "tarball=$(npm pack)" >> $GITHUB_OUTPUT
       - run: NODE_AUTH_TOKEN="" npm publish
-      - name: Upload Release Artifact
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ needs.release-please.outputs.tag_name }} ${{ steps.pack.outputs.tarball }}
-      - name: Publish Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit ${{ needs.release-please.outputs.tag_name }} --draft=false
