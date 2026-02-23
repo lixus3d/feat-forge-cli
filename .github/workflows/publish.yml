@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  create:
+  release:
+    types:
+      - published
 
 permissions:
   id-token: write # Required for OIDC
@@ -11,9 +15,13 @@ permissions:
 
 jobs:
   publish:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'create' && github.event.ref_type == 'tag') || (github.event_name == 'release' && github.event.action == 'published') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code (tag or ref)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
