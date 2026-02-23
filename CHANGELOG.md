@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.4](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.3...v1.2.4) (2026-02-23)
+
+
+### Bug Fixes
+
+* try to fix release immutable state for artifact upload ([4ae3159](https://github.com/lixus3d/feat-forge-cli/commit/4ae31594c28dbc028f0d94b74e89dcbf7b3082c9))
+* try to fix release immutable state for artifact upload ([711f2ef](https://github.com/lixus3d/feat-forge-cli/commit/711f2ef383175d2f382049119aabc8fea0ec91ee))
+
 ## [1.2.3](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.2...v1.2.3) (2026-02-23)
 
 
