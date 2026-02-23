@@ -3,9 +3,7 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "changelog-type": "default",
-      "draft": true,
-      "force-tag-creation": true
+      "changelog-type": "default"
     }
   }
 }
