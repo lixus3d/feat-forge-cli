@@ -128,6 +128,20 @@ describe('BranchPortAllocation', () => {
             expect(allocation.getServices()).toHaveLength(1);
         });
 
+        it('should keep existing port and refresh service metadata', () => {
+            const allocation = new BranchPortAllocation('main', 3000, 3099);
+
+            allocation.allocatePort(createService('backend', 'http', '/api'));
+            const port = allocation.allocatePort({
+                ...createService('backend', 'http', '/api'),
+                healthCheckPath: '/health',
+            } as ServiceDefinition);
+
+            expect(port).toBe(3000);
+            expect(allocation.getService('backend')?.port).toBe(3000);
+            expect((allocation.getService('backend') as any)?.healthCheckPath).toBe('/health');
+        });
+
         it('should allocate sequential ports for multiple services', () => {
             const allocation = new BranchPortAllocation('main', 3000, 3099);
 

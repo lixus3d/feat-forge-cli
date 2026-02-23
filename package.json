@@ -49,6 +49,8 @@
     "build:permissions": "chmod +x dist/cli.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "lint:fix": "pnpm lint",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",

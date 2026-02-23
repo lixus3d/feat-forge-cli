@@ -4,8 +4,8 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
 
 ## Golden Rules (must follow)
 
-1. **Read the feature spec files first (in this order), they are in the .active-feature folder:**
-    - `../FEATURE.md`
+1. **Read the feature spec files first (in this order), they are in the .active-spec folder:**
+    - `../SPEC.md`
     - `../TODO.md`
 
 2. **Do not implement code blindly.**
@@ -26,7 +26,7 @@ This project is **process-first**: changes must be deliberate, reviewable, and v
 
 5. **Always keep the spec in sync.**
     - If you implement something, update `TODO.md` (checklist / status).
-    - If you make a design choice, record it in a sub section in `FEATURE.md`.
+    - If you make a design choice, record it in a sub section in `SPEC.md`.
 
 6. **No secrets / no destructive actions.**
     - Don’t touch credentials, `.env`, keys, or user-specific configs.
@@ -39,7 +39,7 @@ Protect your context window, use subagent to protecte it
 1. **Read specifications**
 
 - Use a subagent **TODO Reader** to read the specifications files and extract actionable tasks, clarifying and prioritizing them as needed :
-    - `../FEATURE.md`
+    - `../SPEC.md`
     - `../TODO.md`
 - Use it to define clear independant code tasks
 
@@ -62,11 +62,11 @@ Protect your context window, use subagent to protecte it
 
 Its a TODO Reader agent for the current feature.
 
-His job is to extract, clarify, and prioritize actionable tasks from `TODO.md`, based on concepts in `FEATURE.md`. Specs files are here : - `../FEATURE.md` - `../TODO.md`
+His job is to extract, clarify, and prioritize actionable tasks from `TODO.md`, based on concepts in `SPEC.md`. Specs files are here : - `../SPEC.md` - `../TODO.md`
 
 #### Responsibilities
 
-- Read and understand the feature specification in `FEATURE.md`.
+- Read and understand the feature specification in `SPEC.md`.
 - Read and understand every item in `TODO.md`.
 - Clarify ambiguities by asking questions if needed.
 - Output a clear, actionable list of tasks for implementation by other agents, ensuring each task is specific, measurable, and feasible.
@@ -138,7 +138,7 @@ A step is “done” only if:
 - The changes are implemented
 - `TODO.md` is updated accordingly
 - Verification steps are provided (and ideally runnable)
-- Any new major design choice is recorded in `FEATURE.md`
+- Any new major design choice is recorded in `SPEC.md`
 
 ## If something is missing
 

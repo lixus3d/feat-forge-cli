@@ -226,22 +226,18 @@ try{
         const maintenanceCommands = data.maintenanceCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
         const agentCommands = data.agentCmd?.subcommands.map((cmd) => cmd.name).join(' ') || '';
 
-        const featureSlugCmds = data.featureCmd?.subcommands
-            .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-            .map((cmd) => cmd.name) || [];
-        const fixSlugCmds = data.fixCmd?.subcommands
-            .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-            .map((cmd) => cmd.name) || [];
-        const releaseSlugCmds = data.releaseCmd?.subcommands
-            .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-            .map((cmd) => cmd.name) || [];
+        const featureSlugCmds =
+            data.featureCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const fixSlugCmds =
+            data.fixCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const releaseSlugCmds =
+            data.releaseCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
 
-        const mainSlugCmds = data.mainCommands
-            .filter((cmd) => data.rootSlugCommands.includes(cmd.name))
-            .map((cmd) => cmd.name);
+        const mainSlugCmds = data.mainCommands.filter((cmd) => data.rootSlugCommands.includes(cmd.name)).map((cmd) => cmd.name);
 
-        const featureSlugCase = featureSlugCmds.length > 0
-            ? `                ${featureSlugCmds.join('|')})
+        const featureSlugCase =
+            featureSlugCmds.length > 0
+                ? `                ${featureSlugCmds.join('|')})
                     if [[ \${cword} -eq 3 ]]; then
                         local slugs="\$(_forge_feature_slugs)"
                         COMPREPLY=( \$(compgen -W "\${slugs}" -- "\${cur}") )
@@ -249,10 +245,11 @@ try{
                     fi
                     ;;
 `
-            : '';
+                : '';
 
-        const fixSlugCase = fixSlugCmds.length > 0
-            ? `                ${fixSlugCmds.join('|')})
+        const fixSlugCase =
+            fixSlugCmds.length > 0
+                ? `                ${fixSlugCmds.join('|')})
                     if [[ \${cword} -eq 3 ]]; then
                         local slugs="\$(_forge_fix_slugs)"
                         COMPREPLY=( \$(compgen -W "\${slugs}" -- "\${cur}") )
@@ -260,10 +257,11 @@ try{
                     fi
                     ;;
 `
-            : '';
+                : '';
 
-        const releaseSlugCase = releaseSlugCmds.length > 0
-            ? `                ${releaseSlugCmds.join('|')})
+        const releaseSlugCase =
+            releaseSlugCmds.length > 0
+                ? `                ${releaseSlugCmds.join('|')})
                     if [[ \${cword} -eq 3 ]]; then
                         local slugs="\$(_forge_release_slugs)"
                         COMPREPLY=( \$(compgen -W "\${slugs}" -- "\${cur}") )
@@ -271,10 +269,11 @@ try{
                     fi
                     ;;
 `
-            : '';
+                : '';
 
-        const mainSlugCase = mainSlugCmds.length > 0
-            ? `        ${mainSlugCmds.join('|')})
+        const mainSlugCase =
+            mainSlugCmds.length > 0
+                ? `        ${mainSlugCmds.join('|')})
             if [[ \${cword} -eq 2 ]]; then
                 local branches="\$(_forge_all_branches)"
                 COMPREPLY=( \$(compgen -W "\${branches}" -- "\${cur}") )
@@ -282,7 +281,7 @@ try{
             fi
             ;;
 `
-            : '';
+                : '';
 
         return `# forge bash completion script
 
@@ -523,7 +522,9 @@ complete -F _forge_completion forge
     private generateZshCompletion(): string {
         const data = this.getCompletionData();
 
-        const commandsArray = data.mainCommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n');
+        const commandsArray = data.mainCommands
+            .map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`)
+            .join('\n');
 
         const featureArray =
             data.featureCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
@@ -532,62 +533,63 @@ complete -F _forge_completion forge
         const releaseArray =
             data.releaseCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
         const servicesArray =
-            data.servicesCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
+            data.servicesCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') ||
+            '';
         const envArray =
             data.envCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
         const maintenanceArray =
-            data.maintenanceCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
+            data.maintenanceCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') ||
+            '';
         const agentArray =
             data.agentCmd?.subcommands.map((cmd) => `        '${cmd.name}:${cmd.description.replace(/'/g, "''")}'`).join('\n') || '';
 
-        const featureSlugCmds = data.featureCmd?.subcommands
-            .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-            .map((cmd) => cmd.name) || [];
-        const fixSlugCmds = data.fixCmd?.subcommands
-            .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-            .map((cmd) => cmd.name) || [];
-        const releaseSlugCmds = data.releaseCmd?.subcommands
-            .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-            .map((cmd) => cmd.name) || [];
-        const mainSlugCmds = data.mainCommands
-            .filter((cmd) => data.rootSlugCommands.includes(cmd.name))
-            .map((cmd) => cmd.name);
+        const featureSlugCmds =
+            data.featureCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const fixSlugCmds =
+            data.fixCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const releaseSlugCmds =
+            data.releaseCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [];
+        const mainSlugCmds = data.mainCommands.filter((cmd) => data.rootSlugCommands.includes(cmd.name)).map((cmd) => cmd.name);
 
-        const featureSlugCase = featureSlugCmds.length > 0
-            ? `                        ${featureSlugCmds.join('|')})
+        const featureSlugCase =
+            featureSlugCmds.length > 0
+                ? `                        ${featureSlugCmds.join('|')})
                             local -a slugs
                             slugs=(\${(f)"\$(_forge_feature_slugs)"})
                             _describe 'feature slug' slugs
                             ;;
 `
-            : '';
+                : '';
 
-        const fixSlugCase = fixSlugCmds.length > 0
-            ? `                        ${fixSlugCmds.join('|')})
+        const fixSlugCase =
+            fixSlugCmds.length > 0
+                ? `                        ${fixSlugCmds.join('|')})
                             local -a slugs
                             slugs=(\${(f)"\$(_forge_fix_slugs)"})
                             _describe 'fix slug' slugs
                             ;;
 `
-            : '';
+                : '';
 
-        const releaseSlugCase = releaseSlugCmds.length > 0
-            ? `                        ${releaseSlugCmds.join('|')})
+        const releaseSlugCase =
+            releaseSlugCmds.length > 0
+                ? `                        ${releaseSlugCmds.join('|')})
                             local -a slugs
                             slugs=(\${(f)"\$(_forge_release_slugs)"})
                             _describe 'release slug' slugs
                             ;;
 `
-            : '';
+                : '';
 
-        const mainSlugCase = mainSlugCmds.length > 0
-            ? `                ${mainSlugCmds.join('|')})
+        const mainSlugCase =
+            mainSlugCmds.length > 0
+                ? `                ${mainSlugCmds.join('|')})
                     local -a branches
                     branches=(\${(f)"\$(_forge_all_branches)"})
                     _describe 'branch name' branches
                     ;;
 `
-            : '';
+                : '';
 
         return `#compdef forge
 # forge zsh completion script
@@ -878,16 +880,19 @@ compdef _forge forge
         const releaseSlugCompletions = genSlugCompletions('release', data.releaseCmd, '__forge_release_slugs');
 
         // Root-level slug commands
-        const mainSlugCmds = data.mainCommands
-            .filter((cmd) => data.rootSlugCommands.includes(cmd.name));
+        const mainSlugCmds = data.mainCommands.filter((cmd) => data.rootSlugCommands.includes(cmd.name));
         const mainSlugCompletions = mainSlugCmds
             .map((cmd) => `complete -c forge -n "__fish_seen_subcommand_from ${cmd.name}" -a "(__forge_all_branches)"`)
             .join('\n');
 
         // Maintenance slug completion at position 3
-        const maintenanceSlugCompletion = data.maintenanceCmd?.subcommands
-            .map((c) => `complete -c forge -n "__fish_seen_subcommand_from maintenance; and __fish_seen_subcommand_from ${c.name}" -a "(__forge_all_branches)"`)
-            .join('\n') || '';
+        const maintenanceSlugCompletion =
+            data.maintenanceCmd?.subcommands
+                .map(
+                    (c) =>
+                        `complete -c forge -n "__fish_seen_subcommand_from maintenance; and __fish_seen_subcommand_from ${c.name}" -a "(__forge_all_branches)"`,
+                )
+                .join('\n') || '';
 
         return `# forge fish completion script
 
@@ -1095,24 +1100,16 @@ complete -c forge -n "__fish_seen_subcommand_from alias" -a pwsh -d "Generate Po
         const agentCommandsList = toPsArray(data.agentCmd?.subcommands.map((cmd) => cmd.name) || []);
 
         const featureSlugCommandsList = toPsArray(
-            data.featureCmd?.subcommands
-                .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-                .map((cmd) => cmd.name) || [],
+            data.featureCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [],
         );
         const fixSlugCommandsList = toPsArray(
-            data.fixCmd?.subcommands
-                .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-                .map((cmd) => cmd.name) || [],
+            data.fixCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [],
         );
         const releaseSlugCommandsList = toPsArray(
-            data.releaseCmd?.subcommands
-                .filter((cmd) => data.slugSubcommands.includes(cmd.name))
-                .map((cmd) => cmd.name) || [],
+            data.releaseCmd?.subcommands.filter((cmd) => data.slugSubcommands.includes(cmd.name)).map((cmd) => cmd.name) || [],
         );
         const mainSlugCommandsList = toPsArray(
-            data.mainCommands
-                .filter((cmd) => data.rootSlugCommands.includes(cmd.name))
-                .map((cmd) => cmd.name),
+            data.mainCommands.filter((cmd) => data.rootSlugCommands.includes(cmd.name)).map((cmd) => cmd.name),
         );
         const completionShellsList = toPsArray(['bash', 'zsh', 'fish', 'powershell', 'pwsh']);
 

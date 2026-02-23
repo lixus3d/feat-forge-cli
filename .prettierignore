@@ -1,4 +1,9 @@
 pnpm-lock.yaml
 dist/
 node_modules/
+.specs/
+.claude/
 *.log
+CHANGELOG.md
+README.md
+LICENSE

@@ -12,6 +12,7 @@ export interface RouteEntry {
     serviceName: string;
     url: string;
     proxyUrl: string;
+    healthCheckUrl: string;
 }
 
 export type RoutingTable = Map<string, RouteEntry>;
@@ -44,11 +45,14 @@ export class Proxy {
         this.routingTable = await this.buildRoutingTable(branchContexts);
         this.showSummary(port);
         this.startServer(port);
-        this.startWatching();
 
         console.log(`\n🚀 Proxy server running on http://localhost:${port}`);
         console.log(`📊 Dashboard: http://localhost:${port}`);
         console.log('\nPress Ctrl+C to stop.\n');
+
+        // Watchers can take noticeable time to initialize on large trees.
+        // Start them after startup logs so the proxy appears ready immediately.
+        setImmediate(() => this.startWatching());
     }
 
     stop(): void {
@@ -68,12 +72,13 @@ export class Proxy {
             try {
                 const generated = await loadGeneratedServicesFile(branchContext);
                 for (const service of generated.services) {
-                    const { proxyUrl, url, key, name } = getServiceOutputs(this.context, branchContext, service);
+                    const { proxyUrl, url, key, name, healthCheckUrl } = getServiceOutputs(this.context, branchContext, service);
                     table.set(key, {
                         branchName: branchContext.branchName,
                         serviceName: name,
                         url,
                         proxyUrl,
+                        healthCheckUrl,
                     });
                 }
             } catch {

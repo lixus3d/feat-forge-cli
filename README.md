@@ -10,11 +10,11 @@
 
 Its goal is to make the specification of features explicit and separate the thinking/specifying phase from the coding/implementation phase, across multiple agents and repositories, while keeping everything organized and traceable.
 
-With **FeatForge** you will be able to :
+With **FeatForge** you will be able to:
 
 - Parallelize work on multiple features:
     - across multiple repositories.
-    - accross multiple agents.
+    - across multiple agents.
     - while keeping track of everything.
 - Come back to any feature after days/weeks and immediately understand its initial specifications.
 - Change agent configurations and prompts on a per-feature basis.
@@ -26,7 +26,7 @@ With **FeatForge** you will be able to :
 - Not opinionated about how you specify features, how you implement them, or how you use agents. It just provides a structure (yet customizable) and a workflow to keep everything organized and traceable.
 - Partially tested with : Copilot, Codex, Claude code (+Ollama, LM-Studio). But it should work with any agent that can be configured to read/write files in the `.active-spec` folders.
 
-**_This is an expirement, trying to mix between classic development and vibe-coding in large project with quality and sustainability in mind by making specification explicit and separating thinking from coding accross multiple agents and repositories._**
+**_This is an experiment, trying to mix between classic development and vibe-coding in large project with quality and sustainability in mind by making specification explicit and separating thinking from coding across multiple agents and repositories._**
 
 ## Key Concepts
 
@@ -43,7 +43,7 @@ With **FeatForge** you will be able to :
 ## Installation
 
 ```bash
-npm install -g feat-forge-cli
+npm install -g feat-forge
 forge --version
 ```
 
@@ -116,7 +116,7 @@ forge-project-root/
 ## Modes
 
 Each branch has a mode stored in `.specs/<slug>/.forge-mode`. Switching modes updates agent adapter files with the corresponding templates.
-Agent name are useful when calling subagent
+Agent names are useful when calling subagents.
 
 Built-in modes:
 
@@ -302,6 +302,23 @@ Refresh agent adapter files for the nearest branch.
 
 Scan repositories for service declarations and generate configuration with allocated ports.
 
+Service declarations are read from `.forge/services.json` in each repository. You can define an optional dedicated health endpoint per service:
+
+```json
+{
+  "services": [
+    {
+      "name": "api",
+      "type": "http",
+      "path": "/api",
+      "healthCheckPath": "/health"
+    }
+  ]
+}
+```
+
+If `healthCheckPath` is omitted, proxy health checks fallback to `path`, then `/`.
+
 ---
 
 ### `forge services list [branch]`
@@ -354,6 +371,10 @@ For all commands and options:
 ```bash
 forge --help
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and contribution workflow.
 
 # License
 

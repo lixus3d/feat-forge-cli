@@ -18,6 +18,7 @@ describe('Services Types', () => {
                 name: 'backend',
                 type: 'http',
                 path: '/api',
+                healthCheckPath: '/health',
             };
 
             const service = plainToInstance(ServiceDefinition, data);
@@ -27,6 +28,7 @@ describe('Services Types', () => {
             expect(service.name).toBe('backend');
             expect(service.type).toBe('http');
             expect(service.path).toBe('/api');
+            expect(service.healthCheckPath).toBe('/health');
         });
 
         it('should reject invalid service type', async () => {
@@ -52,6 +54,20 @@ describe('Services Types', () => {
             const errors = await validate(service);
 
             expect(errors).toHaveLength(0);
+        });
+
+        it('should allow service with healthCheckPath only', async () => {
+            const data = {
+                name: 'backend',
+                type: 'http',
+                healthCheckPath: '/health',
+            };
+
+            const service = plainToInstance(ServiceDefinition, data);
+            const errors = await validate(service);
+
+            expect(errors).toHaveLength(0);
+            expect(service.healthCheckPath).toBe('/health');
         });
 
         it('should default type to http', () => {

@@ -152,6 +152,7 @@ export function getServiceOutputs(forgeContext: ForgeContext, branchContext: Bra
     const urlSlug = slugify(service.name, false);
     const branchSlug = branchContext.branchNameSlug;
     const proxyPort = forgeContext.options.proxy.port;
+    const healthCheckPath = service.healthCheckPath || service.path || '/';
     return {
         ...service,
         branchSlug,
@@ -161,5 +162,6 @@ export function getServiceOutputs(forgeContext: ForgeContext, branchContext: Bra
         urlSlug: urlSlug,
         url: `${service.type}://localhost:${service.port}${service.path || ''}`,
         proxyUrl: `${service.type}://${branchSlug}.${urlSlug}.localhost:${proxyPort}${service.path || ''}`,
+        healthCheckUrl: `${service.type}://localhost:${service.port}${healthCheckPath}`,
     };
 }
