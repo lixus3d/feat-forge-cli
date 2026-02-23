@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.1...v1.2.2) (2026-02-23)
+
+
+### Bug Fixes
+
+* try to correctly subscribe to tag events ([176b574](https://github.com/lixus3d/feat-forge-cli/commit/176b5745217e911191e4db537ab84248c8dca62e))
+* try to correctly subscribe to tag events ([4daa62d](https://github.com/lixus3d/feat-forge-cli/commit/4daa62d2d44cfd05c3d243bf5b7cd3b631a409fc))
+
 ## [1.2.1](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.0...v1.2.1) (2026-02-23)
 
 
