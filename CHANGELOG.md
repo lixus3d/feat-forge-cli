@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.1.0...v1.2.0) (2026-02-23)
+
+
+### Features
+
+* **proxy:** add a healthCheckPath option to services definition ([16fbd09](https://github.com/lixus3d/feat-forge-cli/commit/16fbd098c7ef4f9ea1a88315a7e3ff1e8e792d55))
+
+
+### Bug Fixes
+
+* **proxy:** render dashboard instantly, run client-side health polling, and defer watcher init ([5379206](https://github.com/lixus3d/feat-forge-cli/commit/53792065887764cac7a6510c1e437104af330309))
+
 ## [1.1.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.0.3...v1.1.0) (2026-02-18)
 
 
