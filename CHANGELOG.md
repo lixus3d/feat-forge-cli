@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.5](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.4...v1.2.5) (2026-02-23)
+
+
+### Bug Fixes
+
+* release-please config duplicated ([5d35d82](https://github.com/lixus3d/feat-forge-cli/commit/5d35d82647732f9fe06b5e833098e865cdbb4a4d))
+* release-please config duplicated ([7d3bdca](https://github.com/lixus3d/feat-forge-cli/commit/7d3bdca5ea5f8aebcfbc3ee70f94e73d0a43decd))
+
 ## [1.2.4](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.3...v1.2.4) (2026-02-23)
 
 
