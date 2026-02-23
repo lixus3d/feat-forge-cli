@@ -28,7 +28,7 @@ jobs:
     environment: production
     permissions:
       id-token: write # Required for OIDC
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node 22 for build
@@ -43,4 +43,10 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+      - id: pack
+        run: echo "tarball=$(npm pack)" >> $GITHUB_OUTPUT
       - run: NODE_AUTH_TOKEN="" npm publish
+      - name: Upload Release Artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} ${{ steps.pack.outputs.tarball }}
