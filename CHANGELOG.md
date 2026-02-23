@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.3](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.2...v1.2.3) (2026-02-23)
+
+
+### Bug Fixes
+
+* add release artifact upload ([f611a3d](https://github.com/lixus3d/feat-forge-cli/commit/f611a3d35b8bf7316f82b836ad3814dad585a936))
+* reverting to previous release-please publish logic ([4e6d8b2](https://github.com/lixus3d/feat-forge-cli/commit/4e6d8b2be3613bbd91f97a86a21629da36c2e713))
+
 ## [1.2.2](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.1...v1.2.2) (2026-02-23)
 
 

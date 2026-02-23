@@ -1,6 +1,6 @@
 {
   "name": "feat-forge",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Feature-first CLI workflow tool for building software at scale with AI agents. Organize specs, parallelize work across repos and agents, and switch contexts without losing track.",
   "license": "AGPL-3.0-only",
   "type": "module",
