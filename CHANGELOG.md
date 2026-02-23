@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.0...v1.2.1) (2026-02-23)
+
+
+### Bug Fixes
+
+* use recommended npm ci publish config ([fa06362](https://github.com/lixus3d/feat-forge-cli/commit/fa06362bc5ddcd6fe8915fd87236bd1dae3dc82c))
+* use recommended npm ci publish config ([f2baed0](https://github.com/lixus3d/feat-forge-cli/commit/f2baed0fe7257ac50501f121e0ae9545a45b0727))
+
 ## [1.2.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.1.0...v1.2.0) (2026-02-23)
 
 
