@@ -1,7 +1,5 @@
-import { FEAT_FORGE_GENERATED_SERVICES_FILE } from '@/lib/constants';
 import { handleDashboardRequest } from '@/lib/proxy-dashboard';
 import { getServiceOutputs, loadGeneratedServicesFile } from '@/lib/services';
-import fs from 'fs';
 import { createServer, Server, ServerResponse } from 'http';
 import { createProxyServer } from 'http-proxy-3';
 import { BranchContext } from './BranchContext';
@@ -17,10 +15,12 @@ export interface RouteEntry {
 
 export type RoutingTable = Map<string, RouteEntry>;
 
+const AUTO_REFRESH_INTERVAL_MS = 60_000;
+
 export class Proxy {
     private server: Server | null = null;
     private routingTable: RoutingTable = new Map();
-    private stopWatching: (() => void) | null = null;
+    private teardowns: Array<() => void> = [];
 
     constructor(private readonly context: ForgeContext) {}
 
@@ -48,16 +48,15 @@ export class Proxy {
 
         console.log(`\n🚀 Proxy server running on http://localhost:${port}`);
         console.log(`📊 Dashboard: http://localhost:${port}`);
-        console.log('\nPress Ctrl+C to stop.\n');
+        console.log(`\nAuto-refresh every ${AUTO_REFRESH_INTERVAL_MS / 1000}s. Press "r" to refresh now, Ctrl+C to stop.\n`);
 
-        // Watchers can take noticeable time to initialize on large trees.
-        // Start them after startup logs so the proxy appears ready immediately.
-        setImmediate(() => this.startWatching());
+        this.startAutoRefresh();
+        this.startKeypressListener();
     }
 
     stop(): void {
-        this.stopWatching?.();
-        this.stopWatching = null;
+        this.teardowns.forEach((fn) => fn());
+        this.teardowns = [];
 
         if (this.server) {
             this.server.close();
@@ -145,42 +144,53 @@ export class Proxy {
         this.server.listen(port);
     }
 
-    private startWatching(): void {
-        const watchers: fs.FSWatcher[] = [];
-        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-        const rebuild = async () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(async () => {
-                try {
-                    const branchContexts = await this.context.loadActiveBranchesContexts();
-                    this.routingTable = await this.buildRoutingTable(branchContexts);
-                    console.log(`\n🔄 Routing table reloaded (${this.routingTable.size} routes)`);
-                } catch (err) {
-                    console.error('⚠️  Failed to reload routing table:', err);
-                }
-            }, 500);
-        };
-
-        const worktreesRoot = this.context.paths.worktreesRoot;
-        if (fs.existsSync(worktreesRoot)) {
-            try {
-                const watcher = fs.watch(worktreesRoot, { recursive: true }, (event, filename) => {
-                    if (filename && filename.endsWith(FEAT_FORGE_GENERATED_SERVICES_FILE)) {
-                        rebuild();
-                    }
-                });
-                watchers.push(watcher);
-            } catch {
-                const watcher = fs.watch(worktreesRoot, () => rebuild());
-                watchers.push(watcher);
+    private async rebuild(verbose: boolean = false): Promise<void> {
+        try {
+            const branchContexts = await this.context.loadActiveBranchesContexts();
+            this.routingTable = await this.buildRoutingTable(branchContexts);
+            if (verbose) {
+                console.log(`\n🔄 Routing table reloaded (${this.routingTable.size} routes)`);
             }
+        } catch (err) {
+            console.error('⚠️  Failed to reload routing table:', err);
         }
+    }
 
-        this.stopWatching = () => {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            watchers.forEach((w) => w.close());
+    private startAutoRefresh(): void {
+        const timer = setInterval(() => this.rebuild(), AUTO_REFRESH_INTERVAL_MS);
+        // Allow Node to exit even if the interval is still pending
+        timer.unref();
+        this.teardowns.push(() => clearInterval(timer));
+    }
+
+    private startKeypressListener(): void {
+        if (!process.stdin.isTTY) return;
+
+        process.stdin.setRawMode(true);
+        process.stdin.resume();
+        process.stdin.setEncoding('utf8');
+
+        const onData = (key: string) => {
+            if (key === '\x03') {
+                // Ctrl+C in raw mode doesn't send SIGINT — emit it manually
+                process.emit('SIGINT');
+                return;
+            }
+            if (key === 'r' || key === 'R') {
+                console.log('\n🔄 Manual refresh triggered...');
+                this.rebuild(true);
+            }
         };
+
+        process.stdin.on('data', onData);
+
+        this.teardowns.push(() => {
+            process.stdin.off('data', onData);
+            if (process.stdin.isTTY) {
+                process.stdin.setRawMode(false);
+            }
+            process.stdin.pause();
+        });
     }
 
     private showSummary(port: number): void {
