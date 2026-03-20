@@ -1,5 +1,4 @@
 import { ForgePortAllocationsLoadError, ForgePortRangeExhaustedError } from '@/foundation/errors';
-import { RepoName } from '@/foundation/types/RepositoryInfos';
 import {
     BranchPortAllocationDTO,
     PortAllocatorDTO,
@@ -7,9 +6,10 @@ import {
     ServiceDefinition,
     ServiceDefinitionWithPort,
 } from '@/foundation/types/Services';
-import { pathExists, readJSONFile, writeTextFile } from '@/lib/fs';
+import { ensureDir, pathExists, readJSONFile, writeTextFile } from '@/lib/fs';
 import { Type } from 'class-transformer';
-import { IsArray, IsNotEmpty, IsNumber, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { IsArray, ValidateNested } from 'class-validator';
+import { rename } from 'fs/promises';
 import path from 'path';
 import { ForgeContext } from './ForgeContext';
 
@@ -146,25 +146,41 @@ export class PortAllocator {
      */
     static async load(forgeContext: ForgeContext): Promise<PortAllocator> {
         const portAllocationFilePath = this.getPortAllocationsFilePath(forgeContext);
+        const legacyPortAllocationFilePath = this.getLegacyPortAllocationsFilePath(forgeContext);
 
         let allocations: BranchPortAllocation[] = [];
+        if (!(await pathExists(portAllocationFilePath)) && (await pathExists(legacyPortAllocationFilePath))) {
+            try {
+                await ensureDir(path.dirname(portAllocationFilePath));
+                await rename(legacyPortAllocationFilePath, portAllocationFilePath);
+            } catch (error: any) {
+                throw new ForgePortAllocationsLoadError(
+                    `Failed to migrate legacy port allocations file to "${portAllocationFilePath}": ${error.message}`,
+                );
+            }
+        }
 
         if (await pathExists(portAllocationFilePath)) {
             try {
                 const portAllocationFile = await readJSONFile(PortAllocatorDTO, portAllocationFilePath);
                 allocations = portAllocationFile.allocations.map(BranchPortAllocation.load);
-            } catch (error) {
-                if (error instanceof Error) {
-                    throw new ForgePortAllocationsLoadError(error.message);
-                }
-                throw error;
+            } catch (error: any) {
+                throw new ForgePortAllocationsLoadError(error.message);
             }
         }
+
+        const activeBranches = await forgeContext.loadActiveBranchesContexts();
+        const activeBranchNames = new Set(activeBranches.map((branch) => branch.branchName));
+        allocations = allocations.filter((allocation) => activeBranchNames.has(allocation.name));
 
         return new PortAllocator(forgeContext, allocations);
     }
 
     static getPortAllocationsFilePath(forgeContext: ForgeContext): string {
+        return path.join(forgeContext.paths.featForgeConfigRoot, PORT_ALLOCATIONS_FILE);
+    }
+
+    static getLegacyPortAllocationsFilePath(forgeContext: ForgeContext): string {
         return forgeContext.paths.getPathInRoot(PORT_ALLOCATIONS_FILE);
     }
 
@@ -204,13 +220,27 @@ export class PortAllocator {
             return this.getAllocation(branchName)!;
         }
 
-        const branchIndex = this.allocations.length;
+        const branchIndex = this.getFirstAvailableBranchIndex();
         const start = this.config.servicesBasePort + branchIndex * this.config.branchRangeSize;
         const end = start + this.config.branchRangeSize - 1;
 
         const allocation = new BranchPortAllocation(branchName, start, end);
         this.allocations.push(allocation);
         return allocation;
+    }
+
+    private getFirstAvailableBranchIndex(): number {
+        const usedIndexes = new Set(
+            this.allocations
+                .map((alloc) => (alloc.start - this.config.servicesBasePort) / this.config.branchRangeSize)
+                .filter((index) => Number.isInteger(index) && index >= 0),
+        );
+
+        let index = 0;
+        while (usedIndexes.has(index)) {
+            index += 1;
+        }
+        return index;
     }
 
     /**

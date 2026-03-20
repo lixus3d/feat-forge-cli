@@ -13,6 +13,7 @@ function createMockForgeContext(config = { servicesBasePort: 3000, branchRangeSi
         },
         paths: {
             getPathInRoot: vi.fn((filename: string) => `/test/path/${filename}`),
+            featForgeConfigRoot: '/test/path/.feat-forge',
         },
     } as any;
 }
@@ -215,6 +216,14 @@ describe('PortAllocator', () => {
 
             expect(allocator.getAllAllocations()).toHaveLength(1);
         });
+
+        it('should resolve allocations file path inside .feat-forge folder', () => {
+            const context = createMockForgeContext();
+
+            const filePath = PortAllocator.getPortAllocationsFilePath(context);
+
+            expect(filePath).toBe('/test/path/.feat-forge/port-allocations.json');
+        });
     });
 
     describe('getAllocation and hasAllocation', () => {
@@ -257,6 +266,20 @@ describe('PortAllocator', () => {
 
             allocator.allocateBranchServicesPorts('main', [createService('service1')]);
             const allocation = allocator.allocateBranchServicesPorts('feature/auth', [createService('service1')]);
+
+            expect(allocation.start).toBe(3100);
+            expect(allocation.end).toBe(3199);
+            expect(allocation.getService('service1')?.port).toBe(3100);
+        });
+
+        it('should allocate using first free branch slot to avoid range collision', () => {
+            const context = createMockForgeContext();
+            const allocator = new PortAllocator(context, [
+                new BranchPortAllocation('feature/auth', 3000, 3099),
+                new BranchPortAllocation('feature/payment', 3200, 3299),
+            ]);
+
+            const allocation = allocator.allocateBranchServicesPorts('main', [createService('service1')]);
 
             expect(allocation.start).toBe(3100);
             expect(allocation.end).toBe(3199);
