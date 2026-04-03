@@ -54,7 +54,8 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
-    "generate:errors": "tsx scripts/generate-errors.ts"
+    "generate:errors": "tsx scripts/generate-errors.ts",
+    "feat-forge:bootstrap": "[ ! -d node_modules ] && (pnpm i) || echo 'node_modules already exists'"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.2.0",
