@@ -8,6 +8,7 @@ import { checkoutBranch, displayOperationSummary, gitBranchExists, GitOperation,
 import { promptChoice, promptConfirm, promptForBranch } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
+import { ServicesCommands } from './ServicesCommands';
 
 export class BranchCommands extends AbstractCommands {
     // ============================================================================
@@ -74,6 +75,14 @@ export class BranchCommands extends AbstractCommands {
 
         // Prepare branch: validate branchName, ensure branch and spec exist
         await (await this.prepareBranch(branchName, baseBranch)).start();
+
+        // Propose to do a service scan to init .envrc file with the right variables for the branch
+        const shouldScan = await promptConfirm(
+            `Do you want to run "forge services scan" now to initialize the .envrc file for this branch?`,
+        );
+        if (shouldScan) {
+            await new ServicesCommands(this.context).scan(branchName);
+        }
 
         // Propose to open the branch in the configured IDE
         if (this.context.ides.length > 0) {
@@ -366,7 +375,17 @@ export class BranchCommands extends AbstractCommands {
         }
 
         // Ensure branch spec files exist in the main repo branch, creating them in a temporary worktree if needed
-        invisibleRepoChanges += await branchContext.initBranch();
+        const { hiddenChanges, pendingSpecCommit } = await branchContext.initBranch();
+        invisibleRepoChanges += hiddenChanges;
+
+        if (pendingSpecCommit) {
+            const { repo, files } = pendingSpecCommit;
+            const shouldCommit = await promptConfirm(`${files.length} spec file(s) were created. Do you want to commit them now?`);
+            if (shouldCommit) {
+                await repo.commit(`docs(${branchName}): init branch spec files`, files);
+            }
+            await branchContext.cleanupSpecRepo(repo);
+        }
 
         return branchContext;
     }
