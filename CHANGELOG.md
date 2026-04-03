@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/lixus3d/feat-forge-cli/compare/v1.3.0...v1.3.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **decorators:** bump fix version for reflect-metadata to be included ([c361be3](https://github.com/lixus3d/feat-forge-cli/commit/c361be3b6bdafd3bb22bc6e8bd07e4fc4b10b88b))
+* **decorators:** bump fix version for reflect-metadata to be included ([4a0ff1c](https://github.com/lixus3d/feat-forge-cli/commit/4a0ff1c0e0872ee85b1ed7290b0cdebcd1962248))
+
 ## [1.3.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.6...v1.3.0) (2026-04-03)
 
 
