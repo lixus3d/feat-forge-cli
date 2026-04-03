@@ -380,9 +380,7 @@ export class BranchCommands extends AbstractCommands {
 
         if (pendingSpecCommit) {
             const { repo, files } = pendingSpecCommit;
-            const shouldCommit = await promptConfirm(
-                `${files.length} spec file(s) were created. Do you want to commit them now?`,
-            );
+            const shouldCommit = await promptConfirm(`${files.length} spec file(s) were created. Do you want to commit them now?`);
             if (shouldCommit) {
                 await repo.commit(`docs(${branchName}): init branch spec files`, files);
             }
