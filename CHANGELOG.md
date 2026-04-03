@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.6...v1.3.0) (2026-04-03)
+
+
+### Features
+
+* **branch:** no auto commit of specs file, now ask for confirm ([d2500e5](https://github.com/lixus3d/feat-forge-cli/commit/d2500e5bf3d0430f357f746d18f0ba9ce0cf76d4))
+* **start:** ask for services scan at the end of branch start ([3ceb326](https://github.com/lixus3d/feat-forge-cli/commit/3ceb3263ad73d6eadfecba8a6e9dc94b6117e938))
+
+
+### Bug Fixes
+
+* port allocation now filter out inactive branches ([7f4038c](https://github.com/lixus3d/feat-forge-cli/commit/7f4038ce4689be0d78db7c15a41b175055e993ad))
+* **proxy:** switch to a refresh interval instead of watchers. ([e23771e](https://github.com/lixus3d/feat-forge-cli/commit/e23771ea809393804d8cb433dab4a81833a9e7c4))
+
 ## [1.2.6](https://github.com/lixus3d/feat-forge-cli/compare/v1.2.5...v1.2.6) (2026-02-23)
 
 
