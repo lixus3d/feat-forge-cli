@@ -375,7 +375,19 @@ export class BranchCommands extends AbstractCommands {
         }
 
         // Ensure branch spec files exist in the main repo branch, creating them in a temporary worktree if needed
-        invisibleRepoChanges += await branchContext.initBranch();
+        const { hiddenChanges, pendingSpecCommit } = await branchContext.initBranch();
+        invisibleRepoChanges += hiddenChanges;
+
+        if (pendingSpecCommit) {
+            const { repo, files } = pendingSpecCommit;
+            const shouldCommit = await promptConfirm(
+                `${files.length} spec file(s) were created. Do you want to commit them now?`,
+            );
+            if (shouldCommit) {
+                await repo.commit(`docs(${branchName}): init branch spec files`, files);
+            }
+            await branchContext.cleanupSpecRepo(repo);
+        }
 
         return branchContext;
     }

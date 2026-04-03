@@ -286,8 +286,9 @@ export class BranchContext {
         return changes;
     }
 
-    async initBranch(): Promise<number> {
+    async initBranch(): Promise<{ hiddenChanges: number; pendingSpecCommit: { repo: WorktreeRepository; files: string[] } | null }> {
         let hiddenChanges = 0; // Changes were made on temporary worktrees
+        let pendingSpecCommit: { repo: WorktreeRepository; files: string[] } | null = null;
 
         for (const rootRepo of this.context.repositories) {
             let worktreeRepo: WorktreeRepository;
@@ -297,14 +298,18 @@ export class BranchContext {
             } else {
                 worktreeRepo = await this.getTemporaryRepo(rootRepo.name, TemporaryFolderType.BRANCH_INIT);
             }
+
             // Check for spec files in the main repository
             if (worktreeRepo.isMainRepository()) {
                 const fileChanges = await this.ensureBranchSpecFiles(worktreeRepo, this.branchName);
                 if (fileChanges.length) {
-                    await worktreeRepo.commit(`docs(${this.branchName}): init branch spec files`, fileChanges);
+                    // Return repo and files so the caller can decide whether to commit
+                    pendingSpecCommit = { repo: worktreeRepo, files: fileChanges };
                     if (worktreeRepo.temporary) {
                         hiddenChanges += fileChanges.length;
                     }
+                    // Skip gitignore and worktree removal for now — caller must call cleanupSpecRepo() after handling the commit
+                    continue;
                 }
             }
             if (this.context.options.process.manageGitIgnore) {
@@ -318,7 +323,20 @@ export class BranchContext {
             }
         }
 
-        return hiddenChanges;
+        return { hiddenChanges, pendingSpecCommit };
+    }
+
+    /**
+     * Finalize the main repo after the caller has decided whether to commit spec files.
+     * Handles gitignore update and temporary worktree cleanup.
+     */
+    async cleanupSpecRepo(repo: WorktreeRepository): Promise<void> {
+        if (this.context.options.process.manageGitIgnore) {
+            await this.ensureGitIgnore(repo);
+        }
+        if (repo.temporary) {
+            await repo.remove();
+        }
     }
 
     /**
