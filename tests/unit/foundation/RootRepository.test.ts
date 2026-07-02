@@ -420,6 +420,29 @@ describe('RootRepository', () => {
             ]);
         });
 
+        it('should add worktree from remote tracking branch when local branch is missing', async () => {
+            let callCount = 0;
+            vi.mocked(fsLib.pathExists).mockImplementation(async () => {
+                callCount++;
+                return callCount > 1;
+            });
+            vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
+            vi.mocked(gitLib.gitRemoteBranchRef).mockResolvedValue('origin/test/branch');
+            vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
+
+            const worktreeRepository = await mainRepository.addWorktree('test/branch');
+
+            expect(gitLib.runGit).toHaveBeenCalledWith(mainRepository.path, [
+                'worktree',
+                'add',
+                '--track',
+                '-b',
+                'test/branch',
+                worktreeRepository.path,
+                'origin/test/branch',
+            ]);
+        });
+
         it('should throw error if worktree already exists', async () => {
             vi.mocked(fsLib.pathExists).mockResolvedValue(true);
 
@@ -433,6 +456,7 @@ describe('RootRepository', () => {
                 return callCount > 1;
             });
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
+            vi.mocked(gitLib.gitRemoteBranchRef).mockResolvedValue(null);
             vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
 
             const tempWorktreeRepository = await mainRepository.addWorktree('test/branch', TemporaryFolderType.BRANCH_INIT);
@@ -446,7 +470,9 @@ describe('RootRepository', () => {
     describe('getTemporaryWorktree()', () => {
         it('should get temporary worktree', async () => {
             let callCount = 0;
+            vi.mocked(gitLib.gitBranchExistsAnywhere).mockResolvedValue(true);
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(true);
+            vi.mocked(gitLib.gitRemoteBranchRef).mockResolvedValue(null);
             vi.mocked(fsLib.pathExists).mockImplementation(async () => {
                 callCount++;
                 return callCount > 1;
@@ -461,11 +487,37 @@ describe('RootRepository', () => {
         });
 
         it('should throw error when getting temporary worktree if branch does not exist', async () => {
+            vi.mocked(gitLib.gitBranchExistsAnywhere).mockResolvedValue(false);
             vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
+            vi.mocked(gitLib.gitRemoteBranchRef).mockResolvedValue(null);
 
             await expect(mainRepository.getTemporaryWorktree('test/branch', TemporaryFolderType.BRANCH_INIT)).rejects.toThrow(
                 'Feature branch',
             );
+        });
+
+        it('should get temporary worktree from remote tracking branch', async () => {
+            let callCount = 0;
+            vi.mocked(gitLib.gitBranchExistsAnywhere).mockResolvedValue(true);
+            vi.mocked(gitLib.gitBranchExists).mockResolvedValue(false);
+            vi.mocked(gitLib.gitRemoteBranchRef).mockResolvedValue('origin/test/branch');
+            vi.mocked(fsLib.pathExists).mockImplementation(async () => {
+                callCount++;
+                return callCount > 1;
+            });
+            vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
+
+            const tempWorktreeRepository = await mainRepository.getTemporaryWorktree('test/branch', TemporaryFolderType.BRANCH_INIT);
+
+            expect(gitLib.runGit).toHaveBeenCalledWith(mainRepository.path, [
+                'worktree',
+                'add',
+                '--track',
+                '-b',
+                'test/branch',
+                tempWorktreeRepository.path,
+                'origin/test/branch',
+            ]);
         });
     });
 

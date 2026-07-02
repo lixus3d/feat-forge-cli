@@ -249,6 +249,12 @@ Rebase a feature branch onto a base branch (across all repos).
 
 ---
 
+### `forge feature pull <slug>`
+
+Pull the current feature branch across all repos.
+
+---
+
 ### `forge feature open [slug]`
 
 Open a feature branch in the configured IDE.
@@ -276,6 +282,10 @@ forge start dev
 ### `forge merge <slug>` / `forge rebase <slug>`
 
 Top-level shortcuts for merge and rebase operations (across all repos).
+
+### `forge pull [slug]`
+
+Pull the current branch across all repos.
 
 ---
 

@@ -14,6 +14,7 @@ export type GitOperationResult = {
 export enum GitOperation {
     Merge = 'merge',
     Rebase = 'rebase',
+    Pull = 'pull',
 }
 
 export type GitWorktreeInfo = {
@@ -44,6 +45,14 @@ export async function runGit(repoRoot: string, args: string[]): Promise<void> {
 }
 
 /**
+ * Fetch all remotes for a repository so remote refs are up to date before
+ * checking whether a branch exists remotely.
+ */
+export async function fetchAllRemotes(repoRoot: string): Promise<void> {
+    await execa('git', ['fetch', '--all', '--prune', '--quiet'], { cwd: repoRoot, stdio: 'inherit' });
+}
+
+/**
  * Return git status porcelain output for the given working directory.
  */
 export async function getGitStatusPorcelain(cwd: string): Promise<string> {
@@ -56,11 +65,40 @@ export async function getGitStatusPorcelain(cwd: string): Promise<string> {
  */
 export async function gitBranchExists(repoRoot: string, branchName: string): Promise<boolean> {
     try {
-        await execa('git', ['rev-parse', '--verify', branchName], { cwd: repoRoot });
+        await execa('git', ['rev-parse', '--verify', `refs/heads/${branchName}`], { cwd: repoRoot });
         return true;
     } catch {
         return false;
     }
+}
+
+/**
+ * Return the remote tracking ref for a branch if it exists, after fetching remotes.
+ */
+export async function gitRemoteBranchRef(repoRoot: string, branchName: string): Promise<string | null> {
+    try {
+        await fetchAllRemotes(repoRoot);
+        const result = await execa('git', ['for-each-ref', '--format=%(refname:short)', 'refs/remotes'], { cwd: repoRoot });
+        const refs = result.stdout
+            .split('\n')
+            .map((ref) => ref.trim())
+            .filter((ref) => ref.length > 0 && !ref.endsWith('/HEAD'));
+
+        const exactMatch = refs.find((ref) => ref === branchName || ref.endsWith(`/${branchName}`));
+        return exactMatch ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Return true if a branch exists locally or as a remote tracking ref.
+ */
+export async function gitBranchExistsAnywhere(repoRoot: string, branchName: string): Promise<boolean> {
+    if (await gitBranchExists(repoRoot, branchName)) {
+        return true;
+    }
+    return (await gitRemoteBranchRef(repoRoot, branchName)) !== null;
 }
 
 /**
@@ -98,9 +136,18 @@ export async function checkoutBranch(repoRoot: string, branchName: string): Prom
  * Create a new branch in a repo.
  */
 export async function createBranch(repoRoot: string, branchName: string, baseBranch?: string): Promise<void> {
-    const args = ['branch', branchName];
-    if (baseBranch) {
-        args.push(baseBranch);
+    if (await gitBranchExists(repoRoot, branchName)) {
+        return;
+    }
+
+    const remoteBranchRef = await gitRemoteBranchRef(repoRoot, branchName);
+    const args = ['branch'];
+    if (remoteBranchRef) {
+        args.push('--track', branchName, remoteBranchRef);
+    } else if (baseBranch) {
+        args.push(branchName, baseBranch);
+    } else {
+        args.push(branchName);
     }
     await runGit(repoRoot, args);
 }
