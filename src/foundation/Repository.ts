@@ -10,6 +10,8 @@ import { ensureDir, pathExists } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
+    gitBranchExistsAnywhere,
+    gitRemoteBranchRef,
     getBranches,
     getCurrentBranch,
     getGitStatusPorcelain,
@@ -103,6 +105,10 @@ export abstract class Repository {
 
     async hasBranch(branchName: string): Promise<boolean> {
         return gitBranchExists(this.path, branchName);
+    }
+
+    async hasBranchAnywhere(branchName: string): Promise<boolean> {
+        return gitBranchExistsAnywhere(this.path, branchName);
     }
 
     async hasBranchWithPrefix(prefix: string): Promise<boolean> {
@@ -306,14 +312,19 @@ export class RootRepository extends Repository {
         if (await this.hasBranch(branchName)) {
             await runGit(this.path, ['worktree', 'add', worktreePath, branchName]);
         } else {
-            await runGit(this.path, ['worktree', 'add', '-b', branchName, worktreePath]);
+            const remoteBranchRef = await gitRemoteBranchRef(this.path, branchName);
+            if (remoteBranchRef) {
+                await runGit(this.path, ['worktree', 'add', '--track', '-b', branchName, worktreePath, remoteBranchRef]);
+            } else {
+                await runGit(this.path, ['worktree', 'add', '-b', branchName, worktreePath]);
+            }
         }
 
         return this.getWorktree(branchName, temporary);
     }
 
     async getTemporaryWorktree(branchName: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
-        if (!(await this.hasBranch(branchName))) {
+        if (!(await this.hasBranchAnywhere(branchName))) {
             throw new Error(`Feature branch ${branchName} does not exist in repository ${this.name}`);
         }
         return this.addWorktree(branchName, type);
@@ -499,6 +510,45 @@ export class WorktreeRepository extends Repository {
             }
         } catch (error) {
             console.error(`❌ Error rebasing ${this.name}:`, error);
+            return { repo: this.name, success: false, hasConflicts: false };
+        }
+    }
+
+    /**
+     * Pull the worktree's current branch from its remote tracking branch.
+     */
+    async pull(specsBranch: string): Promise<GitOperationResult> {
+        try {
+            if (await this.isDirty()) {
+                console.log(
+                    `⚠️  Worktree repository ${this.name} has uncommitted changes. Please commit or stash them before pulling.`,
+                );
+                return { repo: this.name, success: false, hasConflicts: false };
+            }
+
+            const currentBranch = await this.getCurrentBranch();
+            if (currentBranch !== specsBranch) {
+                console.log(`Checking out ${specsBranch}...`);
+                await checkoutBranch(this.path, specsBranch);
+            }
+
+            console.log(`Pulling ${specsBranch}...`);
+            try {
+                await runGit(this.path, ['pull']);
+                console.log(`✅ Pull successful for ${this.name}`);
+                return { repo: this.name, success: true, hasConflicts: false };
+            } catch (error) {
+                const status = await this.getGitStatus();
+                if (status.includes('UU ') || status.includes('AA ') || status.includes('DD ')) {
+                    console.log(`⚠️  Pull conflicts detected in worktree repository: ${this.name}`);
+                    console.log(`Please resolve conflicts manually in: ${this.path}`);
+                    console.log(`After resolving, run: git merge --continue`);
+                    return { repo: this.name, success: false, hasConflicts: true };
+                }
+                throw error;
+            }
+        } catch (error) {
+            console.error(`❌ Error pulling ${this.name}:`, error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }

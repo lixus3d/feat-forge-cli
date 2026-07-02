@@ -59,6 +59,11 @@ export abstract class SubBranchCommands extends AbstractCommands {
         return this.branchCommands.rebase(rawSlug);
     }
 
+    async pull(rawSlug: string): Promise<void> {
+        rawSlug = this.toSubBranchSlug(rawSlug);
+        return this.branchCommands.pull(rawSlug);
+    }
+
     // ============================================================================
     // PRIVATE METHODS
     // ============================================================================

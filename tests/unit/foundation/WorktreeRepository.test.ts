@@ -263,4 +263,58 @@ describe('WorktreeRepository', () => {
             expect(result.repo).toBe(worktreeMainRepository.name);
         });
     });
+
+    describe('pull()', () => {
+        it('should pull feature branch', async () => {
+            vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('');
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('feature/test-feature');
+            vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
+
+            const result = await worktreeMainRepository.pull('feature/test-feature');
+
+            expect(result.repo).toBe(worktreeMainRepository.name);
+            expect(result.success).toBe(true);
+            expect(result.hasConflicts).toBe(false);
+            expect(gitLib.runGit).toHaveBeenCalledWith(worktreeMainRepository.path, ['pull']);
+        });
+
+        it('should checkout feature branch if not already on it before pulling', async () => {
+            vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('');
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('main');
+            vi.mocked(gitLib.checkoutBranch).mockResolvedValue(undefined);
+            vi.mocked(gitLib.runGit).mockResolvedValue({ stdout: '', stderr: '' } as any);
+
+            const result = await worktreeMainRepository.pull('feature/test-feature');
+
+            expect(gitLib.checkoutBranch).toHaveBeenCalledWith(worktreeMainRepository.path, 'feature/test-feature');
+            expect(result.success).toBe(true);
+        });
+
+        it('should return error if worktree is dirty', async () => {
+            vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('M file.ts\n');
+
+            const result = await worktreeMainRepository.pull('feature/test-feature');
+
+            expect(result.success).toBe(false);
+            expect(result.hasConflicts).toBe(false);
+            expect(gitLib.runGit).not.toHaveBeenCalled();
+        });
+
+        it('should detect pull conflicts', async () => {
+            vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue('');
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('feature/test-feature');
+            vi.mocked(gitLib.runGit).mockRejectedValue(new Error('Pull conflict'));
+
+            let getGitStatusCallCount = 0;
+            vi.mocked(gitLib.getGitStatusPorcelain).mockImplementation(async () => {
+                getGitStatusCallCount++;
+                return getGitStatusCallCount === 1 ? '' : 'UU file.ts\n';
+            });
+
+            const result = await worktreeMainRepository.pull('feature/test-feature');
+
+            expect(result.success).toBe(false);
+            expect(result.hasConflicts).toBe(true);
+        });
+    });
 });

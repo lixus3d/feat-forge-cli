@@ -17,6 +17,7 @@ import { SubBranchCommands } from './commands/SubBranchCommands';
 import { FixCommands } from './commands/FixCommands';
 import { ReleaseCommands } from './commands/ReleaseCommands';
 import { BranchCommands } from './commands/BranchCommands';
+import { FetchCommands } from './commands/FetchCommands';
 import { ForgeConfigFile } from './foundation/ForgeConfigFile';
 import { plainToInstance } from 'class-transformer';
 import { ServicesCommands } from './commands/ServicesCommands';
@@ -157,6 +158,14 @@ function genericBranchTypeCommands(
         .argument(`<${argName}>`, argDesc)
         .description(`Rebase a ${subType ? subType + ' ' : ''}branch onto a base branch (accross all repos)`)
         .action(handlers.rebase.bind(handlers));
+
+    baseCommand
+        .command('pull')
+        .argument(subType ? `<${argName}>` : `[${argName}]`, argDesc)
+        .description(`Pull the current ${subType ? subType + ' ' : ''}branch across all repos`)
+        .action(async (branchName?: string) => {
+            await (handlers.pull as (branchName?: string) => Promise<void>)(branchName);
+        });
 }
 
 /**
@@ -236,6 +245,17 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
         .action(async (slug: string, opts: RewriteAgentFilesOptions) => {
             await handlers.installAgentTemplateLocally({ dryRun: opts.dryRun, commit: opts.commit });
         });
+}
+
+/**
+ * Register fetch commands on the main CLI program.
+ */
+function registerFetchCommands(program: Command, context: ForgeContext): void {
+    const handlers = new FetchCommands(context);
+    program
+        .command('fetch')
+        .description('Fetch all remotes for every configured repository')
+        .action(handlers.fetch.bind(handlers));
 }
 
 /**
@@ -402,6 +422,7 @@ async function main() {
             registerModeCommands(program, context);
             registerAgentCommands(program, context);
             registerMaintenanceCommands(program, context);
+            registerFetchCommands(program, context);
             registerServicesCommands(program, context);
             registerEnvCommands(program, context);
             registerProxyCommands(program, context);

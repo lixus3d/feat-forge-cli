@@ -3,7 +3,7 @@ import { execa } from 'execa';
 import { BranchContext } from '../foundation/BranchContext';
 import { RepositoryStatus, RootRepository, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
-import { pathExists } from '../lib/fs';
+import { ensureDir, pathExists } from '../lib/fs';
 import { checkoutBranch, displayOperationSummary, gitBranchExists, GitOperation, GitOperationResult } from '../lib/git';
 import { promptChoice, promptConfirm, promptForBranch } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
@@ -350,6 +350,29 @@ export class BranchCommands extends AbstractCommands {
         }
 
         await this.displayRebaseSummary(results, branchName);
+    }
+
+    async pull(rawSlug?: string): Promise<void> {
+        const branchName = rawSlug
+            ? await confirmSlugOrThrow(rawSlug)
+            : (await BranchContext.findNearestBranchContext(this.context)).branchName;
+
+        let branchContext: BranchContext;
+        if (await this.context.isBranchActive(branchName)) {
+            branchContext = await this.context.loadBranchContext(branchName);
+        } else {
+            branchContext = this.context.makeBranchContext(branchName);
+        }
+
+        await this.verifyCleanBranch(branchContext);
+
+        console.log(`\nPulling branch: ${branchName}\n`);
+        const results: GitOperationResult[] = [];
+        for (const repo of branchContext.repositories) {
+            results.push(await repo.pull(branchName));
+        }
+
+        displayOperationSummary(results, GitOperation.Pull);
     }
 
     // ============================================================================
