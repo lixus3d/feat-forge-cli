@@ -106,8 +106,9 @@ export class ForgeContext {
     }
 
     async hasBranch(branchName: string): Promise<boolean> {
-        // only check on mainRepo
-        return this.mainRepo.hasBranch(branchName);
+        // Check local refs first, then remote tracking refs on the main repo.
+        // This allows `forge start` to reuse a branch that was fetched from a remote.
+        return this.mainRepo.hasBranchAnywhere(branchName);
     }
 
     async hasFeatureBranch(featureSlug: string): Promise<boolean> {

@@ -122,8 +122,8 @@ export class CompletionCommands extends AbstractCommands {
             maintenanceCmd: this.findCommand('maintenance'),
             modeCmd: this.findCommand('mode'),
             agentCmd: this.findCommand('agent'),
-            slugSubcommands: ['stop', 'start', 'archive', 'resync', 'merge', 'rebase', 'open', 'path'],
-            rootSlugCommands: ['stop', 'start', 'archive', 'resync', 'merge', 'rebase', 'open', 'path'],
+            slugSubcommands: ['stop', 'start', 'archive', 'resync', 'merge', 'rebase', 'pull', 'open', 'path'],
+            rootSlugCommands: ['stop', 'start', 'archive', 'resync', 'merge', 'rebase', 'pull', 'open', 'path'],
         };
     }
 
