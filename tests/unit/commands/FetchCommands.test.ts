@@ -30,9 +30,7 @@ describe('FetchCommands', () => {
     it('should keep going when one repository fetch fails', async () => {
         const { forgeContext } = ContextHelper.default().extract();
         const handlers = new FetchCommands(forgeContext);
-        vi.mocked(gitLib.fetchAllRemotes)
-            .mockResolvedValueOnce(undefined)
-            .mockRejectedValueOnce(new Error('fetch failed'));
+        vi.mocked(gitLib.fetchAllRemotes).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('fetch failed'));
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 

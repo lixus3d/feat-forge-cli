@@ -10,7 +10,9 @@ export class FetchCommands extends AbstractCommands {
             return;
         }
 
-        console.log(`Fetching remotes for ${repositories.length} configured ${repositories.length > 1 ? 'repositories' : 'repository'}...`);
+        console.log(
+            `Fetching remotes for ${repositories.length} configured ${repositories.length > 1 ? 'repositories' : 'repository'}...`,
+        );
 
         const results = await Promise.allSettled(
             repositories.map(async (repository) => {

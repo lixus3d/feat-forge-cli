@@ -252,10 +252,7 @@ function registerMaintenanceCommands(program: Command, context: ForgeContext): v
  */
 function registerFetchCommands(program: Command, context: ForgeContext): void {
     const handlers = new FetchCommands(context);
-    program
-        .command('fetch')
-        .description('Fetch all remotes for every configured repository')
-        .action(handlers.fetch.bind(handlers));
+    program.command('fetch').description('Fetch all remotes for every configured repository').action(handlers.fetch.bind(handlers));
 }
 
 /**
