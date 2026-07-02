@@ -353,7 +353,9 @@ export class BranchCommands extends AbstractCommands {
     }
 
     async pull(rawSlug?: string): Promise<void> {
-        const branchName = rawSlug ? await confirmSlugOrThrow(rawSlug) : (await BranchContext.findNearestBranchContext(this.context)).branchName;
+        const branchName = rawSlug
+            ? await confirmSlugOrThrow(rawSlug)
+            : (await BranchContext.findNearestBranchContext(this.context)).branchName;
 
         let branchContext: BranchContext;
         if (await this.context.isBranchActive(branchName)) {
@@ -362,20 +364,7 @@ export class BranchCommands extends AbstractCommands {
             branchContext = this.context.makeBranchContext(branchName);
         }
 
-        await ensureDir(branchContext.path);
         await this.verifyCleanBranch(branchContext);
-
-        const rootRepositories = [...this.context.repositories].sort((a, b) => Number(!a.main) - Number(!b.main));
-
-        for (const rootRepository of rootRepositories) {
-            if (!branchContext.repositories.some((repo) => repo.rootRepository.name === rootRepository.name)) {
-                console.log(`  ⚠ ${rootRepository.name}: not part of branch context, trying to init it`);
-                const worktreeRepository = await branchContext.ensureWorktreeForRepo(rootRepository);
-                branchContext.repositories.push(worktreeRepository);
-            }
-        }
-
-        await Promise.all(branchContext.repositories.map((repo) => repo.setActiveSpec(branchContext)));
 
         console.log(`\nPulling branch: ${branchName}\n`);
         const results: GitOperationResult[] = [];

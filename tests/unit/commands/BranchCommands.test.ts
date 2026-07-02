@@ -48,7 +48,7 @@ describe('BranchCommands pull', () => {
             forgeContext,
             'feature/test',
             forgeContext.paths.getBranchRootPath('feature/test'),
-            [worktreeMainRepository],
+            [worktreeMainRepository, worktreeSecondaryRepository],
             true,
         );
         const handlers = new BranchCommands(forgeContext);
@@ -56,25 +56,22 @@ describe('BranchCommands pull', () => {
         vi.spyOn(forgeContext, 'isBranchActive').mockResolvedValue(true);
         vi.spyOn(forgeContext, 'loadBranchContext').mockResolvedValue(branchContext);
         vi.spyOn(branchContext, 'getDirtyRepositories').mockResolvedValue([]);
-        vi.spyOn(branchContext, 'ensureWorktreeForRepo').mockResolvedValue(worktreeSecondaryRepository);
-        vi.spyOn(worktreeMainRepository, 'pull').mockResolvedValue({ repo: worktreeMainRepository.name, success: true, hasConflicts: false });
+        vi.spyOn(worktreeMainRepository, 'pull').mockResolvedValue({
+            repo: worktreeMainRepository.name,
+            success: true,
+            hasConflicts: false,
+        });
         vi.spyOn(worktreeSecondaryRepository, 'pull').mockResolvedValue({
             repo: worktreeSecondaryRepository.name,
             success: true,
             hasConflicts: false,
         });
-        vi.spyOn(worktreeMainRepository, 'setActiveSpec').mockResolvedValue(undefined);
-        vi.spyOn(worktreeSecondaryRepository, 'setActiveSpec').mockResolvedValue(undefined);
-        vi.mocked(fsLib.ensureDir).mockResolvedValue(undefined);
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
         await handlers.pull('feature/test');
 
-        expect(branchContext.ensureWorktreeForRepo).toHaveBeenCalledWith(forgeContext.repositories[1]);
         expect(worktreeMainRepository.pull).toHaveBeenCalledWith('feature/test');
         expect(worktreeSecondaryRepository.pull).toHaveBeenCalledWith('feature/test');
-        expect(worktreeMainRepository.setActiveSpec).toHaveBeenCalledWith(branchContext);
-        expect(worktreeSecondaryRepository.setActiveSpec).toHaveBeenCalledWith(branchContext);
         expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Pulling branch: feature/test'));
         logSpy.mockRestore();
     });
@@ -94,7 +91,11 @@ describe('BranchCommands pull', () => {
         vi.spyOn(forgeContext, 'isBranchActive').mockResolvedValue(true);
         vi.spyOn(forgeContext, 'loadBranchContext').mockResolvedValue(branchContext);
         vi.spyOn(branchContext, 'getDirtyRepositories').mockResolvedValue([]);
-        vi.spyOn(worktreeMainRepository, 'pull').mockResolvedValue({ repo: worktreeMainRepository.name, success: true, hasConflicts: false });
+        vi.spyOn(worktreeMainRepository, 'pull').mockResolvedValue({
+            repo: worktreeMainRepository.name,
+            success: true,
+            hasConflicts: false,
+        });
         vi.spyOn(worktreeMainRepository, 'setActiveSpec').mockResolvedValue(undefined);
         vi.mocked(fsLib.ensureDir).mockResolvedValue(undefined);
 
