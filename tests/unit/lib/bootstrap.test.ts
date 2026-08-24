@@ -40,11 +40,7 @@ describe('bootstrap helpers', () => {
 
     it('should execute through bash and nvm use when enabled and a .nvmrc is found', async () => {
         vi.mocked(pathExists).mockImplementation(async (candidate) => {
-            return (
-                candidate === '/repo/.forge/bootstrap.sh' ||
-                candidate === '/repo/.nvmrc' ||
-                candidate === '/custom/.nvm/nvm.sh'
-            );
+            return candidate === '/repo/.forge/bootstrap.sh' || candidate === '/repo/.nvmrc' || candidate === '/custom/.nvm/nvm.sh';
         });
 
         await executeScript('/repo/.forge/bootstrap.sh', '/repo', 'bootstrap', undefined, { useNvmrc: true });

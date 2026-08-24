@@ -161,12 +161,7 @@ export async function copyDirectoryContentsRecursively(
             const resolvedTarget = path.resolve(path.dirname(srcPath), symlinkTarget);
             const relativeTarget = path.relative(rootSrcDir, resolvedTarget);
 
-            if (
-                !relativeTarget ||
-                relativeTarget === '.' ||
-                relativeTarget.startsWith('..') ||
-                path.isAbsolute(relativeTarget)
-            ) {
+            if (!relativeTarget || relativeTarget === '.' || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
                 throw new Error(`Refusing to copy symbolic link that resolves outside the workspace root files source: ${srcPath}`);
             }
 

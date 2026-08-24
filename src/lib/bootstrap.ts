@@ -62,7 +62,11 @@ export async function executeCommand(
                 throw new Error(`process.useNvmrc is enabled but nvm.sh was not found for ${label}`);
             }
 
-            await execa('bash', ['-lc', 'source "$1" && shift && nvm use && exec "$@"', 'bash', nvmInitPath, command, ...args], sharedOptions);
+            await execa(
+                'bash',
+                ['-lc', 'source "$1" && shift && nvm use && exec "$@"', 'bash', nvmInitPath, command, ...args],
+                sharedOptions,
+            );
             return;
         }
     }

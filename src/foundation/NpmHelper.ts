@@ -93,14 +93,9 @@ export class NpmHelper {
         await this.initialize();
 
         try {
-            await executeCommand(
-                this.packageManager,
-                ['run', scriptName],
-                this.repository.path,
-                `npm script ${scriptName}`,
-                params,
-                { useNvmrc: this.forgeContext.options.process.useNvmrc },
-            );
+            await executeCommand(this.packageManager, ['run', scriptName], this.repository.path, `npm script ${scriptName}`, params, {
+                useNvmrc: this.forgeContext.options.process.useNvmrc,
+            });
 
             console.log(`✅ ${this.packageManager} script ${scriptName} completed successfully`);
             return true;

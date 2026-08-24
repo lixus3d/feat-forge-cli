@@ -49,9 +49,16 @@ describe('NpmHelper', () => {
 
         await npmHelper.executeNpmBootstrapScript();
 
-        expect(executeCommand).toHaveBeenCalledWith('npm', ['run', 'feat-forge:bootstrap'], '/repo', 'npm script feat-forge:bootstrap', undefined, {
-            useNvmrc: true,
-        });
+        expect(executeCommand).toHaveBeenCalledWith(
+            'npm',
+            ['run', 'feat-forge:bootstrap'],
+            '/repo',
+            'npm script feat-forge:bootstrap',
+            undefined,
+            {
+                useNvmrc: true,
+            },
+        );
     });
 
     afterEach(() => {

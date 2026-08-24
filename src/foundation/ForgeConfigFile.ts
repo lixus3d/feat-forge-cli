@@ -1,5 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean, IsInt, Min, ValidateIf } from 'class-validator';
+import {
+    IsOptional,
+    IsString,
+    IsNotEmpty,
+    IsArray,
+    ValidateNested,
+    ArrayNotEmpty,
+    IsBoolean,
+    IsInt,
+    Min,
+    ValidateIf,
+} from 'class-validator';
 import { AIAgentName } from './types/AIAgentName';
 import { DeepPartial } from './types/DeepPartial';
 import { IDEName } from './types/IDEName';
