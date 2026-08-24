@@ -33,6 +33,26 @@ export class PathHelper {
         return path.join(this.featForgeConfigRoot, TEMP_FOLDER);
     }
 
+    getWorkspaceRootFilesSourcePath(): string | null {
+        const configuredFolder = this.folders.workspaceRootFiles;
+        if (configuredFolder === false) {
+            return null;
+        }
+
+        if (path.isAbsolute(configuredFolder)) {
+            throw new Error(`options.folders.workspaceRootFiles must stay inside ${FEAT_FORGE_CONFIG_FOLDER}`);
+        }
+
+        const sourcePath = path.resolve(this.featForgeConfigRoot, configuredFolder);
+        const relativePath = path.relative(this.featForgeConfigRoot, sourcePath);
+
+        if (!relativePath || relativePath === '.' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+            throw new Error(`options.folders.workspaceRootFiles must resolve to a subfolder of ${FEAT_FORGE_CONFIG_FOLDER}`);
+        }
+
+        return sourcePath;
+    }
+
     getPathInRoot(...segments: string[]): string {
         return path.join(this.rootDir, ...segments);
     }

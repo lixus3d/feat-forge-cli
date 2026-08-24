@@ -256,7 +256,9 @@ export abstract class Repository {
         executedHooks.push(...npmScripts);
 
         // Execute shell scripts for this event
-        const shellScripts = await executeHooksForEvent(this.path, repoConfigFolderPath, eventType, params);
+        const shellScripts = await executeHooksForEvent(this.path, repoConfigFolderPath, eventType, params, {
+            useNvmrc: this.context.options.process.useNvmrc,
+        });
         executedHooks.push(...shellScripts);
 
         return executedHooks;
@@ -567,6 +569,8 @@ export class WorktreeRepository extends Repository {
         await npmHelper.executeNpmBootstrapScript();
 
         // Try shell bootstrap script after npm
-        await executeBootstrapScript(this.path, repoConfigFolderPath);
+        await executeBootstrapScript(this.path, repoConfigFolderPath, 'bootstrap', {
+            useNvmrc: this.context.options.process.useNvmrc,
+        });
     }
 }

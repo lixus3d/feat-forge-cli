@@ -1,5 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsNotEmpty, IsArray, ValidateNested, ArrayNotEmpty, IsBoolean, IsInt, Min } from 'class-validator';
+import {
+    IsOptional,
+    IsString,
+    IsNotEmpty,
+    IsArray,
+    ValidateNested,
+    ArrayNotEmpty,
+    IsBoolean,
+    IsInt,
+    Min,
+    ValidateIf,
+} from 'class-validator';
 import { AIAgentName } from './types/AIAgentName';
 import { DeepPartial } from './types/DeepPartial';
 import { IDEName } from './types/IDEName';
@@ -55,6 +66,15 @@ export class ForgeFoldersOptions {
     @IsString()
     @IsNotEmpty()
     repoConfig: string = '.forge';
+    /**
+     * Folder inside .feat-forge whose contents are copied to the virtual workspace root. Default: 'workspace-root-files'
+     * Set to false to disable this feature.
+     */
+    @IsOptional()
+    @ValidateIf((_object, value) => value !== false)
+    @IsString()
+    @IsNotEmpty()
+    workspaceRootFiles: string | false = 'workspace-root-files';
 }
 
 export class ForgeFilesOptions {
@@ -141,6 +161,13 @@ export class ForgeProcessOptions {
     @IsString()
     @IsNotEmpty()
     npmScriptPrefix: string = 'feat-forge';
+
+    /**
+     * Whether feat-forge should run `nvm use` before bootstrap and hook commands when a .nvmrc is found from the repository cwd upward. Default: false
+     */
+    @IsOptional()
+    @IsBoolean()
+    useNvmrc: boolean = false;
 }
 
 export class ForgeProxyOptions {
@@ -196,6 +223,23 @@ export class ForgeProxyOptions {
     environmentVariablePrefix: string = 'FEAT_FORGE_';
 }
 
+export class ForgeWorkspaceRootFilesOptions {
+    /**
+     * Whether symbolic links found in workspace root files may be recreated in the generated workspace.
+     * Symlinks that resolve outside the configured source folder remain rejected. Default: false
+     */
+    @IsOptional()
+    @IsBoolean()
+    allowSymlinks: boolean = false;
+}
+
+export class ForgeWorkspaceOptions {
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeWorkspaceRootFilesOptions)
+    rootFiles: ForgeWorkspaceRootFilesOptions = new ForgeWorkspaceRootFilesOptions();
+}
+
 export class ForgeOptions {
     @IsOptional()
     @ValidateNested()
@@ -221,6 +265,11 @@ export class ForgeOptions {
     @ValidateNested()
     @Type(() => ForgeProxyOptions)
     proxy: ForgeProxyOptions = new ForgeProxyOptions();
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ForgeWorkspaceOptions)
+    workspace: ForgeWorkspaceOptions = new ForgeWorkspaceOptions();
 }
 
 /**

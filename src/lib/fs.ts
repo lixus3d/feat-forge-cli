@@ -1,7 +1,7 @@
 import { BranchContext } from '@/foundation/BranchContext';
 import { ForgeContext } from '@/foundation/ForgeContext';
 import { Repository } from '@/foundation/Repository';
-import { access, mkdir, readdir, readFile, rename, unlink, writeFile } from 'fs/promises';
+import { access, chmod, copyFile, lstat, mkdir, readlink, readdir, readFile, rename, symlink, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { replaceTemplateMarkers, resolveAgentFileCustomTemplate } from './templates';
 import { validateInput } from './validator';
@@ -119,6 +119,15 @@ export async function copyFilesRecursively(
     destDir: string,
     options: { overwrite?: boolean; dryRun?: boolean } = {},
 ): Promise<string[]> {
+    return copyDirectoryContentsRecursively(srcDir, destDir, options);
+}
+
+export async function copyDirectoryContentsRecursively(
+    srcDir: string,
+    destDir: string,
+    options: { overwrite?: boolean; dryRun?: boolean; allowSymlinks?: boolean } = {},
+    rootSrcDir: string = srcDir,
+): Promise<string[]> {
     const { overwrite = false, dryRun = true } = options;
     let fileChanges: string[] = [];
     const entries = await readdir(srcDir, { withFileTypes: true });
@@ -128,19 +137,41 @@ export async function copyFilesRecursively(
         const destPath = path.join(destDir, entry.name);
 
         if (entry.isDirectory()) {
-            await ensureDir(destPath);
-            fileChanges = [...fileChanges, ...(await copyFilesRecursively(srcPath, destPath, options))];
+            if (!dryRun) {
+                await ensureDir(destPath);
+            }
+            fileChanges = [...fileChanges, ...(await copyDirectoryContentsRecursively(srcPath, destPath, options, rootSrcDir))];
         } else if (entry.isFile()) {
             const destExists = await pathExists(destPath);
             if (!overwrite && destExists) continue; // don't overwrite existing files unless overwrite flag is set
 
             if (!dryRun) {
-                let content = await readFile(srcPath, 'utf8');
-                await writeTextFile(destPath, content);
+                await ensureDir(path.dirname(destPath));
+                const srcStats = await lstat(srcPath);
+                await copyFile(srcPath, destPath);
+                await chmod(destPath, srcStats.mode);
+            }
+            fileChanges.push(destPath);
+        } else if (entry.isSymbolicLink()) {
+            if (!options.allowSymlinks) {
+                throw new Error(`Refusing to copy symbolic link from workspace root files source: ${srcPath}`);
             }
 
-            // Record change only if writing or would write
+            const symlinkTarget = await readlink(srcPath);
+            const resolvedTarget = path.resolve(path.dirname(srcPath), symlinkTarget);
+            const relativeTarget = path.relative(rootSrcDir, resolvedTarget);
+
+            if (!relativeTarget || relativeTarget === '.' || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
+                throw new Error(`Refusing to copy symbolic link that resolves outside the workspace root files source: ${srcPath}`);
+            }
+
+            if (!dryRun) {
+                await ensureDir(path.dirname(destPath));
+                await symlink(symlinkTarget, destPath);
+            }
             fileChanges.push(destPath);
+        } else {
+            throw new Error(`Unsupported filesystem entry in copy source: ${srcPath}`);
         }
     }
     return fileChanges;

@@ -109,4 +109,57 @@ describe('BranchContext', () => {
             await expect(branchContext.getMode()).rejects.toThrow();
         });
     });
+
+    describe('copyWorkspaceRootFiles()', () => {
+        it('should copy configured workspace root files into the branch root', async () => {
+            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
+            const sourcePath = path.join(forgeContext.paths.featForgeConfigRoot, 'workspace-root-files');
+
+            await branchContext.copyWorkspaceRootFiles();
+
+            expect(fsLib.pathExists).toHaveBeenCalledWith(sourcePath);
+            expect(fsLib.copyDirectoryContentsRecursively).toHaveBeenCalledWith(sourcePath, branchContext.path, {
+                dryRun: false,
+                allowSymlinks: false,
+            });
+        });
+
+        it('should skip copy when the feature is disabled', async () => {
+            ({ forgeContext } = ContextHelper.default({
+                options: {
+                    folders: {
+                        workspaceRootFiles: false,
+                    },
+                },
+            }).extract());
+            branchContext = new BranchContext(forgeContext, 'test/branch', '/test/branch/path', [], false);
+
+            await branchContext.copyWorkspaceRootFiles();
+
+            expect(fsLib.pathExists).not.toHaveBeenCalled();
+            expect(fsLib.copyDirectoryContentsRecursively).not.toHaveBeenCalled();
+        });
+
+        it('should pass through the symlink option when enabled', async () => {
+            ({ forgeContext } = ContextHelper.default({
+                options: {
+                    workspace: {
+                        rootFiles: {
+                            allowSymlinks: true,
+                        },
+                    },
+                },
+            }).extract());
+            branchContext = new BranchContext(forgeContext, 'test/branch', '/test/branch/path', [], false);
+            vi.mocked(fsLib.pathExists).mockResolvedValue(true);
+            const sourcePath = path.join(forgeContext.paths.featForgeConfigRoot, 'workspace-root-files');
+
+            await branchContext.copyWorkspaceRootFiles();
+
+            expect(fsLib.copyDirectoryContentsRecursively).toHaveBeenCalledWith(sourcePath, branchContext.path, {
+                dryRun: false,
+                allowSymlinks: true,
+            });
+        });
+    });
 });
