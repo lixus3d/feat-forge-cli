@@ -22,6 +22,7 @@ describe('ForgeConfig', () => {
                 specs: 'test-specs',
                 template: 'test-templates',
                 repoConfig: '.forge',
+                workspaceRootFiles: 'workspace-root-files',
             } as ForgeFoldersOptions,
         },
     };
@@ -82,6 +83,35 @@ describe('ForgeConfig', () => {
             expect(forgeConfig.options.folders.archive).toEqual(defaultFolderOptions.archive);
             expect(forgeConfig.options.folders.specs).toEqual(defaultFolderOptions.specs);
             expect(forgeConfig.options.folders.repoConfig).toEqual(defaultFolderOptions.repoConfig);
+            expect(forgeConfig.options.folders.workspaceRootFiles).toEqual(defaultFolderOptions.workspaceRootFiles);
+        });
+
+        it('should allow disabling workspace root files copy', () => {
+            const forgeConfig = new ForgeConfig(configPath, {
+                ...minimumConfig,
+                options: {
+                    folders: {
+                        workspaceRootFiles: false,
+                    },
+                },
+            });
+
+            expect(forgeConfig.options.folders.workspaceRootFiles).toBe(false);
+        });
+
+        it('should allow enabling workspace root files symlinks explicitly', () => {
+            const forgeConfig = new ForgeConfig(configPath, {
+                ...minimumConfig,
+                options: {
+                    workspace: {
+                        rootFiles: {
+                            allowSymlinks: true,
+                        },
+                    },
+                },
+            });
+
+            expect(forgeConfig.options.workspace.rootFiles.allowSymlinks).toBe(true);
         });
     });
 

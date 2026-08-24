@@ -57,7 +57,8 @@
             "template": ".template",
             "repoAgents": ".forge-agents",
             "archive": ".archives",
-            "repoConfig": ".forge"
+            "repoConfig": ".forge",
+            "workspaceRootFiles": "workspace-root-files"
         },
         "files": {
             "forgeMode": ".forge-mode"
@@ -76,6 +77,11 @@
             "envrc": ".envrc",
             "envrc_source_up": true,
             "environmentVariablePrefix": "FEAT_FORGE_"
+        },
+        "workspace": {
+            "rootFiles": {
+                "allowSymlinks": false
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-import { ForgeConfigFile } from '@/foundation/ForgeConfigFile';
+import { ForgeConfigFile, ForgeOptions } from '@/foundation/ForgeConfigFile';
 import { IDEName } from '@/foundation/types/IDEName';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -17,6 +17,7 @@ describe('ForgeConfigFile', () => {
                     archive: 'test-archive',
                     specs: 'test-specs',
                     template: 'test-templates',
+                    workspaceRootFiles: false,
                 },
                 git: {
                     featureBranchPrefix: 'foobar/',
@@ -24,10 +25,22 @@ describe('ForgeConfigFile', () => {
                 files: {
                     forgeMode: 'hello.json',
                 },
+                workspace: {
+                    rootFiles: {
+                        allowSymlinks: true,
+                    },
+                },
             },
         };
         const forgeConfigFile = plainToInstance(ForgeConfigFile, validConfigObject);
         expect(forgeConfigFile).toBeInstanceOf(ForgeConfigFile);
         await expect(validate(forgeConfigFile)).resolves.not.toThrow();
+    });
+
+    it('should default workspaceRootFiles to the conventional folder name', () => {
+        const forgeOptions = new ForgeOptions();
+
+        expect(forgeOptions.folders.workspaceRootFiles).toBe('workspace-root-files');
+        expect(forgeOptions.workspace.rootFiles.allowSymlinks).toBe(false);
     });
 });
