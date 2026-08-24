@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.3.1...v1.4.0) (2026-07-02)
+
+
+### Features
+
+* **branch:** better branch commands wip ([993498b](https://github.com/lixus3d/feat-forge-cli/commit/993498be5a64bec9e8c7eb9d86a0191cdb47adb9))
+
+
+### Bug Fixes
+
+* **branch:** better pull command ([b930f77](https://github.com/lixus3d/feat-forge-cli/commit/b930f7731332140702b9efbe17a56de6aaba4b61))
+* update packages and lock file ([1ec6f62](https://github.com/lixus3d/feat-forge-cli/commit/1ec6f62cd106a94caee631556e197a50a75eaab2))
+
 ## [1.3.1](https://github.com/lixus3d/feat-forge-cli/compare/v1.3.0...v1.3.1) (2026-04-03)
 
 
