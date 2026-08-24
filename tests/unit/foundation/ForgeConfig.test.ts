@@ -113,6 +113,19 @@ describe('ForgeConfig', () => {
 
             expect(forgeConfig.options.workspace.rootFiles.allowSymlinks).toBe(true);
         });
+
+        it('should allow enabling process.useNvmrc explicitly', () => {
+            const forgeConfig = new ForgeConfig(configPath, {
+                ...minimumConfig,
+                options: {
+                    process: {
+                        useNvmrc: true,
+                    },
+                },
+            });
+
+            expect(forgeConfig.options.process.useNvmrc).toBe(true);
+        });
     });
 
     describe('standardizeRepositories', () => {

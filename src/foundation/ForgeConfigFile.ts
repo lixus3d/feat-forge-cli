@@ -150,6 +150,13 @@ export class ForgeProcessOptions {
     @IsString()
     @IsNotEmpty()
     npmScriptPrefix: string = 'feat-forge';
+
+    /**
+     * Whether feat-forge should run `nvm use` before bootstrap and hook commands when a .nvmrc is found from the repository cwd upward. Default: false
+     */
+    @IsOptional()
+    @IsBoolean()
+    useNvmrc: boolean = false;
 }
 
 export class ForgeProxyOptions {

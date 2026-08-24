@@ -30,6 +30,9 @@ describe('ForgeConfigFile', () => {
                         allowSymlinks: true,
                     },
                 },
+                process: {
+                    useNvmrc: true,
+                },
             },
         };
         const forgeConfigFile = plainToInstance(ForgeConfigFile, validConfigObject);
@@ -41,6 +44,7 @@ describe('ForgeConfigFile', () => {
         const forgeOptions = new ForgeOptions();
 
         expect(forgeOptions.folders.workspaceRootFiles).toBe('workspace-root-files');
+        expect(forgeOptions.process.useNvmrc).toBe(false);
         expect(forgeOptions.workspace.rootFiles.allowSymlinks).toBe(false);
     });
 });

@@ -81,15 +81,30 @@ describe('hooks helpers', () => {
             const executed = await executeHooksForEvent('/repo', '.forge', HookEvent.POST_START, { branch: 'feature/test' });
 
             expect(executed).toEqual(['postStart', 'postStart_01', 'postStart_02']);
-            expect(executeScript).toHaveBeenNthCalledWith(1, '/repo/.forge/hooks/postStart.sh', '/repo', 'hook: postStart', {
-                branch: 'feature/test',
-            });
-            expect(executeScript).toHaveBeenNthCalledWith(2, '/repo/.forge/hooks/postStart_01.sh', '/repo', 'hook: postStart_01', {
-                branch: 'feature/test',
-            });
-            expect(executeScript).toHaveBeenNthCalledWith(3, '/repo/.forge/hooks/postStart_02.sh', '/repo', 'hook: postStart_02', {
-                branch: 'feature/test',
-            });
+            expect(executeScript).toHaveBeenNthCalledWith(
+                1,
+                '/repo/.forge/hooks/postStart.sh',
+                '/repo',
+                'hook: postStart',
+                { branch: 'feature/test' },
+                {},
+            );
+            expect(executeScript).toHaveBeenNthCalledWith(
+                2,
+                '/repo/.forge/hooks/postStart_01.sh',
+                '/repo',
+                'hook: postStart_01',
+                { branch: 'feature/test' },
+                {},
+            );
+            expect(executeScript).toHaveBeenNthCalledWith(
+                3,
+                '/repo/.forge/hooks/postStart_02.sh',
+                '/repo',
+                'hook: postStart_02',
+                { branch: 'feature/test' },
+                {},
+            );
         });
 
         it('should throw a hook-specific error when execution fails', async () => {

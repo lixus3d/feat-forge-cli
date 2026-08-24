@@ -48,7 +48,8 @@
             "manageGitIgnore": true,
             "activeSpecInEachRepo": true,
             "agentsInEachRepo": true,
-            "npmScriptPrefix": "feat-forge"
+            "npmScriptPrefix": "feat-forge",
+            "useNvmrc": false
         },
         "folders": {
             "specs": ".specs",

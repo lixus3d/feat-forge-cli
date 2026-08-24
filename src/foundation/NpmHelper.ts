@@ -1,11 +1,9 @@
-import { execa } from 'execa';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { ForgeContext } from './ForgeContext';
 import { Repository } from './Repository';
 import { pathExists } from '../lib/fs';
-import { paramsToEnv } from '../lib/env';
-import { unwatchFile } from 'fs';
+import { executeCommand } from '../lib/bootstrap';
 
 interface PackageJson {
     scripts?: Record<string, string>;
@@ -95,15 +93,14 @@ export class NpmHelper {
         await this.initialize();
 
         try {
-            const hookEnv = paramsToEnv(params);
-            await execa(this.packageManager, ['run', scriptName], {
-                cwd: this.repository.path,
-                stdio: 'inherit',
-                env: {
-                    ...process.env,
-                    ...hookEnv,
-                },
-            });
+            await executeCommand(
+                this.packageManager,
+                ['run', scriptName],
+                this.repository.path,
+                `npm script ${scriptName}`,
+                params,
+                { useNvmrc: this.forgeContext.options.process.useNvmrc },
+            );
 
             console.log(`✅ ${this.packageManager} script ${scriptName} completed successfully`);
             return true;
