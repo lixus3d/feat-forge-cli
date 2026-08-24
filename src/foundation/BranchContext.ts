@@ -5,7 +5,7 @@ import { readdir, rm, symlink } from 'fs/promises';
 import path from 'path';
 import { refreshCopilotAgentContextFiles } from '../lib/agents';
 import { TemporaryFolderType } from '../lib/constants';
-import { ensureDir, ensureLineInFile, pathExists, readTextFile, writeTextFile } from '../lib/fs';
+import { copyDirectoryContentsRecursively, ensureDir, ensureLineInFile, pathExists, readTextFile, writeTextFile } from '../lib/fs';
 import { getGitStatusPorcelain, runGit } from '../lib/git';
 import { createIDEWorkspaces } from '../lib/ide';
 import { promptConfirm, promptForBranch } from '../lib/prompt';
@@ -367,6 +367,7 @@ export class BranchContext {
     async start(): Promise<void> {
         const branchRoot = this.path;
         await ensureDir(branchRoot);
+        await this.copyWorkspaceRootFiles();
 
         this.repositories = await this.ensureWorktrees();
 
@@ -408,6 +409,18 @@ export class BranchContext {
         await this.executeHook(HookEvent.POST_START, { branch: this.branchName });
 
         this.active = true;
+    }
+
+    async copyWorkspaceRootFiles(): Promise<void> {
+        const sourcePath = this.context.paths.getWorkspaceRootFilesSourcePath();
+        if (!sourcePath || !(await pathExists(sourcePath))) {
+            return;
+        }
+
+        await copyDirectoryContentsRecursively(sourcePath, this.path, {
+            dryRun: false,
+            allowSymlinks: this.context.options.workspace.rootFiles.allowSymlinks,
+        });
     }
 
     /**

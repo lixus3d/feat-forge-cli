@@ -24,6 +24,7 @@ const customFolders: ForgeFoldersOptions = {
     specs: 'custom-specs',
     template: 'custom-templates',
     repoConfig: 'custom-repo-config',
+    workspaceRootFiles: 'workspace-root-files',
 };
 
 const customGit: ForgeGitOptions = {

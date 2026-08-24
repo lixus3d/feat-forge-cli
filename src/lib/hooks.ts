@@ -2,7 +2,7 @@ import { readdir } from 'fs/promises';
 import path from 'path';
 import { pathExists } from './fs';
 import { getScriptExtension } from './platform';
-import { executeScript } from './bootstrap';
+import { CommandExecutionOptions, executeScript } from './bootstrap';
 
 /**
  * Available hook event types that can be triggered throughout the forge lifecycle.
@@ -91,6 +91,7 @@ export async function executeHooksForEvent(
     repoConfigFolderPath: string,
     eventType: HookEvent,
     params?: Record<string, unknown>,
+    options: CommandExecutionOptions = {},
 ): Promise<string[]> {
     const hookNames = await discoverHooksForEvent(repositoryPath, repoConfigFolderPath, eventType);
 
@@ -104,7 +105,7 @@ export async function executeHooksForEvent(
     for (const hookName of hookNames) {
         const scriptPath = path.join(repositoryPath, repoConfigFolderPath, 'hooks', `${hookName}${scriptExtension}`);
         try {
-            await executeScript(scriptPath, repositoryPath, `hook: ${hookName}`, params);
+            await executeScript(scriptPath, repositoryPath, `hook: ${hookName}`, params, options);
             executedHooks.push(hookName);
         } catch (error) {
             throw new Error(`Hook ${hookName} failed in ${repositoryPath}`);
