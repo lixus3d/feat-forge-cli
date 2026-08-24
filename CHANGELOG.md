@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.4.0...v1.5.0) (2026-08-24)
+
+
+### Features
+
+* copy workspace root files into branch workspace ([bb02372](https://github.com/lixus3d/feat-forge-cli/commit/bb0237274eed057c08299bf03617804df535ad58))
+* support nvmrc for bootstrap and hooks ([7ad15ac](https://github.com/lixus3d/feat-forge-cli/commit/7ad15ac577b30dce99caede6ba08d1d4b8068e6d))
+
 ## [1.4.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.3.1...v1.4.0) (2026-07-02)
 
 
