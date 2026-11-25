@@ -255,6 +255,12 @@ Pull the current feature branch across all repos.
 
 ---
 
+### `forge feature push <slug>`
+
+Push the feature branch across all repos (see `forge push`).
+
+---
+
 ### `forge feature open [slug]`
 
 Open a feature branch in the configured IDE.
@@ -285,7 +291,29 @@ Top-level shortcuts for merge and rebase operations (across all repos).
 
 ### `forge pull [slug]`
 
-Pull the current branch across all repos.
+Pull a branch across all repos.
+
+- From inside a workspace (any folder of it), the branch is detected automatically.
+- From the project root, you are asked to pick one of the active branches.
+
+---
+
+### `forge push [slug] [--force]`
+
+Push a branch across all repos of its workspace.
+
+- From inside a workspace (any folder of it), the branch is detected automatically.
+- From the project root, you are asked to pick one of the active branches.
+- A dirty worktree does not block the push, but you get a warning listing the repos with uncommitted changes and must confirm.
+- On the first push, the remote branch is created with `git push -u origin <branch>`.
+- Repos already up to date are skipped; a repo on the wrong branch is reported (run `forge resync`).
+- `--force` uses `git push --force-with-lease` (after confirmation), typically after a `forge rebase`.
+
+```bash
+forge push                      # from a workspace, or pick the branch from the project root
+forge feature push my-feature   # same as forge push feature/my-feature
+forge push --force              # after a rebase
+```
 
 ---
 

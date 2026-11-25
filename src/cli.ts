@@ -162,9 +162,22 @@ function genericBranchTypeCommands(
     baseCommand
         .command('pull')
         .argument(subType ? `<${argName}>` : `[${argName}]`, argDesc)
-        .description(`Pull the current ${subType ? subType + ' ' : ''}branch across all repos`)
+        .description(
+            `Pull the ${subType ? subType + ' ' : ''}branch across all repos${subType ? '' : ' (detects the current workspace, or asks for the branch from the project root)'}`,
+        )
         .action(async (branchName?: string) => {
             await (handlers.pull as (branchName?: string) => Promise<void>)(branchName);
+        });
+
+    baseCommand
+        .command('push')
+        .argument(subType ? `<${argName}>` : `[${argName}]`, argDesc)
+        .option('-f, --force', 'Force push using --force-with-lease (e.g. after a rebase)')
+        .description(
+            `Push the ${subType ? subType + ' ' : ''}branch across all repos${subType ? '' : ' (detects the current workspace, or asks for the branch from the project root)'}`,
+        )
+        .action(async (branchName: string | undefined, options: { force?: boolean }) => {
+            await (handlers.push as (branchName?: string, options?: { force?: boolean }) => Promise<void>)(branchName, options);
         });
 }
 

@@ -34,9 +34,10 @@ export async function promptText(message: string): Promise<string> {
 /**
  * Prompt the user for a yes/no confirmation.
  */
-export async function promptConfirm(message: string): Promise<boolean> {
+export async function promptConfirm(message: string, defaultValue: boolean = true): Promise<boolean> {
     return await confirm({
         message,
+        default: defaultValue,
     });
 }
 
