@@ -1,6 +1,7 @@
 import { getDefaultIDECommand, getWorkspaceFileName } from '@/lib/ide';
 import { execa } from 'execa';
 import { BranchContext } from '../foundation/BranchContext';
+import { ForgeNotInActiveBranchError } from '../foundation/errors';
 import { RepositoryStatus, RootRepository, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
 import { ensureDir, pathExists } from '../lib/fs';
@@ -353,9 +354,10 @@ export class BranchCommands extends AbstractCommands {
     }
 
     async pull(rawSlug?: string): Promise<void> {
-        const branchName = rawSlug
-            ? await confirmSlugOrThrow(rawSlug)
-            : (await BranchContext.findNearestBranchContext(this.context)).branchName;
+        const branchName = await this.resolveBranchNameOrPrompt(rawSlug, 'Select the branch to pull:');
+        if (!branchName) {
+            return;
+        }
 
         let branchContext: BranchContext;
         if (await this.context.isBranchActive(branchName)) {
@@ -375,9 +377,115 @@ export class BranchCommands extends AbstractCommands {
         displayOperationSummary(results, GitOperation.Pull);
     }
 
+    /**
+     * Push a branch across all repos of its workspace.
+     * - From a workspace folder, the branch is detected automatically.
+     * - From the project root (or outside any workspace), the user picks one of the active branches.
+     * - A dirty worktree does not block the push, but requires an explicit confirmation.
+     */
+    async push(rawSlug?: string, options: { force?: boolean } = {}): Promise<void> {
+        const force = options.force ?? false;
+        const branchName = await this.resolveBranchNameOrPrompt(rawSlug, 'Select the branch to push:');
+        if (!branchName) {
+            return;
+        }
+
+        if (!(await this.context.isBranchActive(branchName))) {
+            throw new Error(`Branch "${branchName}" is not active (no workspace found). Run "forge start ${branchName}" first.`);
+        }
+        const branchContext = await this.context.loadBranchContext(branchName);
+        const repositories = branchContext.repositories;
+
+        if (!(await this.confirmPushWithDirtyRepositories(branchContext))) {
+            console.log('Push aborted.');
+            return;
+        }
+
+        if (force) {
+            const confirmed = await promptConfirm(
+                `Force push (--force-with-lease) "${branchName}" on ${repositories.map((repo) => repo.name).join(', ')}?`,
+                false,
+            );
+            if (!confirmed) {
+                console.log('Push aborted.');
+                return;
+            }
+        }
+
+        console.log(`\nPushing branch: ${branchName}${force ? ' (force with lease)' : ''}\n`);
+        const results: GitOperationResult[] = [];
+        // Sequential push for readable logs and sequential credential prompts.
+        for (const repo of repositories) {
+            results.push(await repo.push(branchName, { force }));
+        }
+
+        displayOperationSummary(results, GitOperation.Push);
+        if (results.some((result) => !result.success)) {
+            process.exitCode = 1;
+        }
+    }
+
     // ============================================================================
     // PRIVATE UTILITY METHODS
     // ============================================================================
+
+    /**
+     * Resolve the branch to work on:
+     * 1. explicit slug,
+     * 2. nearest workspace (when run from inside a workspace),
+     * 3. otherwise prompt among active branches.
+     *
+     * @returns the branch name, or null if there is no active branch to choose from
+     */
+    private async resolveBranchNameOrPrompt(rawSlug: string | undefined, promptMessage: string): Promise<string | null> {
+        if (rawSlug) {
+            return confirmSlugOrThrow(rawSlug);
+        }
+
+        try {
+            const branchContext = await BranchContext.findNearestBranchContext(this.context);
+            console.log(`Detected branch: ${branchContext.branchName}`);
+            return branchContext.branchName;
+        } catch (error) {
+            if (!(error instanceof ForgeNotInActiveBranchError)) {
+                throw error;
+            }
+        }
+
+        const activeBranches = await this.context.loadActiveBranchesContexts();
+        if (activeBranches.length === 0) {
+            console.log('No active branch found. Use "forge start <branch>" to start working on a branch.');
+            return null;
+        }
+
+        return promptChoice(
+            promptMessage,
+            activeBranches.map((branchContext) => ({ name: branchContext.branchName, value: branchContext.branchName })),
+        );
+    }
+
+    /**
+     * Warn about repositories with uncommitted changes and ask whether to push anyway.
+     *
+     * @returns true if the push can proceed
+     */
+    private async confirmPushWithDirtyRepositories(branchContext: BranchContext): Promise<boolean> {
+        const dirtyRepos = await branchContext.getDirtyRepositories();
+        if (dirtyRepos.length === 0) {
+            return true;
+        }
+
+        console.log(`\n⚠️  Some repositories have uncommitted changes (uncommitted changes will NOT be pushed):`);
+        for (const repo of dirtyRepos) {
+            const lines = (await repo.getGitStatus()).split('\n').filter((line) => line.trim().length > 0);
+            const untracked = lines.filter((line) => line.startsWith('??')).length;
+            const modified = lines.length - untracked;
+            console.log(`   - ${repo.name}: ${modified} modified, ${untracked} untracked`);
+        }
+        console.log('');
+
+        return promptConfirm('Push anyway?', false);
+    }
 
     /**
      * Prepare branch + spec initialization shared by create/start.

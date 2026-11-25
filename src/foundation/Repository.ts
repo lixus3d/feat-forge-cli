@@ -13,17 +13,23 @@ import {
     gitBranchExistsAnywhere,
     gitRemoteBranchRef,
     getBranches,
+    getAheadBehind,
     getCurrentBranch,
     getGitStatusPorcelain,
+    getUpstreamBranch,
     getGitWorktrees,
     gitBranchExists,
     GitOperationResult,
+    hasRemote,
     runGit,
 } from '../lib/git';
 import { BranchContext } from './BranchContext';
 import { ForgeExpectMainRepositoryError } from './errors';
 import { ForgeContext } from './ForgeContext';
 import { RepositoryInfos } from './types/RepositoryInfos';
+
+/** Remote used when a branch has no upstream yet */
+const PUSH_DEFAULT_REMOTE = 'origin';
 
 export type RepositoryStatus = { branch: string | null; dirty: boolean; onExpectedBranch: boolean };
 
@@ -551,6 +557,62 @@ export class WorktreeRepository extends Repository {
             }
         } catch (error) {
             console.error(`❌ Error pulling ${this.name}:`, error);
+            return { repo: this.name, success: false, hasConflicts: false };
+        }
+    }
+
+    /**
+     * Push the worktree's branch to its remote.
+     * - Uses the existing upstream if any, otherwise creates it with `git push -u origin <branch>`.
+     * - Does not require a clean worktree (only commits are pushed) and never checks out another branch.
+     * - With `force`, uses `--force-with-lease` (never a plain `--force`).
+     */
+    async push(branchName: string, options: { force?: boolean } = {}): Promise<GitOperationResult> {
+        const force = options.force ?? false;
+        try {
+            const currentBranch = await this.getCurrentBranch();
+            if (currentBranch !== branchName) {
+                console.log(
+                    `⚠️  Worktree repository ${this.name} is on "${currentBranch ?? 'detached HEAD'}" instead of "${branchName}". Run "forge resync ${branchName}" first.`,
+                );
+                return { repo: this.name, success: false, hasConflicts: false, note: 'wrong branch' };
+            }
+
+            const forceArgs = force ? ['--force-with-lease'] : [];
+            const upstream = await getUpstreamBranch(this.path);
+
+            if (!upstream) {
+                if (!(await hasRemote(this.path, PUSH_DEFAULT_REMOTE))) {
+                    console.log(`❌ No upstream and no "${PUSH_DEFAULT_REMOTE}" remote configured for ${this.name}.`);
+                    return { repo: this.name, success: false, hasConflicts: false, note: `no ${PUSH_DEFAULT_REMOTE} remote` };
+                }
+                console.log(`Pushing ${branchName} to ${PUSH_DEFAULT_REMOTE} (creating remote branch)...`);
+                await runGit(this.path, ['push', ...forceArgs, '-u', PUSH_DEFAULT_REMOTE, branchName]);
+                console.log(`✅ Push successful for ${this.name}`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'remote branch created' };
+            }
+
+            const { ahead } = await getAheadBehind(this.path);
+            if (ahead === 0) {
+                console.log(`✅ ${this.name} is already up to date with ${upstream}`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'up to date' };
+            }
+
+            console.log(`Pushing ${branchName}${force ? ' (force with lease)' : ''}...`);
+            try {
+                await runGit(this.path, ['push', ...forceArgs]);
+            } catch (error) {
+                if (!force) {
+                    console.log(
+                        `⚠️  Push rejected for ${this.name}? If the remote branch has new commits, run "forge pull" first; after a "forge rebase", use "forge push --force".`,
+                    );
+                }
+                throw error;
+            }
+            console.log(`✅ Push successful for ${this.name}`);
+            return { repo: this.name, success: true, hasConflicts: false, note: force ? 'forced with lease' : undefined };
+        } catch (error) {
+            console.error(`❌ Error pushing ${this.name}:`, error instanceof Error ? error.message : error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }
