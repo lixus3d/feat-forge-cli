@@ -1,6 +1,6 @@
 import { execa } from 'execa';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBranch, gitBranchExists, gitRemoteBranchRef } from '@/lib/git';
+import { createBranch, getAheadBehind, getUpstreamBranch, gitBranchExists, gitRemoteBranchRef, hasRemote } from '@/lib/git';
 
 vi.mock('execa', () => ({
     execa: vi.fn(),
@@ -88,6 +88,44 @@ describe('git helpers', () => {
                 cwd: '/repo',
                 stdio: 'inherit',
             });
+        });
+    });
+
+    describe('getUpstreamBranch()', () => {
+        it('should return the upstream ref', async () => {
+            vi.mocked(execa).mockResolvedValueOnce({ stdout: 'origin/feature/test\n' } as any);
+
+            expect(await getUpstreamBranch('/repo')).toBe('origin/feature/test');
+            expect(execa).toHaveBeenCalledWith('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: '/repo' });
+        });
+
+        it('should return null when no upstream is configured', async () => {
+            vi.mocked(execa).mockRejectedValueOnce(new Error('no upstream'));
+
+            expect(await getUpstreamBranch('/repo')).toBeNull();
+        });
+    });
+
+    describe('getAheadBehind()', () => {
+        it('should parse ahead and behind counts', async () => {
+            vi.mocked(execa).mockResolvedValueOnce({ stdout: '3\t1' } as any);
+
+            expect(await getAheadBehind('/repo')).toEqual({ ahead: 3, behind: 1 });
+            expect(execa).toHaveBeenCalledWith('git', ['rev-list', '--left-right', '--count', 'HEAD...@{u}'], { cwd: '/repo' });
+        });
+    });
+
+    describe('hasRemote()', () => {
+        it('should detect a configured remote', async () => {
+            vi.mocked(execa).mockResolvedValueOnce({ stdout: 'origin\nupstream' } as any);
+
+            expect(await hasRemote('/repo', 'origin')).toBe(true);
+        });
+
+        it('should return false for a missing remote', async () => {
+            vi.mocked(execa).mockResolvedValueOnce({ stdout: 'upstream' } as any);
+
+            expect(await hasRemote('/repo', 'origin')).toBe(false);
         });
     });
 });

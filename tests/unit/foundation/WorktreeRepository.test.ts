@@ -317,4 +317,107 @@ describe('WorktreeRepository', () => {
             expect(result.hasConflicts).toBe(true);
         });
     });
+
+    describe('push()', () => {
+        const branch = 'feature/test-feature';
+
+        it('should push when upstream exists and branch is ahead', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(`origin/${branch}`);
+            vi.mocked(gitLib.getAheadBehind).mockResolvedValue({ ahead: 2, behind: 0 });
+            vi.mocked(gitLib.runGit).mockResolvedValue(undefined);
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(gitLib.runGit).toHaveBeenCalledWith(worktreeMainRepository.path, ['push']);
+            expect(result).toEqual({ repo: worktreeMainRepository.name, success: true, hasConflicts: false, note: undefined });
+        });
+
+        it('should not require a clean worktree', async () => {
+            vi.mocked(gitLib.getGitStatusPorcelain).mockResolvedValue(' M file.ts');
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(`origin/${branch}`);
+            vi.mocked(gitLib.getAheadBehind).mockResolvedValue({ ahead: 1, behind: 0 });
+            vi.mocked(gitLib.runGit).mockResolvedValue(undefined);
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(result.success).toBe(true);
+            expect(gitLib.runGit).toHaveBeenCalledWith(worktreeMainRepository.path, ['push']);
+        });
+
+        it('should create the upstream with -u origin on first push', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(null);
+            vi.mocked(gitLib.hasRemote).mockResolvedValue(true);
+            vi.mocked(gitLib.runGit).mockResolvedValue(undefined);
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(gitLib.hasRemote).toHaveBeenCalledWith(worktreeMainRepository.path, 'origin');
+            expect(gitLib.runGit).toHaveBeenCalledWith(worktreeMainRepository.path, ['push', '-u', 'origin', branch]);
+            expect(result.success).toBe(true);
+            expect(result.note).toBe('remote branch created');
+        });
+
+        it('should fail when there is no upstream and no origin remote', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(null);
+            vi.mocked(gitLib.hasRemote).mockResolvedValue(false);
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(result.success).toBe(false);
+            expect(gitLib.runGit).not.toHaveBeenCalled();
+        });
+
+        it('should report up to date without pushing when nothing is ahead', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(`origin/${branch}`);
+            vi.mocked(gitLib.getAheadBehind).mockResolvedValue({ ahead: 0, behind: 3 });
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(gitLib.runGit).not.toHaveBeenCalled();
+            expect(result.success).toBe(true);
+            expect(result.note).toBe('up to date');
+        });
+
+        it('should fail without checkout when the worktree is on another branch', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue('main');
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(result.success).toBe(false);
+            expect(result.note).toBe('wrong branch');
+            expect(gitLib.checkoutBranch).not.toHaveBeenCalled();
+            expect(gitLib.runGit).not.toHaveBeenCalled();
+        });
+
+        it('should use --force-with-lease when force is requested', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(`origin/${branch}`);
+            vi.mocked(gitLib.getAheadBehind).mockResolvedValue({ ahead: 2, behind: 2 });
+            vi.mocked(gitLib.runGit).mockResolvedValue(undefined);
+
+            const result = await worktreeMainRepository.push(branch, { force: true });
+
+            expect(gitLib.runGit).toHaveBeenCalledWith(worktreeMainRepository.path, ['push', '--force-with-lease']);
+            expect(gitLib.runGit).not.toHaveBeenCalledWith(worktreeMainRepository.path, expect.arrayContaining(['--force']));
+            expect(result.success).toBe(true);
+        });
+
+        it('should return a failure when git push is rejected', async () => {
+            vi.mocked(gitLib.getCurrentBranch).mockResolvedValue(branch);
+            vi.mocked(gitLib.getUpstreamBranch).mockResolvedValue(`origin/${branch}`);
+            vi.mocked(gitLib.getAheadBehind).mockResolvedValue({ ahead: 1, behind: 1 });
+            vi.mocked(gitLib.runGit).mockRejectedValue(new Error('rejected (non-fast-forward)'));
+            vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+            const result = await worktreeMainRepository.push(branch);
+
+            expect(result.success).toBe(false);
+            expect(result.hasConflicts).toBe(false);
+        });
+    });
 });

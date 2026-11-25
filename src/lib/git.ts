@@ -9,12 +9,15 @@ export type GitOperationResult = {
     repo: string;
     success: boolean;
     hasConflicts: boolean;
+    /** Optional short detail displayed next to the repo name in the summary (e.g. "up to date") */
+    note?: string;
 };
 
 export enum GitOperation {
     Merge = 'merge',
     Rebase = 'rebase',
     Pull = 'pull',
+    Push = 'push',
 }
 
 export type GitWorktreeInfo = {
@@ -42,6 +45,45 @@ export async function findGitRoot(startDir: string = process.cwd()): Promise<str
  */
 export async function runGit(repoRoot: string, args: string[]): Promise<void> {
     await execa('git', args, { cwd: repoRoot, stdio: 'inherit' });
+}
+
+/**
+ * Return the upstream ref (e.g. "origin/feature/x") of the current branch, or null if none is configured.
+ */
+export async function getUpstreamBranch(repoRoot: string): Promise<string | null> {
+    try {
+        const result = await execa('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: repoRoot });
+        return result.stdout.trim() || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Count commits ahead/behind of the current branch compared to its upstream (based on local remote refs).
+ */
+export async function getAheadBehind(repoRoot: string): Promise<{ ahead: number; behind: number }> {
+    const result = await execa('git', ['rev-list', '--left-right', '--count', 'HEAD...@{u}'], { cwd: repoRoot });
+    const [ahead, behind] = result.stdout
+        .trim()
+        .split(/\s+/)
+        .map((value) => Number.parseInt(value, 10));
+    return { ahead: ahead || 0, behind: behind || 0 };
+}
+
+/**
+ * Return true if the given remote is configured in the repository.
+ */
+export async function hasRemote(repoRoot: string, remoteName: string): Promise<boolean> {
+    try {
+        const result = await execa('git', ['remote'], { cwd: repoRoot });
+        return result.stdout
+            .split('\n')
+            .map((line) => line.trim())
+            .includes(remoteName);
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -226,7 +268,7 @@ export function displayOperationSummary(
 
     if (successful.length > 0) {
         console.log(`\n✅ Successful ${operationType}s (${successful.length}):`);
-        successful.forEach((r) => console.log(`   - ${r.repo}`));
+        successful.forEach((r) => console.log(`   - ${r.repo}${r.note ? ` (${r.note})` : ''}`));
     }
 
     if (conflicts.length > 0) {
@@ -244,7 +286,11 @@ export function displayOperationSummary(
         console.log(`\n🎉 All ${operationType}s completed successfully!`);
     } else {
         console.log(`\n⚠️  Some ${operationType}s need attention. Please resolve conflicts or errors before continuing.`);
-        console.log(`After resolving conflicts, you can continue with: git ${operationType} --continue`);
+        if (operationType === GitOperation.Push) {
+            console.log(`After fixing the errors, run the push again.`);
+        } else {
+            console.log(`After resolving conflicts, you can continue with: git ${operationType} --continue`);
+        }
     }
 
     return {
