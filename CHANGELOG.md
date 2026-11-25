@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.5.0...v1.6.0) (2026-11-25)
+
+
+### Features
+
+* add forge push command and branch prompt for forge pull ([7191e8c](https://github.com/lixus3d/feat-forge-cli/commit/7191e8c72f7ff31dd87481d27e7a8c47fd8b609b))
+
 ## [1.5.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.4.0...v1.5.0) (2026-08-24)
 
 
