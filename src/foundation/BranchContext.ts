@@ -6,7 +6,7 @@ import path from 'path';
 import { refreshCopilotAgentContextFiles } from '../lib/agents';
 import { TemporaryFolderType } from '../lib/constants';
 import { copyDirectoryContentsRecursively, ensureDir, ensureLineInFile, pathExists, readTextFile, writeTextFile } from '../lib/fs';
-import { getGitStatusPorcelain, runGit } from '../lib/git';
+import { getGitCommonDir, getGitStatusPorcelain, runGit } from '../lib/git';
 import { createIDEWorkspaces } from '../lib/ide';
 import { promptConfirm, promptForBranch } from '../lib/prompt';
 import { ForgeContext } from './ForgeContext';
@@ -36,6 +36,14 @@ export class BranchContext {
 
     isRootBranch(): boolean {
         return !this.isFeatureBranch() && !this.isFixBranch() && !this.isReleaseBranch();
+    }
+
+    /**
+     * Long-lived branches (main, dev, ...) configured in options.git.protectedBranches:
+     * they have no spec files and forge never commits spec/gitignore changes on them.
+     */
+    isProtectedBranch(): boolean {
+        return this.context.options.git.protectedBranches.includes(this.branchName);
     }
 
     isFeatureBranch(): boolean {
@@ -196,7 +204,7 @@ export class BranchContext {
 
     async deleteBranch(): Promise<void> {
         // do not allow deletion of main,master,etc branches by forge
-        if (this.context.options.git.protectedBranches.includes(this.branchName)) {
+        if (this.isProtectedBranch()) {
             throw new Error(`Branch ${this.branchName} is protected and cannot be deleted.`);
         }
         // Must be done on all repositories, not only the one from the Branch
@@ -286,6 +294,19 @@ export class BranchContext {
         return changes;
     }
 
+    /**
+     * Same as ensureGitIgnore, but in the repository local exclude file (<git-common-dir>/info/exclude),
+     * shared by all worktrees and never committed. Used for protected branches, on which forge does not commit.
+     */
+    async ensureLocalGitExclude(repository: Repository): Promise<number> {
+        const excludePath = path.join(await getGitCommonDir(repository.path), 'info', 'exclude');
+        await ensureDir(path.dirname(excludePath));
+        let changes = 0;
+        changes += await ensureLineInFile(excludePath, this.folders.activeSpec);
+        changes += await ensureLineInFile(excludePath, this.folders.repoAgents);
+        return changes;
+    }
+
     async initBranch(): Promise<{ hiddenChanges: number; pendingSpecCommit: { repo: WorktreeRepository; files: string[] } | null }> {
         let hiddenChanges = 0; // Changes were made on temporary worktrees
         let pendingSpecCommit: { repo: WorktreeRepository; files: string[] } | null = null;
@@ -365,14 +386,23 @@ export class BranchContext {
     }
 
     async start(): Promise<void> {
+        // Fail before creating anything if a repository cannot get a worktree on this branch (e.g. main checked out in the root repo)
+        for (const repo of this.context.repositories) {
+            if (!(await repo.hasWorktree(this.branchName))) {
+                await repo.assertBranchNotCheckedOutElsewhere(this.branchName);
+            }
+        }
+
         const branchRoot = this.path;
         await ensureDir(branchRoot);
         await this.copyWorkspaceRootFiles();
 
         this.repositories = await this.ensureWorktrees();
 
-        // Set active Branch pointer
-        await this.setActiveSpec();
+        // Set active Branch pointer (protected branches have no spec, unless one was created manually)
+        if (!this.isProtectedBranch() || (await pathExists(this.mainRepo.getSpecPath(this.branchName)))) {
+            await this.setActiveSpec();
+        }
 
         // Set initial mode to spec if not defined
         await this.initMode(); // default to spec mode on start

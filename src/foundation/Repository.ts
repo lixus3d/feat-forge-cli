@@ -10,6 +10,10 @@ import { ensureDir, pathExists } from '../lib/fs';
 import {
     checkoutBranch,
     createBranch,
+    fastForwardBranchRef,
+    FastForwardStatus,
+    getBranchCheckoutPath,
+    getBranchUpstreamConfig,
     gitBranchExistsAnywhere,
     gitRemoteBranchRef,
     getBranches,
@@ -318,6 +322,7 @@ export class RootRepository extends Repository {
         }
 
         if (await this.hasBranch(branchName)) {
+            await this.assertBranchNotCheckedOutElsewhere(branchName);
             await runGit(this.path, ['worktree', 'add', worktreePath, branchName]);
         } else {
             const remoteBranchRef = await gitRemoteBranchRef(this.path, branchName);
@@ -329,6 +334,22 @@ export class RootRepository extends Repository {
         }
 
         return this.getWorktree(branchName, temporary);
+    }
+
+    /**
+     * Throw an explicit error if the branch is checked out in a working tree other than its forge worktree
+     * (typically main/dev in the root repository): git does not allow a second worktree on the same branch.
+     */
+    async assertBranchNotCheckedOutElsewhere(branchName: string): Promise<void> {
+        const checkoutPath = await this.getBranchCheckoutPath(branchName);
+        if (!checkoutPath || path.resolve(checkoutPath) === path.resolve(this.getWorktreePath(branchName))) {
+            return;
+        }
+        throw new Error(
+            `Branch "${branchName}" is already checked out in ${checkoutPath} (repository ${this.name}): git does not allow a second worktree on it.\n` +
+                `You can still use "forge pull ${branchName}" / "forge push ${branchName}" without a workspace, ` +
+                `or free the branch first (e.g. "git -C ${checkoutPath} checkout --detach").`,
+        );
     }
 
     async getTemporaryWorktree(branchName: string, type: TemporaryFolderType): Promise<WorktreeRepository> {
@@ -392,6 +413,185 @@ export class RootRepository extends Repository {
                     console.log(`  Skipping orphaned worktree at ${wt.path} since it's not on the feature branch ${branchName}`);
                 }
             }
+        }
+    }
+
+    /**
+     * Path where the branch is currently checked out for this repository (root working tree or any worktree), or null.
+     */
+    async getBranchCheckoutPath(branchName: string): Promise<string | null> {
+        return getBranchCheckoutPath(this.path, branchName);
+    }
+
+    /**
+     * Push a branch from the root repository, whether it is checked out here, in a worktree, or nowhere.
+     * Refs are shared between all worktrees, so no checkout is needed: the branch is pushed explicitly by name.
+     * - Uses the configured upstream if any, otherwise creates it with `git push -u origin <branch>`.
+     * - With `force`, uses `--force-with-lease` (never a plain `--force`).
+     */
+    async pushBranch(branchName: string, options: { force?: boolean } = {}): Promise<GitOperationResult> {
+        const force = options.force ?? false;
+        try {
+            if (!(await this.hasBranch(branchName))) {
+                console.log(`ℹ️  ${this.name} has no local branch "${branchName}", skipping.`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'no local branch, skipped' };
+            }
+
+            const forceArgs = force ? ['--force-with-lease'] : [];
+            const upstreamConfig = await getBranchUpstreamConfig(this.path, branchName);
+
+            if (!upstreamConfig) {
+                if (!(await hasRemote(this.path, PUSH_DEFAULT_REMOTE))) {
+                    console.log(`❌ No upstream and no "${PUSH_DEFAULT_REMOTE}" remote configured for ${this.name}.`);
+                    return { repo: this.name, success: false, hasConflicts: false, note: `no ${PUSH_DEFAULT_REMOTE} remote` };
+                }
+                console.log(`Pushing ${branchName} to ${PUSH_DEFAULT_REMOTE} (creating remote branch)...`);
+                await runGit(this.path, ['push', ...forceArgs, '-u', PUSH_DEFAULT_REMOTE, branchName]);
+                console.log(`✅ Push successful for ${this.name}`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'remote branch created' };
+            }
+
+            const { ahead } = await getAheadBehind(this.path, branchName);
+            if (ahead === 0) {
+                console.log(`✅ ${this.name} is already up to date with ${upstreamConfig.remote}`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'up to date' };
+            }
+
+            console.log(`Pushing ${branchName}${force ? ' (force with lease)' : ''}...`);
+            try {
+                await runGit(this.path, [
+                    'push',
+                    ...forceArgs,
+                    upstreamConfig.remote,
+                    `refs/heads/${branchName}:${upstreamConfig.mergeRef}`,
+                ]);
+            } catch (error) {
+                if (!force) {
+                    console.log(
+                        `⚠️  Push rejected for ${this.name}? If the remote branch has new commits, run "forge pull ${branchName}" first.`,
+                    );
+                }
+                throw error;
+            }
+            console.log(`✅ Push successful for ${this.name}`);
+            return { repo: this.name, success: true, hasConflicts: false, note: force ? 'forced with lease' : undefined };
+        } catch (error) {
+            console.error(`❌ Error pushing ${this.name}:`, error instanceof Error ? error.message : error);
+            return { repo: this.name, success: false, hasConflicts: false };
+        }
+    }
+
+    /**
+     * Pull a branch from the root repository, whether it is checked out here, in a worktree, or nowhere.
+     * - Checked out somewhere: `git pull` in that working tree (must be clean). The checkout is never changed.
+     * - Checked out nowhere: fetch its remote and fast-forward the local ref (fails if the branch diverged).
+     */
+    async pullBranch(branchName: string): Promise<GitOperationResult> {
+        try {
+            if (!(await this.hasBranch(branchName))) {
+                console.log(`ℹ️  ${this.name} has no local branch "${branchName}", skipping.`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'no local branch, skipped' };
+            }
+
+            const checkoutPath = await this.getBranchCheckoutPath(branchName);
+            if (checkoutPath) {
+                return await this.pullInCheckout(branchName, checkoutPath);
+            }
+
+            const upstreamConfig = await getBranchUpstreamConfig(this.path, branchName);
+            if (!upstreamConfig) {
+                console.log(`❌ ${this.name}: branch "${branchName}" has no upstream configured.`);
+                return { repo: this.name, success: false, hasConflicts: false, note: 'no upstream' };
+            }
+
+            console.log(`Fetching ${upstreamConfig.remote} for ${this.name} ("${branchName}" is not checked out)...`);
+            await runGit(this.path, ['fetch', upstreamConfig.remote]);
+            const status = await fastForwardBranchRef(this.path, branchName);
+            return this.fastForwardResult(branchName, status);
+        } catch (error) {
+            console.error(`❌ Error pulling ${this.name}:`, error instanceof Error ? error.message : error);
+            return { repo: this.name, success: false, hasConflicts: false };
+        }
+    }
+
+    /**
+     * Fast-forward the protected branches (main, dev, ...) to their upstream, using already fetched remote refs.
+     * - Not checked out: the local ref is moved (fast-forward only).
+     * - Checked out in a clean working tree: `git merge --ff-only` there.
+     * - Checked out in a dirty working tree, diverged, or without upstream: left untouched.
+     */
+    async fastForwardProtectedBranches(): Promise<Array<{ branch: string; status: FastForwardStatus | 'dirty' }>> {
+        const results: Array<{ branch: string; status: FastForwardStatus | 'dirty' }> = [];
+        for (const branch of this.context.options.git.protectedBranches) {
+            if (!(await this.hasBranch(branch))) {
+                continue;
+            }
+            const checkoutPath = await this.getBranchCheckoutPath(branch);
+            if (!checkoutPath) {
+                results.push({ branch, status: await fastForwardBranchRef(this.path, branch) });
+                continue;
+            }
+            if (!(await getUpstreamBranch(this.path, branch))) {
+                results.push({ branch, status: 'no-upstream' });
+                continue;
+            }
+            const { ahead, behind } = await getAheadBehind(this.path, branch);
+            if (behind === 0) {
+                results.push({ branch, status: ahead === 0 ? 'up-to-date' : 'ahead' });
+            } else if (ahead > 0) {
+                results.push({ branch, status: 'diverged' });
+            } else if ((await getGitStatusPorcelain(checkoutPath)).length > 0) {
+                results.push({ branch, status: 'dirty' });
+            } else {
+                await runGit(checkoutPath, ['merge', '--ff-only', '--quiet', `${branch}@{u}`]);
+                results.push({ branch, status: 'updated' });
+            }
+        }
+        return results;
+    }
+
+    private async pullInCheckout(branchName: string, checkoutPath: string): Promise<GitOperationResult> {
+        const where = path.relative(this.context.rootDir, checkoutPath) || '.';
+        if ((await getGitStatusPorcelain(checkoutPath)).length > 0) {
+            console.log(
+                `⚠️  ${this.name}: "${branchName}" is checked out in ${where} with uncommitted changes. Commit or stash them first.`,
+            );
+            return { repo: this.name, success: false, hasConflicts: false, note: 'dirty' };
+        }
+        console.log(`Pulling ${branchName} in ${where}...`);
+        try {
+            await runGit(checkoutPath, ['pull']);
+            console.log(`✅ Pull successful for ${this.name}`);
+            return { repo: this.name, success: true, hasConflicts: false, note: `in ${where}` };
+        } catch (error) {
+            const status = await getGitStatusPorcelain(checkoutPath);
+            if (status.includes('UU ') || status.includes('AA ') || status.includes('DD ')) {
+                console.log(`⚠️  Pull conflicts detected in ${this.name}. Resolve them in: ${checkoutPath}`);
+                console.log(`After resolving, run: git merge --continue`);
+                return { repo: this.name, success: false, hasConflicts: true };
+            }
+            throw error;
+        }
+    }
+
+    private fastForwardResult(branchName: string, status: FastForwardStatus): GitOperationResult {
+        switch (status) {
+            case 'updated':
+                console.log(`✅ ${this.name}: "${branchName}" fast-forwarded`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'fast-forwarded' };
+            case 'up-to-date':
+                console.log(`✅ ${this.name}: "${branchName}" already up to date`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'up to date' };
+            case 'ahead':
+                console.log(`✅ ${this.name}: "${branchName}" is ahead of its upstream, nothing to pull`);
+                return { repo: this.name, success: true, hasConflicts: false, note: 'ahead of upstream' };
+            case 'diverged':
+                console.log(
+                    `⚠️  ${this.name}: "${branchName}" has diverged from its upstream and is not checked out. Check it out (or "forge start ${branchName}") to merge.`,
+                );
+                return { repo: this.name, success: false, hasConflicts: false, note: 'diverged' };
+            case 'no-upstream':
+                return { repo: this.name, success: false, hasConflicts: false, note: 'no upstream' };
         }
     }
 
@@ -518,101 +718,6 @@ export class WorktreeRepository extends Repository {
             }
         } catch (error) {
             console.error(`❌ Error rebasing ${this.name}:`, error);
-            return { repo: this.name, success: false, hasConflicts: false };
-        }
-    }
-
-    /**
-     * Pull the worktree's current branch from its remote tracking branch.
-     */
-    async pull(specsBranch: string): Promise<GitOperationResult> {
-        try {
-            if (await this.isDirty()) {
-                console.log(
-                    `⚠️  Worktree repository ${this.name} has uncommitted changes. Please commit or stash them before pulling.`,
-                );
-                return { repo: this.name, success: false, hasConflicts: false };
-            }
-
-            const currentBranch = await this.getCurrentBranch();
-            if (currentBranch !== specsBranch) {
-                console.log(`Checking out ${specsBranch}...`);
-                await checkoutBranch(this.path, specsBranch);
-            }
-
-            console.log(`Pulling ${specsBranch}...`);
-            try {
-                await runGit(this.path, ['pull']);
-                console.log(`✅ Pull successful for ${this.name}`);
-                return { repo: this.name, success: true, hasConflicts: false };
-            } catch (error) {
-                const status = await this.getGitStatus();
-                if (status.includes('UU ') || status.includes('AA ') || status.includes('DD ')) {
-                    console.log(`⚠️  Pull conflicts detected in worktree repository: ${this.name}`);
-                    console.log(`Please resolve conflicts manually in: ${this.path}`);
-                    console.log(`After resolving, run: git merge --continue`);
-                    return { repo: this.name, success: false, hasConflicts: true };
-                }
-                throw error;
-            }
-        } catch (error) {
-            console.error(`❌ Error pulling ${this.name}:`, error);
-            return { repo: this.name, success: false, hasConflicts: false };
-        }
-    }
-
-    /**
-     * Push the worktree's branch to its remote.
-     * - Uses the existing upstream if any, otherwise creates it with `git push -u origin <branch>`.
-     * - Does not require a clean worktree (only commits are pushed) and never checks out another branch.
-     * - With `force`, uses `--force-with-lease` (never a plain `--force`).
-     */
-    async push(branchName: string, options: { force?: boolean } = {}): Promise<GitOperationResult> {
-        const force = options.force ?? false;
-        try {
-            const currentBranch = await this.getCurrentBranch();
-            if (currentBranch !== branchName) {
-                console.log(
-                    `⚠️  Worktree repository ${this.name} is on "${currentBranch ?? 'detached HEAD'}" instead of "${branchName}". Run "forge resync ${branchName}" first.`,
-                );
-                return { repo: this.name, success: false, hasConflicts: false, note: 'wrong branch' };
-            }
-
-            const forceArgs = force ? ['--force-with-lease'] : [];
-            const upstream = await getUpstreamBranch(this.path);
-
-            if (!upstream) {
-                if (!(await hasRemote(this.path, PUSH_DEFAULT_REMOTE))) {
-                    console.log(`❌ No upstream and no "${PUSH_DEFAULT_REMOTE}" remote configured for ${this.name}.`);
-                    return { repo: this.name, success: false, hasConflicts: false, note: `no ${PUSH_DEFAULT_REMOTE} remote` };
-                }
-                console.log(`Pushing ${branchName} to ${PUSH_DEFAULT_REMOTE} (creating remote branch)...`);
-                await runGit(this.path, ['push', ...forceArgs, '-u', PUSH_DEFAULT_REMOTE, branchName]);
-                console.log(`✅ Push successful for ${this.name}`);
-                return { repo: this.name, success: true, hasConflicts: false, note: 'remote branch created' };
-            }
-
-            const { ahead } = await getAheadBehind(this.path);
-            if (ahead === 0) {
-                console.log(`✅ ${this.name} is already up to date with ${upstream}`);
-                return { repo: this.name, success: true, hasConflicts: false, note: 'up to date' };
-            }
-
-            console.log(`Pushing ${branchName}${force ? ' (force with lease)' : ''}...`);
-            try {
-                await runGit(this.path, ['push', ...forceArgs]);
-            } catch (error) {
-                if (!force) {
-                    console.log(
-                        `⚠️  Push rejected for ${this.name}? If the remote branch has new commits, run "forge pull" first; after a "forge rebase", use "forge push --force".`,
-                    );
-                }
-                throw error;
-            }
-            console.log(`✅ Push successful for ${this.name}`);
-            return { repo: this.name, success: true, hasConflicts: false, note: force ? 'forced with lease' : undefined };
-        } catch (error) {
-            console.error(`❌ Error pushing ${this.name}:`, error instanceof Error ? error.message : error);
             return { repo: this.name, success: false, hasConflicts: false };
         }
     }
