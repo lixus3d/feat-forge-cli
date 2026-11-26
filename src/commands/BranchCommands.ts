@@ -1,15 +1,26 @@
 import { getDefaultIDECommand, getWorkspaceFileName } from '@/lib/ide';
 import { execa } from 'execa';
+import path from 'path';
 import { BranchContext } from '../foundation/BranchContext';
 import { ForgeNotInActiveBranchError } from '../foundation/errors';
 import { RepositoryStatus, RootRepository, WorktreeRepository } from '../foundation/Repository';
 import { RepoName } from '../foundation/types/RepositoryInfos';
 import { ensureDir, pathExists } from '../lib/fs';
-import { checkoutBranch, displayOperationSummary, gitBranchExists, GitOperation, GitOperationResult } from '../lib/git';
+import {
+    checkoutBranch,
+    displayOperationSummary,
+    getGitStatusPorcelain,
+    gitBranchExists,
+    GitOperation,
+    GitOperationResult,
+} from '../lib/git';
 import { promptChoice, promptConfirm, promptForBranch } from '../lib/prompt';
 import { confirmSlugOrThrow } from '../lib/slug';
 import { AbstractCommands } from './AbstractCommands';
 import { ServicesCommands } from './ServicesCommands';
+
+/** A working tree with uncommitted changes, as displayed before a push */
+type DirtyCheckout = { name: string; getGitStatus(): Promise<string> };
 
 export class BranchCommands extends AbstractCommands {
     // ============================================================================
@@ -353,35 +364,45 @@ export class BranchCommands extends AbstractCommands {
         await this.displayRebaseSummary(results, branchName);
     }
 
+    /**
+     * Pull a branch across all repos.
+     * Always goes through the root repositories (refs are shared by all worktrees), so it works the same whether
+     * the branch has a workspace, is checked out in the root repositories (typically main/dev), or nowhere.
+     * The checkout of a working tree is never changed.
+     */
     async pull(rawSlug?: string): Promise<void> {
         const branchName = await this.resolveBranchNameOrPrompt(rawSlug, 'Select the branch to pull:');
         if (!branchName) {
             return;
         }
 
-        let branchContext: BranchContext;
-        if (await this.context.isBranchActive(branchName)) {
-            branchContext = await this.context.loadBranchContext(branchName);
-        } else {
-            branchContext = this.context.makeBranchContext(branchName);
+        const branchContext = (await this.context.isBranchActive(branchName))
+            ? await this.context.loadBranchContext(branchName)
+            : null;
+        if (branchContext) {
+            await this.verifyCleanBranch(branchContext);
+            await this.warnWorktreesOnWrongBranch(branchContext);
         }
+        const repositories = this.getTargetRootRepositories(branchContext);
 
-        await this.verifyCleanBranch(branchContext);
-
-        console.log(`\nPulling branch: ${branchName}\n`);
+        console.log(`\nPulling branch: ${branchName}${branchContext ? '' : ' (no workspace, using root repositories)'}\n`);
         const results: GitOperationResult[] = [];
-        for (const repo of branchContext.repositories) {
-            results.push(await repo.pull(branchName));
+        for (const repo of repositories) {
+            results.push(await repo.pullBranch(branchName));
         }
 
         displayOperationSummary(results, GitOperation.Pull);
+        if (results.some((result) => !result.success)) {
+            process.exitCode = 1;
+        }
     }
 
     /**
-     * Push a branch across all repos of its workspace.
-     * - From a workspace folder, the branch is detected automatically.
-     * - From the project root (or outside any workspace), the user picks one of the active branches.
-     * - A dirty worktree does not block the push, but requires an explicit confirmation.
+     * Push a branch across all repos.
+     * - From a workspace folder or a root repository, the branch is detected automatically.
+     * - From the project root, the user picks one of the active branches or protected branches.
+     * - A dirty working tree does not block the push, but requires an explicit confirmation.
+     * Always goes through the root repositories: the branch is pushed by name, no checkout is needed.
      */
     async push(rawSlug?: string, options: { force?: boolean } = {}): Promise<void> {
         const force = options.force ?? false;
@@ -390,15 +411,18 @@ export class BranchCommands extends AbstractCommands {
             return;
         }
 
-        if (!(await this.context.isBranchActive(branchName))) {
-            throw new Error(`Branch "${branchName}" is not active (no workspace found). Run "forge start ${branchName}" first.`);
-        }
-        const branchContext = await this.context.loadBranchContext(branchName);
-        const repositories = branchContext.repositories;
+        const branchContext = (await this.context.isBranchActive(branchName))
+            ? await this.context.loadBranchContext(branchName)
+            : null;
+        const repositories = this.getTargetRootRepositories(branchContext);
 
-        if (!(await this.confirmPushWithDirtyRepositories(branchContext))) {
+        const dirtyRepos = branchContext ? await branchContext.getDirtyRepositories() : await this.getDirtyCheckouts(branchName);
+        if (!(await this.confirmPushWithDirtyRepositories(dirtyRepos))) {
             console.log('Push aborted.');
             return;
+        }
+        if (branchContext) {
+            await this.warnWorktreesOnWrongBranch(branchContext);
         }
 
         if (force) {
@@ -412,11 +436,13 @@ export class BranchCommands extends AbstractCommands {
             }
         }
 
-        console.log(`\nPushing branch: ${branchName}${force ? ' (force with lease)' : ''}\n`);
+        console.log(
+            `\nPushing branch: ${branchName}${force ? ' (force with lease)' : ''}${branchContext ? '' : ' (no workspace, using root repositories)'}\n`,
+        );
         const results: GitOperationResult[] = [];
         // Sequential push for readable logs and sequential credential prompts.
         for (const repo of repositories) {
-            results.push(await repo.push(branchName, { force }));
+            results.push(await repo.pushBranch(branchName, { force }));
         }
 
         displayOperationSummary(results, GitOperation.Push);
@@ -433,7 +459,8 @@ export class BranchCommands extends AbstractCommands {
      * Resolve the branch to work on:
      * 1. explicit slug,
      * 2. nearest workspace (when run from inside a workspace),
-     * 3. otherwise prompt among active branches.
+     * 3. current branch of the root repository (when run from inside one),
+     * 4. otherwise prompt among active and protected branches.
      *
      * @returns the branch name, or null if there is no active branch to choose from
      */
@@ -452,15 +479,35 @@ export class BranchCommands extends AbstractCommands {
             }
         }
 
-        const activeBranches = await this.context.loadActiveBranchesContexts();
-        if (activeBranches.length === 0) {
+        // Run from inside a root repository: use the branch checked out there (typically main/dev)
+        const cwd = path.resolve(process.cwd());
+        const rootRepo = this.context.repositories.find((repo) => cwd === repo.path || cwd.startsWith(repo.path + path.sep));
+        if (rootRepo) {
+            const currentBranch = await rootRepo.getCurrentBranch();
+            if (currentBranch) {
+                console.log(`Detected branch: ${currentBranch} (root repository ${rootRepo.name})`);
+                return currentBranch;
+            }
+        }
+
+        const activeBranches = (await this.context.loadActiveBranchesContexts()).map((branchContext) => branchContext.branchName);
+        // Protected branches (main, dev, ...) can be pulled/pushed without workspace
+        const mainRepoBranches = (await this.context.mainRepo.getBranches()) ?? [];
+        const protectedBranches = this.context.options.git.protectedBranches.filter(
+            (branch) => mainRepoBranches.includes(branch) && !activeBranches.includes(branch),
+        );
+        const choices = [...activeBranches, ...protectedBranches];
+        if (choices.length === 0) {
             console.log('No active branch found. Use "forge start <branch>" to start working on a branch.');
             return null;
         }
 
         return promptChoice(
             promptMessage,
-            activeBranches.map((branchContext) => ({ name: branchContext.branchName, value: branchContext.branchName })),
+            choices.map((branchName) => ({
+                name: activeBranches.includes(branchName) ? branchName : `${branchName} (no workspace)`,
+                value: branchName,
+            })),
         );
     }
 
@@ -469,8 +516,7 @@ export class BranchCommands extends AbstractCommands {
      *
      * @returns true if the push can proceed
      */
-    private async confirmPushWithDirtyRepositories(branchContext: BranchContext): Promise<boolean> {
-        const dirtyRepos = await branchContext.getDirtyRepositories();
+    private async confirmPushWithDirtyRepositories(dirtyRepos: DirtyCheckout[]): Promise<boolean> {
         if (dirtyRepos.length === 0) {
             return true;
         }
@@ -485,6 +531,48 @@ export class BranchCommands extends AbstractCommands {
         console.log('');
 
         return promptConfirm('Push anyway?', false);
+    }
+
+    /**
+     * Root repositories targeted by a pull/push: only those of the workspace when the branch is active
+     * (some configured repos may not be part of it), all configured repositories otherwise.
+     */
+    private getTargetRootRepositories(branchContext: BranchContext | null): RootRepository[] {
+        return branchContext ? branchContext.repositories.map((repo) => repo.rootRepository) : this.context.repositories;
+    }
+
+    /**
+     * Warn (without blocking) about workspace worktrees manually switched to another branch:
+     * their commits on that other branch are not part of the pull/push.
+     */
+    private async warnWorktreesOnWrongBranch(branchContext: BranchContext): Promise<void> {
+        for (const repo of branchContext.repositories) {
+            const currentBranch = await repo.getCurrentBranch();
+            if (currentBranch !== branchContext.branchName) {
+                console.log(
+                    `⚠️  ${repo.name}: worktree is on "${currentBranch ?? 'detached HEAD'}" instead of "${branchContext.branchName}" (run "forge resync ${branchContext.branchName}" to fix it). "${branchContext.branchName}" is still handled by name.`,
+                );
+            }
+        }
+    }
+
+    /**
+     * For a branch without workspace: the working trees (root repository or unmanaged worktree)
+     * where it is checked out with uncommitted changes.
+     */
+    private async getDirtyCheckouts(branchName: string): Promise<DirtyCheckout[]> {
+        const dirty: DirtyCheckout[] = [];
+        for (const repo of this.context.repositories) {
+            const checkoutPath = await repo.getBranchCheckoutPath(branchName);
+            if (!checkoutPath) {
+                continue;
+            }
+            const status = await getGitStatusPorcelain(checkoutPath);
+            if (status.length > 0) {
+                dirty.push({ name: repo.name, getGitStatus: async () => status });
+            }
+        }
+        return dirty;
     }
 
     /**
@@ -503,6 +591,16 @@ export class BranchCommands extends AbstractCommands {
         } else {
             // The branch is not active yet, create an empty context to prepare the branch (this will create the spec files in a temporary location and merge them to the main branch, but won't create the worktrees yet)
             branchContext = this.context.makeBranchContext(branchName);
+        }
+
+        // Protected branches (main, dev, ...) are long-lived: no spec files, no forge commit on them
+        if (branchContext.isProtectedBranch()) {
+            if (this.context.options.process.manageGitIgnore) {
+                for (const repo of this.context.repositories) {
+                    await branchContext.ensureLocalGitExclude(repo);
+                }
+            }
+            return branchContext;
         }
 
         // Ensure branch spec files exist in the main repo branch, creating them in a temporary worktree if needed

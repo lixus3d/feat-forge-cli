@@ -48,11 +48,14 @@ export async function runGit(repoRoot: string, args: string[]): Promise<void> {
 }
 
 /**
- * Return the upstream ref (e.g. "origin/feature/x") of the current branch, or null if none is configured.
+ * Return the upstream ref (e.g. "origin/feature/x") of a branch, or null if none is configured.
+ * Without `branchName`, the current branch (HEAD) is used.
  */
-export async function getUpstreamBranch(repoRoot: string): Promise<string | null> {
+export async function getUpstreamBranch(repoRoot: string, branchName?: string): Promise<string | null> {
     try {
-        const result = await execa('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: repoRoot });
+        const result = await execa('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', `${branchName ?? ''}@{u}`], {
+            cwd: repoRoot,
+        });
         return result.stdout.trim() || null;
     } catch {
         return null;
@@ -60,10 +63,29 @@ export async function getUpstreamBranch(repoRoot: string): Promise<string | null
 }
 
 /**
- * Count commits ahead/behind of the current branch compared to its upstream (based on local remote refs).
+ * Return the upstream configuration of a local branch (remote name and remote ref), or null if none is configured.
+ * Example: { remote: 'origin', mergeRef: 'refs/heads/main' }
  */
-export async function getAheadBehind(repoRoot: string): Promise<{ ahead: number; behind: number }> {
-    const result = await execa('git', ['rev-list', '--left-right', '--count', 'HEAD...@{u}'], { cwd: repoRoot });
+export async function getBranchUpstreamConfig(
+    repoRoot: string,
+    branchName: string,
+): Promise<{ remote: string; mergeRef: string } | null> {
+    try {
+        const remote = (await execa('git', ['config', '--get', `branch.${branchName}.remote`], { cwd: repoRoot })).stdout.trim();
+        const mergeRef = (await execa('git', ['config', '--get', `branch.${branchName}.merge`], { cwd: repoRoot })).stdout.trim();
+        return remote && mergeRef ? { remote, mergeRef } : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Count commits ahead/behind of a branch compared to its upstream (based on local remote refs).
+ * Without `branchName`, the current branch (HEAD) is used.
+ */
+export async function getAheadBehind(repoRoot: string, branchName?: string): Promise<{ ahead: number; behind: number }> {
+    const range = branchName ? `${branchName}...${branchName}@{u}` : 'HEAD...@{u}';
+    const result = await execa('git', ['rev-list', '--left-right', '--count', range], { cwd: repoRoot });
     const [ahead, behind] = result.stdout
         .trim()
         .split(/\s+/)
@@ -247,6 +269,54 @@ export async function getGitWorktrees(repoRoot: string): Promise<Array<GitWorktr
 }
 
 /**
+ * Return the absolute path of the git directory shared by all worktrees of a repository (e.g. "<repo>/.git").
+ */
+export async function getGitCommonDir(repoRoot: string): Promise<string> {
+    const result = await execa('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: repoRoot });
+    return result.stdout.trim();
+}
+
+/**
+ * Return the path of the worktree (main working tree included) where a branch is checked out, or null.
+ */
+export async function getBranchCheckoutPath(repoRoot: string, branchName: string): Promise<string | null> {
+    const worktrees = (await getGitWorktrees(repoRoot)) ?? [];
+    return worktrees.find((wt) => wt.branch === branchName)?.path ?? null;
+}
+
+export type FastForwardStatus = 'updated' | 'up-to-date' | 'ahead' | 'diverged' | 'no-upstream';
+
+/**
+ * Fast-forward a local branch that is NOT checked out to its upstream, using the already fetched remote refs.
+ * Only moves the ref when the branch is strictly behind (never rewrites local commits).
+ * Note: must not be used on a checked out branch (the working tree would not follow the ref).
+ */
+export async function fastForwardBranchRef(repoRoot: string, branchName: string): Promise<FastForwardStatus> {
+    const upstream = await getUpstreamBranch(repoRoot, branchName);
+    if (!upstream) {
+        return 'no-upstream';
+    }
+    const { ahead, behind } = await getAheadBehind(repoRoot, branchName);
+    if (behind === 0) {
+        return ahead === 0 ? 'up-to-date' : 'ahead';
+    }
+    if (ahead > 0) {
+        return 'diverged';
+    }
+    const oldSha = (await execa('git', ['rev-parse', `refs/heads/${branchName}`], { cwd: repoRoot })).stdout.trim();
+    const newSha = (await execa('git', ['rev-parse', `${branchName}@{u}`], { cwd: repoRoot })).stdout.trim();
+    // Passing the old value makes update-ref atomic: it fails if the branch moved in the meantime
+    await execa(
+        'git',
+        ['update-ref', '-m', `forge: fast-forward ${branchName} to ${upstream}`, `refs/heads/${branchName}`, newSha, oldSha],
+        {
+            cwd: repoRoot,
+        },
+    );
+    return 'updated';
+}
+
+/**
  * Display summary of git operation results.
  *
  * @param results - Array of operation results
@@ -278,7 +348,7 @@ export function displayOperationSummary(
 
     if (failed.length > 0) {
         console.log(`\n❌ Failed ${operationType}s (${failed.length}):`);
-        failed.forEach((r) => console.log(`   - ${r.repo}`));
+        failed.forEach((r) => console.log(`   - ${r.repo}${r.note ? ` (${r.note})` : ''}`));
     }
 
     // Summary message

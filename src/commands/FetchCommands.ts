@@ -1,6 +1,14 @@
 import { fetchAllRemotes } from '@/lib/git';
 import { AbstractCommands } from './AbstractCommands';
 
+const FAST_FORWARD_LABELS: Record<string, string> = {
+    updated: 'fast-forwarded',
+    ahead: 'ahead of upstream, not pushed',
+    diverged: 'diverged from upstream, not updated',
+    dirty: 'checked out with uncommitted changes, not updated',
+    'no-upstream': 'no upstream',
+};
+
 export class FetchCommands extends AbstractCommands {
     async fetch(): Promise<void> {
         const repositories = this.context.repositories;
@@ -18,7 +26,13 @@ export class FetchCommands extends AbstractCommands {
             repositories.map(async (repository) => {
                 console.log(`  ↻ ${repository.name}: fetch`);
                 await fetchAllRemotes(repository.path);
-                console.log(`  ✓ ${repository.name}: done`);
+                // Keep long-lived branches (main, dev, ...) up to date locally, so that new branches and rebases
+                // start from the remote state even when those branches have no workspace.
+                const fastForwards = (await repository.fastForwardProtectedBranches()) ?? [];
+                const details = fastForwards
+                    .filter(({ status }) => status !== 'up-to-date')
+                    .map(({ branch, status }) => `${branch}: ${FAST_FORWARD_LABELS[status] ?? status}`);
+                console.log(`  ✓ ${repository.name}: done${details.length > 0 ? ` (${details.join(', ')})` : ''}`);
             }),
         );
 
