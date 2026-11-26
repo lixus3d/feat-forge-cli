@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.6.0...v1.7.0) (2026-11-26)
+
+
+### Features
+
+* pull/push branches without workspace and keep protected branche… ([e25200d](https://github.com/lixus3d/feat-forge-cli/commit/e25200d2fb8231c26f9f8aae7d9a5d9c0c84943e))
+* pull/push branches without workspace and keep protected branches up to date ([4023e6a](https://github.com/lixus3d/feat-forge-cli/commit/4023e6a83e3babc829da07e12c33ef95fe754fc2))
+
 ## [1.6.0](https://github.com/lixus3d/feat-forge-cli/compare/v1.5.0...v1.6.0) (2026-11-25)
 
 
